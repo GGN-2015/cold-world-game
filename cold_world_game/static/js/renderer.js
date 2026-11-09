@@ -1,5 +1,6 @@
 import { buildings, distance, tileAt } from './catalog.js';
 import { t } from './i18n.js';
+import { ActorAnimator } from './animation.js';
 
 export async function loadAssets() {
   const response = await fetch('/static/assets/manifest.json');
@@ -12,7 +13,7 @@ export async function loadAssets() {
     await image.decode();
     images.set(name, image);
   }));
-  return images;
+  return { images, animations: manifest.animations || {} };
 }
 
 function demoWorld() {
@@ -41,10 +42,11 @@ function demoWorld() {
 }
 
 export class WorldRenderer {
-  constructor(canvas, images) {
+  constructor(canvas, images, animations = {}) {
     this.canvas = canvas;
     this.context = canvas.getContext('2d', { alpha: false });
     this.images = images;
+    this.animator = new ActorAnimator(animations);
     this.state = null;
     this.demo = demoWorld();
     this.camera = { x: -3, y: 1 };
@@ -76,12 +78,15 @@ export class WorldRenderer {
     if (first) {
       this.camera = { x: state.you.x, y: state.you.y };
       this.positions.clear();
+      this.animator.reset();
     }
+    this.animator.observe(state);
   }
 
   reset() {
     this.state = null;
     this.positions.clear();
+    this.animator.reset();
     this.camera = { x: -3, y: 1 };
   }
 
@@ -94,20 +99,28 @@ export class WorldRenderer {
     return { x: (horizontal - this.camera.x) * this.scale + this.width / 2, y: (vertical - this.camera.y) * this.scale + this.height / 2 };
   }
 
-  sprite(name, horizontal, vertical, width = 1, height = width, offset = 0) {
+  sprite(name, horizontal, vertical, width = 1, height = width, offset = 0, frame = null) {
     const image = this.images.get(name);
     if (!image) return;
     const point = this.screenPoint(horizontal, vertical);
-    this.context.drawImage(image, Math.round(point.x - width * this.scale / 2), Math.round(point.y - (height / 2 + offset) * this.scale), Math.ceil(width * this.scale), Math.ceil(height * this.scale));
+    const bounds = [Math.round(point.x - width * this.scale / 2), Math.round(point.y - (height / 2 + offset) * this.scale), Math.ceil(width * this.scale), Math.ceil(height * this.scale)];
+    if (frame) this.context.drawImage(image, frame.x, frame.y, frame.width, frame.height, ...bounds);
+    else this.context.drawImage(image, ...bounds);
+  }
+
+  actorSprite(kind, entity, width, height, offset) {
+    const frame = this.animator.frame(kind, entity, entity.renderDistance);
+    this.sprite(frame?.asset || kind, entity.x, entity.y, width, height, offset, frame);
   }
 
   smooth(entity, amount) {
     const previous = this.positions.get(entity.id) || { x: entity.x, y: entity.y };
     if (distance(previous, entity) > 5) Object.assign(previous, { x: entity.x, y: entity.y });
+    const displacement = distance(previous, entity) * amount;
     previous.x += (entity.x - previous.x) * amount;
     previous.y += (entity.y - previous.y) * amount;
     this.positions.set(entity.id, previous);
-    return { ...entity, ...previous };
+    return { ...entity, ...previous, renderDistance: displacement };
   }
 
   findTarget() {
@@ -132,6 +145,7 @@ export class WorldRenderer {
 
   draw(delta) {
     this.elapsed += delta;
+    this.animator.advance(delta);
     this.fps += (1 / Math.max(delta, 0.001) - this.fps) * 0.04;
     const state = this.state || this.demo;
     const amount = 1 - Math.exp(-delta * 19);
@@ -174,22 +188,14 @@ export class WorldRenderer {
         if (entity.monster_demolition) this.label(t('world.demolition'), entity.x, entity.y - 1, '#df715b', 10);
       } else if (entity.category === 'player') {
         const owned = entity.id === state.you.id;
-        const previous = this.facing?.get(entity.id) ?? entity.y;
-        this.facing ||= new Map();
-        const backwards = entity.y < previous - 0.001;
-        if (Math.abs(entity.y - previous) > 0.001) {
-          this.directions ||= new Map();
-          this.directions.set(entity.id, backwards);
-        }
-        this.facing.set(entity.id, entity.y);
-        const sprite = entity.downed ? 'player_downed' : `player${owned ? '' : '_other'}${this.directions?.get(entity.id) ? '_back' : ''}`;
-        this.sprite(sprite, entity.x, entity.y, entity.downed ? 1.25 : 1.1, entity.downed ? 1.25 : 1.45, entity.downed ? 0 : 0.25);
+        if (entity.downed) this.sprite('player_downed', entity.x, entity.y, 1.25);
+        else this.actorSprite(owned ? 'player' : 'player_other', entity, 1.1, 1.45, 0.25);
         if (this.state) {
           this.label(this.state ? entity.id : t('world.traveler'), entity.x, entity.y - 1.16, owned ? '#f4c886' : '#eff9f7', 11);
           if (!owned) this.bar(entity.x, entity.y - 0.94, entity.temperature / 36, '#8fcede', 0.7);
         }
       } else {
-        this.sprite(entity.big ? 'monster_big' : 'monster_small', entity.x, entity.y, entity.big ? 1.6 : 1.1, entity.big ? 1.9 : 1.25, entity.big ? 0.3 : 0.13);
+        this.actorSprite(entity.big ? 'monster_big' : 'monster_small', entity, entity.big ? 1.6 : 1.1, entity.big ? 1.9 : 1.25, entity.big ? 0.3 : 0.13);
         this.bar(entity.x, entity.y - (entity.big ? 1.2 : 0.8), entity.hp / (entity.big ? 50 : 10), '#dc8372', entity.big ? 1 : 0.65);
       }
     }

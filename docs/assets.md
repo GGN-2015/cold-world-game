@@ -2,18 +2,20 @@
 
 ## 可直接替换的贴图
 
-全部 42 张贴图位于 `cold_world_game/static/assets/`，是已经导出的真实 PNG 文件，不依赖外部图床或在线图像服务。当前美术使用手工编排的像素图样和统一色板生成，无第三方素材依赖。
+全部 46 张贴图位于 `cold_world_game/static/assets/`，包含原有 42 张静态贴图和新增 4 张角色动画图集，是已经导出的真实 PNG 文件，不依赖外部图床或在线图像服务。当前美术使用手工编排的像素图样和统一色板生成，无第三方素材依赖。
 
-每张图片为 96 × 96 像素，原始图样按 32 × 32 像素编排，再最近邻放大 3 倍。除雪地外使用透明 RGBA 背景；画面通过 Canvas 2D 绘制，关闭平滑插值。世界中的大小和落脚位置由渲染器决定，而不是图片像素尺寸。
+静态图片为 96 × 96 像素，动画图集为 480 × 384 像素，每帧仍为 96 × 96。原始图样按每帧 32 × 32 像素编排，再最近邻放大 3 倍。除雪地外使用透明 RGBA 背景；画面通过 Canvas 2D 绘制，关闭平滑插值。世界中的大小和落脚位置由渲染器决定，而不是图片像素尺寸。
 
 | 类别 | PNG 文件 |
 | --- | --- |
 | 雪地 | `snow_0.png`、`snow_1.png`、`snow_2.png` |
 | 场景与建筑 | `tree.png`、`wall.png`、`floor.png`、`fence.png`、`chest.png` |
 | 篝火 | `campfire.png`（未点燃）、`campfire_lit.png`（燃烧） |
-| 自己与其他玩家 | `player.png`、`player_back.png`、`player_other.png`、`player_other_back.png` |
+| 自己与其他玩家四向动画 | `player_motion.png`、`player_other_motion.png` |
+| 玩家旧版静态图（保留） | `player.png`、`player_back.png`、`player_other.png`、`player_other_back.png` |
 | 倒地玩家 | `player_downed.png` |
-| 怪物 | `monster_small.png`、`monster_big.png` |
+| 怪物四向动画 | `monster_small_motion.png`、`monster_big_motion.png` |
+| 怪物旧版静态图（保留） | `monster_small.png`、`monster_big.png` |
 | 材料与工具 | `wood.png`、`axe.png`、`lighter.png`、`matches.png` |
 | 枪械 | `handgun.png`、`shotgun.png`、`rifle.png` |
 | 液体火种 | `gasoline.png`、`diesel.png`、`kerosene.png` |
@@ -22,13 +24,30 @@
 
 木墙和柱子共用 `wall.png`；`wood.png` 对应配方中的“木材”，不是木地板 `floor.png`。
 
-替换时保留文件名即可，无需改 Python 或 JavaScript。建议保持 96 × 96、透明背景和当前图像的底部落脚位置；更高分辨率图片也会缩放到原来的世界尺寸。替换后强制刷新浏览器，避免使用缓存。不要把不透明背景色画进角色、树木或建筑贴图。
+替换时保留文件名即可，无需改 Python 或 JavaScript。静态贴图建议保持 96 × 96、透明背景和当前图像的底部落脚位置；更高分辨率静态图片也会缩放到原来的世界尺寸。动画图集必须遵循下方的格子布局，改变单帧尺寸时同步修改清单。替换后强制刷新浏览器，避免使用缓存。不要把不透明背景色画进角色、树木或建筑贴图。
 
-`manifest.json` 是渲染器的预加载清单，记录资源名、文件名与尺寸。仅替换现有文件不需要修改清单；增加新资源时需登记清单，并按需要修改渲染或物品目录代码。物品栏直接按物品 kind 寻找同名 PNG，因此不建议仅在清单中更改现有文件名。
+`manifest.json` 是渲染器的预加载清单，记录资源名、文件名、尺寸和 `animations` 动画配置。按原尺寸替换现有文件不需要修改清单；增加新资源时需登记清单，并按需要修改渲染或物品目录代码。物品栏直接按物品 kind 寻找同名 PNG，因此不建议仅在清单中更改现有文件名。
+
+## 四向立绘与跑动差分
+
+四套图集分别对应自己（橙色外套）、其他玩家（蓝色外套）、小怪和大怪，每套包含 20 个差分，共 80 个姿态。每张图集是 **5 列 × 4 行**，从左上角开始，无间距或边框：
+
+| 行（从 0 开始） | 方向 | 列 0 | 列 1～4 |
+| --- | --- | --- | --- |
+| 0 | 下 `down` | 向下站姿 | 向下跑动 4 帧 |
+| 1 | 左 `left` | 向左站姿 | 向左跑动 4 帧 |
+| 2 | 右 `right` | 向右站姿 | 向右跑动 4 帧 |
+| 3 | 上 `up` | 向上站姿 | 向上跑动 4 帧 |
+
+跑动帧实际改变摆臂、迈腿与身体姿态，不是只移动整张站姿图。各帧保留一致的落脚基准和透明留白；左右使用侧面轮廓，上下分别呈现背部与正面。倒地仍使用独立的 `player_downed.png`。
+
+动画由服务器快照中的实际位移决定，不根据按键或鼠标朝向假定正在移动。停止后回到最后朝向的站姿，碰墙时不会原地跑，失温倒地不播放跑动。斜向运动按主轴选择朝向，接近对角线时保留当前匹配方向，避免抖动。新出现的角色、重新连接和大幅位置跳变不会被当成跑动；暂停或连续 0.3 秒渲染时间没有新快照时回到站姿。
+
+跑动帧按画面实际行进距离推进，与渲染帧率无关，受冷或饥饿减速时动画也随之放慢。`animations` 中的 `stride` 是一个完整跑动循环对应的格数：玩家为 1.5，小怪为 1，大怪为 1.35。角色移动速度和所有服务器判定保持不变；这些参数只调整视觉步频。`frame_width` / `frame_height` 指单帧像素尺寸，`directions` 指行序，`idle_frame` 和 `walk_frames` 指列号。
 
 ## 修改源图样
 
-源脚本为 `tools/generate_assets.py`，色板位于 `PALETTE`，每类素材由对应绘图函数生成。它只在重新导出美术时需要 Pillow，游戏运行不需要 Pillow：
+源脚本为 `tools/generate_assets.py`，色板位于 `PALETTE`，每类素材由对应绘图函数生成。角色差分由 `traveler_frame`、`monster_frame` 绘制，`WALK_POSES` 定义站立与四个跑动姿态，`actor_animations` 组装图集并写入动画配置。它只在重新导出美术时需要 Pillow，游戏运行不需要 Pillow：
 
 ```sh
 uv run --with pillow python tools/generate_assets.py
@@ -43,6 +62,7 @@ Windows 与 Linux 命令相同，脚本根据自己的路径定位项目，不�
 - `static/js/game.js`：初始化、按键与鼠标、连接事件和动画循环。
 - `static/js/network.js`：WebSocket 握手、命令确认、超时与重连。
 - `static/js/renderer.js`：雪地场景、PNG 绘制、角色插值、光照与放置预览。
+- `static/js/animation.js`：玩家与怪物的四向朝向、按实际行进距离推进的跑动帧、站立/倒地/暂停处理及逐角色动画状态清理。
 - `static/js/ui.js`：独立 30 格背包、10 格物品栏、背包与合成双栏面板、拖放、箱子、篝火与提示。操作界面相对于整个浏览器窗口布局，不受雪原画面宽高比限制，小屏可滚动查看全部格子与配方。
 - `static/js/catalog.js`：按当前语言提供物品名、季节、物品详情与错误提示，以及贴图路径。
 - `static/js/i18n.js`：中英双语文案、登录页及游戏内语言切换、本机偏好保存与页面属性翻译。每个文案键对应 `[中文, English]`，新增界面文案应在这里同时补齐两种语言；`data-i18n-html` 只用于字典内可信的静态富文本，不得插入玩家输入或服务端文本。

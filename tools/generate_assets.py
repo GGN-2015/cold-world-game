@@ -21,6 +21,9 @@ PALETTE = {
     "orange": "#d7784c",
 }
 ASSETS = {}
+ANIMATIONS = {}
+ACTOR_DIRECTIONS = ("down", "left", "right", "up")
+WALK_POSES = ((0, 0, 0), (3, -2, 0), (1, 0, -1), (-3, 2, 0), (-1, 1, -1))
 
 
 def canvas():
@@ -29,8 +32,9 @@ def canvas():
 
 
 def save(name, image):
-    image.resize((96, 96), Image.Resampling.NEAREST).save(DESTINATION / f"{name}.png", optimize=True)
-    ASSETS[name] = {"file": f"{name}.png", "width": 96, "height": 96}
+    width, height = image.width * 3, image.height * 3
+    image.resize((width, height), Image.Resampling.NEAREST).save(DESTINATION / f"{name}.png", optimize=True)
+    ASSETS[name] = {"file": f"{name}.png", "width": width, "height": height}
 
 
 def snow():
@@ -193,6 +197,163 @@ def monsters():
         save("monster_big" if big else "monster_small", image)
 
 
+def traveler_frame(coat, direction, pose):
+    stride, swing, lift = WALK_POSES[pose]
+    image, drawing = canvas()
+    drawing.ellipse((7, 27, 26, 30), fill="#4d78876b")
+    body = Image.new("RGBA", (32, 32))
+    drawing = ImageDraw.Draw(body)
+    if direction in ("left", "right"):
+        drawing.rectangle((12 - stride, 22, 16 - stride, 28), fill=PALETTE["outline"])
+        drawing.rectangle((14 + stride, 22, 18 + stride, 28), fill=PALETTE["outline"])
+        drawing.rectangle((13 - stride, 23, 15 - stride, 25), fill="#42636c")
+        drawing.rectangle((15 + stride, 23, 17 + stride, 26), fill="#6d7b79")
+        drawing.rectangle((16 + stride, 27, 20 + stride, 28), fill=PALETTE["wood_dark"])
+        drawing.rectangle((10, 14 + lift, 22, 24 + lift), fill=PALETTE["outline"])
+        drawing.rectangle((12, 15 + lift, 21, 23 + lift), fill=coat)
+        drawing.rectangle((9, 15 + lift, 13, 22 + lift), fill=PALETTE["wood_dark"])
+        drawing.rectangle((9, 16 + lift, 11, 20 + lift), fill=PALETTE["wood"])
+        drawing.line((11, 17 + lift, 11, 20 + lift), fill=PALETTE["wood_light"])
+        drawing.line((18, 17 + lift, 17 - swing, 23 + lift), fill=PALETTE["outline"], width=4)
+        drawing.line((18, 17 + lift, 17 - swing, 21 + lift), fill=coat, width=2)
+        drawing.rectangle((16 - swing, 22 + lift, 19 - swing, 24 + lift), fill=PALETTE["pine"])
+        drawing.rectangle((12, 5 + lift, 21, 7 + lift), fill=PALETTE["outline"])
+        drawing.rectangle((10, 7 + lift, 23, 15 + lift), fill=PALETTE["outline"])
+        drawing.rectangle((12, 7 + lift, 21, 14 + lift), fill=coat)
+        drawing.line((13, 6 + lift, 20, 6 + lift), fill="#efb47e", width=2)
+        drawing.rectangle((19, 9 + lift, 23, 13 + lift), fill="#f1c69e")
+        drawing.rectangle((23, 11 + lift, 25, 12 + lift), fill="#f1c69e")
+        drawing.point((22, 10 + lift), fill=PALETTE["outline"])
+        drawing.rectangle((16, 15 + lift, 22, 17 + lift), fill="#e9cd9a")
+        drawing.rectangle((19 - swing, 17 + lift, 21 - swing, 20 + lift), fill="#e9cd9a")
+    else:
+        left_foot = 28 + (1 if stride > 0 else -1 if stride < 0 else 0)
+        right_foot = 28 + (1 if stride < 0 else -1 if stride > 0 else 0)
+        drawing.rectangle((10 - abs(stride) // 2, 22, 14, left_foot), fill=PALETTE["outline"])
+        drawing.rectangle((19, 22, 23 + abs(stride) // 2, right_foot), fill=PALETTE["outline"])
+        drawing.rectangle((11, 23, 13, left_foot - 2), fill="#42636c")
+        drawing.rectangle((20, 23, 22, right_foot - 2), fill="#6d7b79")
+        drawing.rectangle((10 - abs(stride) // 2, left_foot - 1, 14, left_foot), fill=PALETTE["wood_dark"])
+        drawing.rectangle((19, right_foot - 1, 23 + abs(stride) // 2, right_foot), fill=PALETTE["wood_dark"])
+        drawing.rectangle((8, 15 + lift, 25, 24 + lift), fill=PALETTE["outline"])
+        drawing.rectangle((10, 15 + lift, 23, 24 + lift), fill=coat)
+        drawing.rectangle((7, 17 + swing + lift, 10, 22 + swing + lift), fill=PALETTE["pine"])
+        drawing.rectangle((24, 17 - swing + lift, 27, 22 - swing + lift), fill=PALETTE["pine"])
+        drawing.rectangle((11, 5 + lift, 23, 8 + lift), fill=PALETTE["outline"])
+        drawing.rectangle((8, 8 + lift, 25, 16 + lift), fill=PALETTE["outline"])
+        drawing.rectangle((10, 7 + lift, 23, 14 + lift), fill=coat)
+        drawing.line((12, 6 + lift, 21, 6 + lift), fill="#efb47e", width=2)
+        if direction == "up":
+            drawing.line((16, 8 + lift, 16, 13 + lift), fill="#aa6246")
+            drawing.rectangle((12, 15 + lift, 22, 23 + lift), fill=PALETTE["wood_dark"])
+            drawing.rectangle((13, 16 + lift, 21, 21 + lift), fill=PALETTE["wood"])
+            drawing.line((14, 17 + lift, 20, 17 + lift), fill=PALETTE["wood_light"])
+            drawing.rectangle((15, 21 + lift, 18, 23 + lift), fill=PALETTE["gold"])
+        else:
+            drawing.rectangle((12, 10 + lift, 21, 14 + lift), fill="#f1c69e")
+            drawing.point((14, 11 + lift), fill=PALETTE["outline"])
+            drawing.point((19, 11 + lift), fill=PALETTE["outline"])
+            drawing.rectangle((10, 15 + lift, 23, 17 + lift), fill="#e9cd9a")
+            drawing.line((17, 18 + lift, 17, 23 + lift), fill="#92513c")
+    if direction == "left":
+        body = body.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+    image.alpha_composite(body)
+    return image
+
+
+def monster_frame(big, direction, pose):
+    stride, swing, lift = WALK_POSES[pose]
+    image, drawing = canvas()
+    drawing.ellipse((3, 27, 29, 30), fill="#587e8d66")
+    body = Image.new("RGBA", (32, 32))
+    drawing = ImageDraw.Draw(body)
+    fur = "#6b919e" if big else PALETTE["shade"]
+    side = direction in ("left", "right")
+    if side:
+        for position, phase in ((11, stride), (19, -stride)):
+            drawing.line((position, 21, position + phase, 27), fill=PALETTE["outline"], width=4)
+            drawing.line((position, 21, position + phase, 25), fill=fur, width=2)
+            drawing.rectangle((position + phase, 26, position + phase + 4, 28), fill=PALETTE["snow"])
+        if big:
+            drawing.polygon(((8, 12 + lift), (18, 10 + lift), (24, 16 + lift), (22, 24 + lift), (9, 24 + lift), (5, 20 + lift)), fill=PALETTE["outline"])
+            drawing.polygon(((9, 13 + lift), (18, 12 + lift), (22, 17 + lift), (20, 23 + lift), (9, 22 + lift), (7, 19 + lift)), fill=fur)
+            drawing.line((16, 15 + lift, 16 - swing, 23 + lift), fill=PALETTE["outline"], width=5)
+            drawing.line((16, 15 + lift, 16 - swing, 22 + lift), fill=PALETTE["ice"], width=3)
+            drawing.rectangle((14 - swing, 22 + lift, 18 - swing, 25 + lift), fill=PALETTE["snow"])
+            drawing.rectangle((12, 4 + lift, 23, 14 + lift), fill=PALETTE["ice"])
+            drawing.rectangle((10, 7 + lift, 25, 13 + lift), fill=PALETTE["snow"])
+            drawing.rectangle((19, 9 + lift, 25, 13 + lift), fill="#345761")
+            drawing.rectangle((23, 10 + lift, 27, 12 + lift), fill="#345761")
+            drawing.rectangle((22, 9 + lift, 24, 10 + lift), fill="#f5aa78")
+            drawing.point((25, 13 + lift), fill=PALETTE["light"])
+        else:
+            drawing.polygon(((6, 15 + lift), (4, 12 + lift), (2, 15 + lift), (4, 23 + lift), (9, 24 + lift), (12, 20 + lift)), fill=PALETTE["outline"])
+            drawing.polygon(((5, 15 + lift), (4, 18 + lift), (7, 22 + lift), (10, 20 + lift)), fill=PALETTE["snow"])
+            drawing.polygon(((8, 13 + lift), (18, 11 + lift), (25, 16 + lift), (23, 24 + lift), (8, 24 + lift), (6, 20 + lift)), fill=PALETTE["outline"])
+            drawing.polygon(((9, 14 + lift), (18, 13 + lift), (23, 17 + lift), (21, 22 + lift), (9, 22 + lift)), fill=fur)
+            drawing.polygon(((13, 12 + lift), (13, 5 + lift), (18, 8 + lift), (22, 8 + lift), (24, 11 + lift), (29, 16 + lift), (27, 20 + lift), (17, 20 + lift), (12, 16 + lift)), fill=PALETTE["outline"])
+            drawing.polygon(((15, 11 + lift), (15, 8 + lift), (18, 11 + lift), (22, 10 + lift), (24, 14 + lift), (27, 16 + lift), (25, 18 + lift), (18, 18 + lift), (14, 15 + lift)), fill=PALETTE["snow"])
+            drawing.rectangle((22, 12 + lift, 24, 13 + lift), fill="#c36b61")
+            drawing.rectangle((27, 16 + lift, 29, 17 + lift), fill=PALETTE["outline"])
+            drawing.line((11, 17 + lift, 13 - swing, 23 + lift), fill=PALETTE["outline"], width=3)
+            drawing.line((11, 17 + lift, 13 - swing, 22 + lift), fill=PALETTE["ice"], width=2)
+    else:
+        for position, phase in ((9, stride), (22, -stride)):
+            foot = 28 + (1 if phase > 0 else -1 if phase < 0 else 0)
+            drawing.rectangle((position - 2, 22, position + 2, foot), fill=PALETTE["outline"])
+            drawing.rectangle((position - 1, 23, position + 1, foot - 1), fill=fur)
+            drawing.rectangle((position - 2, foot - 1, position + 2, foot), fill=PALETTE["snow"])
+        if big:
+            drawing.polygon(((4, 15 + lift), (9, 7 + lift), (22, 7 + lift), (28, 15 + lift), (26, 25 + lift), (21, 26 + lift), (16, 24 + lift), (10, 26 + lift), (5, 25 + lift)), fill=PALETTE["outline"])
+            drawing.polygon(((6, 15 + lift), (10, 9 + lift), (21, 9 + lift), (26, 15 + lift), (24, 23 + lift), (20, 24 + lift), (16, 22 + lift), (11, 24 + lift), (7, 23 + lift)), fill=fur)
+            drawing.line((7, 16 + lift, 4, 21 + swing + lift), fill=PALETTE["snow"], width=3)
+            drawing.line((25, 16 + lift, 28, 21 - swing + lift), fill=PALETTE["snow"], width=3)
+            drawing.rectangle((10, 4 + lift, 21, 15 + lift), fill=PALETTE["ice"])
+            drawing.rectangle((8, 8 + lift, 24, 14 + lift), fill=PALETTE["snow"])
+            if direction == "down":
+                drawing.rectangle((10, 10 + lift, 22, 15 + lift), fill="#345761")
+                drawing.rectangle((11, 10 + lift, 13, 11 + lift), fill="#f5aa78")
+                drawing.rectangle((19, 10 + lift, 21, 11 + lift), fill="#f5aa78")
+                drawing.rectangle((13, 17 + lift, 20, 22 + lift), fill=PALETTE["ice"])
+            else:
+                drawing.line((16, 8 + lift, 16, 22 + lift), fill="#54808e", width=2)
+                drawing.line((12, 16 + lift, 15, 18 + lift), fill=PALETTE["ice"], width=2)
+                drawing.line((20, 16 + lift, 17, 18 + lift), fill=PALETTE["ice"], width=2)
+        else:
+            drawing.polygon(((6, 10 + lift), (6, 4 + lift), (12, 8 + lift), (20, 8 + lift), (26, 4 + lift), (26, 12 + lift), (28, 21 + lift), (23, 26 + lift), (9, 26 + lift), (4, 21 + lift)), fill=PALETTE["outline"])
+            drawing.polygon(((8, 10 + lift), (8, 7 + lift), (12, 11 + lift), (21, 11 + lift), (24, 7 + lift), (24, 13 + lift), (26, 21 + lift), (21, 24 + lift), (10, 24 + lift), (6, 21 + lift)), fill=fur)
+            drawing.line((7, 19 + swing + lift, 5, 23 + swing + lift), fill=PALETTE["ice"], width=2)
+            drawing.line((25, 19 - swing + lift, 27, 23 - swing + lift), fill=PALETTE["ice"], width=2)
+            if direction == "down":
+                drawing.polygon(((9, 12 + lift), (22, 12 + lift), (24, 17 + lift), (20, 20 + lift), (12, 20 + lift), (8, 17 + lift)), fill=PALETTE["snow"])
+                drawing.rectangle((10, 14 + lift, 12, 15 + lift), fill="#c36b61")
+                drawing.rectangle((20, 14 + lift, 22, 15 + lift), fill="#c36b61")
+                drawing.rectangle((15, 18 + lift, 18, 20 + lift), fill=PALETTE["outline"])
+            else:
+                drawing.line((16, 11 + lift, 16, 23 + lift), fill=PALETTE["snow"], width=3)
+                drawing.polygon(((14, 22 + lift), (18, 22 + lift), (20, 26 + lift), (15, 27 + lift), (12, 25 + lift)), fill=PALETTE["outline"])
+                drawing.rectangle((14, 23 + lift, 17, 25 + lift), fill=PALETTE["ice"])
+    if direction == "left":
+        body = body.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+    image.alpha_composite(body)
+    return image
+
+
+def actor_animations():
+    for kind in ("player", "player_other", "monster_small", "monster_big"):
+        sheet = Image.new("RGBA", (160, 128))
+        for row, direction in enumerate(ACTOR_DIRECTIONS):
+            for pose in range(len(WALK_POSES)):
+                if kind.startswith("player"):
+                    frame = traveler_frame("#cf784e" if kind == "player" else "#498a97", direction, pose)
+                else:
+                    frame = monster_frame(kind == "monster_big", direction, pose)
+                sheet.alpha_composite(frame, (pose * 32, row * 32))
+        asset = f"{kind}_motion"
+        save(asset, sheet)
+        ANIMATIONS[kind] = {"asset": asset, "frame_width": 96, "frame_height": 96, "directions": ACTOR_DIRECTIONS, "idle_frame": 0, "walk_frames": [1, 2, 3, 4], "stride": 1.5 if kind.startswith("player") else 1.35 if kind == "monster_big" else 1.0}
+
+
 def equipment():
     for kind in ("axe", "lighter", "matches", "handgun", "shotgun", "rifle", "gasoline", "diesel", "kerosene"):
         image, drawing = canvas()
@@ -309,10 +470,11 @@ def main():
     campfires()
     travelers()
     monsters()
+    actor_animations()
     equipment()
     food()
     effects()
-    (DESTINATION / "manifest.json").write_text(json.dumps({"version": 1, "pixel_art": True, "assets": ASSETS}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (DESTINATION / "manifest.json").write_text(json.dumps({"version": 2, "pixel_art": True, "assets": ASSETS, "animations": ANIMATIONS}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Exported {len(ASSETS)} replaceable PNG assets to {DESTINATION}")
 
 

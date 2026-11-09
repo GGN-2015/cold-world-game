@@ -320,11 +320,11 @@ setInterval(() => {
 
 async function initialize() {
   try {
-    const [images, response] = await Promise.all([loadAssets(), fetch('/api/info')]);
+    const [assets, response] = await Promise.all([loadAssets(), fetch('/api/info')]);
     if (!response.ok) throw new Error('catalog_unavailable');
     const catalog = await response.json();
     if (catalog.protocol !== 1) throw new Error('protocol_mismatch');
-    renderer = new WorldRenderer(canvas, images);
+    renderer = new WorldRenderer(canvas, assets.images, assets.animations);
     ui = new GameUI(connection, catalog, { stop, select, selected: () => selected, leave, focus });
     initialized = true;
     renderLogin();

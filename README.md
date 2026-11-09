@@ -235,6 +235,8 @@ uv run cold-world-game --host 0.0.0.0 --port 5000 --password your-server-passwor
 
 所有场景、角色、怪物与物品贴图均为独立 PNG，位于 `cold_world_game/static/assets/`；替换方式和美术源脚本见 `docs/assets.md`。前端源代码位于 `cold_world_game/static/js/`，页面位于 `cold_world_game/templates/index.html`，样式位于 `cold_world_game/static/css/game.css`，均随 Python 包一起分发。
 
+人物（自己与其他玩家）以及大小怪物均有上、下、左、右四向立绘，每个方向包含独立站姿与 4 帧跑动差分。动画根据服务器实际位移播放，停步保持最后朝向，碰墙不会原地跑，失温倒地时停止跑动；受冷或饥饿减速时步频同步放慢，不改变移动速度或碰撞规则。四套动画分别保存在 `player_motion.png`、`player_other_motion.png`、`monster_small_motion.png`、`monster_big_motion.png` 中，每张为 480 × 384 的透明 PNG 图集，可按说明逐帧替换。
+
 ### 服务端与存档
 
 也可以执行 `uv run python -m cold_world_game`，使用 `--help` 查看完整参数。`--seed` 只影响新世界，旧存档始终优先；`--allowed-origin` 可重复指定允许连接的额外浏览器 Origin，例如 `--allowed-origin http://localhost:5173`。

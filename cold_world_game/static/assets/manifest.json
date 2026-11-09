@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "pixel_art": true,
   "assets": {
     "snow_0": {
@@ -91,6 +91,26 @@
       "file": "monster_big.png",
       "width": 96,
       "height": 96
+    },
+    "player_motion": {
+      "file": "player_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "player_other_motion": {
+      "file": "player_other_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "monster_small_motion": {
+      "file": "monster_small_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "monster_big_motion": {
+      "file": "monster_big_motion.png",
+      "width": 480,
+      "height": 384
     },
     "axe": {
       "file": "axe.png",
@@ -211,6 +231,84 @@
       "file": "footprint.png",
       "width": 96,
       "height": 96
+    }
+  },
+  "animations": {
+    "player": {
+      "asset": "player_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stride": 1.5
+    },
+    "player_other": {
+      "asset": "player_other_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stride": 1.5
+    },
+    "monster_small": {
+      "asset": "monster_small_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stride": 1.0
+    },
+    "monster_big": {
+      "asset": "monster_big_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stride": 1.35
     }
   }
 }
