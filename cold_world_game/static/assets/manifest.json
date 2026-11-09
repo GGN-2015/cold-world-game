@@ -1,0 +1,216 @@
+{
+  "version": 1,
+  "pixel_art": true,
+  "assets": {
+    "snow_0": {
+      "file": "snow_0.png",
+      "width": 96,
+      "height": 96
+    },
+    "snow_1": {
+      "file": "snow_1.png",
+      "width": 96,
+      "height": 96
+    },
+    "snow_2": {
+      "file": "snow_2.png",
+      "width": 96,
+      "height": 96
+    },
+    "tree": {
+      "file": "tree.png",
+      "width": 96,
+      "height": 96
+    },
+    "wall": {
+      "file": "wall.png",
+      "width": 96,
+      "height": 96
+    },
+    "floor": {
+      "file": "floor.png",
+      "width": 96,
+      "height": 96
+    },
+    "fence": {
+      "file": "fence.png",
+      "width": 96,
+      "height": 96
+    },
+    "chest": {
+      "file": "chest.png",
+      "width": 96,
+      "height": 96
+    },
+    "wood": {
+      "file": "wood.png",
+      "width": 96,
+      "height": 96
+    },
+    "campfire": {
+      "file": "campfire.png",
+      "width": 96,
+      "height": 96
+    },
+    "campfire_lit": {
+      "file": "campfire_lit.png",
+      "width": 96,
+      "height": 96
+    },
+    "player": {
+      "file": "player.png",
+      "width": 96,
+      "height": 96
+    },
+    "player_back": {
+      "file": "player_back.png",
+      "width": 96,
+      "height": 96
+    },
+    "player_other": {
+      "file": "player_other.png",
+      "width": 96,
+      "height": 96
+    },
+    "player_other_back": {
+      "file": "player_other_back.png",
+      "width": 96,
+      "height": 96
+    },
+    "player_downed": {
+      "file": "player_downed.png",
+      "width": 96,
+      "height": 96
+    },
+    "monster_small": {
+      "file": "monster_small.png",
+      "width": 96,
+      "height": 96
+    },
+    "monster_big": {
+      "file": "monster_big.png",
+      "width": 96,
+      "height": 96
+    },
+    "axe": {
+      "file": "axe.png",
+      "width": 96,
+      "height": 96
+    },
+    "lighter": {
+      "file": "lighter.png",
+      "width": 96,
+      "height": 96
+    },
+    "matches": {
+      "file": "matches.png",
+      "width": 96,
+      "height": 96
+    },
+    "handgun": {
+      "file": "handgun.png",
+      "width": 96,
+      "height": 96
+    },
+    "shotgun": {
+      "file": "shotgun.png",
+      "width": 96,
+      "height": 96
+    },
+    "rifle": {
+      "file": "rifle.png",
+      "width": 96,
+      "height": 96
+    },
+    "gasoline": {
+      "file": "gasoline.png",
+      "width": 96,
+      "height": 96
+    },
+    "diesel": {
+      "file": "diesel.png",
+      "width": 96,
+      "height": 96
+    },
+    "kerosene": {
+      "file": "kerosene.png",
+      "width": 96,
+      "height": 96
+    },
+    "instant_noodles": {
+      "file": "instant_noodles.png",
+      "width": 96,
+      "height": 96
+    },
+    "dumplings": {
+      "file": "dumplings.png",
+      "width": 96,
+      "height": 96
+    },
+    "wontons": {
+      "file": "wontons.png",
+      "width": 96,
+      "height": 96
+    },
+    "pork_trotters": {
+      "file": "pork_trotters.png",
+      "width": 96,
+      "height": 96
+    },
+    "beef": {
+      "file": "beef.png",
+      "width": 96,
+      "height": 96
+    },
+    "lamb": {
+      "file": "lamb.png",
+      "width": 96,
+      "height": 96
+    },
+    "sardines": {
+      "file": "sardines.png",
+      "width": 96,
+      "height": 96
+    },
+    "tuna": {
+      "file": "tuna.png",
+      "width": 96,
+      "height": 96
+    },
+    "beef_balls": {
+      "file": "beef_balls.png",
+      "width": 96,
+      "height": 96
+    },
+    "hotpot_vegetables": {
+      "file": "hotpot_vegetables.png",
+      "width": 96,
+      "height": 96
+    },
+    "oreos": {
+      "file": "oreos.png",
+      "width": 96,
+      "height": 96
+    },
+    "compressed_biscuits": {
+      "file": "compressed_biscuits.png",
+      "width": 96,
+      "height": 96
+    },
+    "snowflake": {
+      "file": "snowflake.png",
+      "width": 96,
+      "height": 96
+    },
+    "spark": {
+      "file": "spark.png",
+      "width": 96,
+      "height": 96
+    },
+    "footprint": {
+      "file": "footprint.png",
+      "width": 96,
+      "height": 96
+    }
+  }
+}
