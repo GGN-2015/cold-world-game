@@ -12,83 +12,84 @@
 <body>
   <main id="app">
     <div id="world-view">
-      <canvas id="world" tabindex="0" aria-label="游戏雪原，使用 WASD 移动，鼠标瞄准，H 查看操作指南"></canvas>
-      <div id="game-hud" hidden>
+      <canvas id="world" tabindex="0" data-i18n-aria-label="world.label" aria-label="游戏雪原，使用 WASD 移动，鼠标瞄准，H 查看操作指南"></canvas>
+    </div>
+    <div id="game-hud" hidden>
         <header class="game-header">
           <div class="world-heading glass">
             <img src="{{ url_for('static', filename='assets/snowflake.png') }}" alt="" class="brand-snow">
             <div><span class="eyebrow">COLD WORLD</span><strong id="season-label">春 · 第 1 天</strong></div>
             <div class="heading-divider"></div>
-            <div><span id="clock-label" class="clock-label">00:00</span><span id="ambient-label" class="small-muted">室外 −20°C</span></div>
+            <div><span id="clock-label" class="clock-label">00:00</span><span id="ambient-label" class="small-muted" data-i18n="world.outdoors">室外 −20°C</span></div>
           </div>
           <div class="header-actions">
             <span id="connection" class="connection glass"><i></i><span>连接中</span></span>
             <button id="sound-button" class="icon-button glass" title="切换音效" aria-label="关闭音效" aria-pressed="true">音效 开</button>
-            <button id="inventory-button" class="icon-button glass" title="背包（I）" aria-label="打开背包">背包 <kbd>I</kbd></button>
-            <button id="craft-button" class="icon-button glass" title="制作（B）" aria-label="打开制作面板">制作 <kbd>B</kbd></button>
-            <button id="help-button" class="icon-button glass" title="操作指南（H）" aria-label="操作指南">?</button>
-            <button id="leave-button" class="icon-button glass" title="保存并离开" aria-label="保存并离开">离开</button>
+            <button id="language-button" type="button" class="icon-button glass" data-language-toggle title="切换到英语" aria-label="切换到英语">EN</button>
+            <button id="inventory-button" class="icon-button glass" data-i18n-title="button.backpackHint" data-i18n-aria-label="button.backpackOpen" title="背包与合成（B，兼容 I）" aria-label="打开背包与合成"><span data-i18n="button.backpack">背包</span> <kbd>B</kbd></button>
+            <button id="craft-button" class="icon-button glass" data-i18n="button.craft" data-i18n-title="button.backpackOpen" data-i18n-aria-label="button.craftOpen" title="打开背包与合成" aria-label="打开合成界面">合成</button>
+            <button id="help-button" class="icon-button glass" data-i18n-title="button.helpHint" data-i18n-aria-label="button.help" title="操作指南（H）" aria-label="操作指南">?</button>
+            <button id="leave-button" class="icon-button glass" data-i18n="button.leave" data-i18n-title="button.leaveHint" data-i18n-aria-label="button.leaveHint" title="保存并离开" aria-label="保存并离开">离开</button>
           </div>
         </header>
         <div id="connection-banner" class="connection-banner" role="status" hidden></div>
-        <div id="downed-notice" class="downed-notice glass" hidden><span>失温倒地</span>靠近火堆取暖，体温达到 5°C 后重新站起。仍可制作、放置和点燃篝火。</div>
+        <div id="downed-notice" class="downed-notice glass" hidden><strong data-i18n="downed.title">失温倒地</strong> <span data-i18n="downed.description">靠近火堆取暖，体温达到 5°C 后重新站起。仍可制作、放置和点燃篝火。</span></div>
         <div class="position-readout"><span id="coordinate-label">坐标 0, 0</span><span id="fps-label">60 FPS</span><span id="player-label"></span></div>
         <div id="context-hint" class="context-hint glass" hidden></div>
-        <section id="side-panel" class="side-panel glass" role="dialog" aria-modal="false" aria-label="物品操作面板" hidden>
-          <header class="panel-heading"><div><span id="panel-kicker" class="eyebrow">SURVIVAL KIT</span><h2 id="panel-title">制作</h2></div><button id="panel-close" class="close-button" aria-label="关闭面板">×</button></header>
+        <section id="side-panel" class="side-panel glass" role="dialog" aria-modal="false" data-i18n-aria-label="panel.label" aria-label="物品操作面板" hidden>
+          <header class="panel-heading"><div><span id="panel-kicker" class="eyebrow">SURVIVAL KIT</span><h2 id="panel-title">制作</h2></div><button id="panel-close" class="close-button" data-i18n-aria-label="panel.close" aria-label="关闭面板">×</button></header>
           <p id="panel-description" class="panel-description"></p>
           <div id="panel-body"></div>
-          <p class="panel-footer"><kbd>Esc</kbd> 关闭 · 物品操作由服务器原子保存</p>
+          <p class="panel-footer"><kbd>Esc</kbd> <span data-i18n="panel.footer">关闭 · 物品操作由服务器原子保存</span></p>
         </section>
         <section class="inventory-dock">
           <div class="vitals-row">
-            <div class="vital"><div class="vital-label"><span>体温</span><strong id="temperature-label">36.0°C</strong></div><div class="vital-track"><div id="temperature-fill" class="temperature-fill"></div></div></div>
-            <div class="vital"><div class="vital-label"><span>饥饿</span><strong id="hunger-label">10.0</strong></div><div class="vital-track"><div id="hunger-fill" class="hunger-fill"></div></div></div>
+            <div class="vital"><div class="vital-label"><span data-i18n="vital.temperature">体温</span><strong id="temperature-label">36.0°C</strong></div><div class="vital-track"><div id="temperature-fill" class="temperature-fill"></div></div></div>
+            <div class="vital"><div class="vital-label"><span data-i18n="vital.hunger">饥饿</span><strong id="hunger-label">10.0</strong></div><div class="vital-track"><div id="hunger-fill" class="hunger-fill"></div></div></div>
             <div id="equipped-label" class="equipped-label">手枪 · 100 发</div>
           </div>
-          <div id="hotbar" class="hotbar glass" aria-label="背包快捷栏"></div>
-          <div class="dock-hints"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动</span><span>左键 使用 · 右键 建造</span><span><kbd>Q</kbd> 丢弃 · 滚轮 切换</span></div>
+          <div id="hotbar" class="hotbar glass" data-i18n-aria-label="dock.hotbar" aria-label="10 格物品栏"></div>
+          <div class="dock-hints"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> <span data-i18n="dock.move">移动</span></span><span data-i18n="dock.use">左键 使用 · 右键 建造</span><span><kbd>Q</kbd> <span data-i18n="dock.drop">丢弃 · 滚轮 切换</span></span></div>
         </section>
-      </div>
     </div>
 
     <section id="login-screen" class="login-screen">
-      <header class="landing-header"><a href="/" class="wordmark"><img src="{{ url_for('static', filename='assets/snowflake.png') }}" alt=""> COLD WORLD <span>寒境</span></a><span class="landing-tag">一个可以一起过冬的地方</span></header>
+      <header class="landing-header"><a href="/" class="wordmark"><img src="{{ url_for('static', filename='assets/snowflake.png') }}" alt=""> COLD WORLD <span data-i18n="landing.brand">寒境</span></a><div class="landing-actions"><span class="landing-tag" data-i18n="landing.tag">一个可以一起过冬的地方</span><button id="login-language-button" type="button" class="icon-button glass" data-language-toggle title="切换到英语" aria-label="切换到英语">EN</button></div></header>
       <div class="landing-content">
-        <div class="landing-story"><span class="eyebrow">A QUIET LITTLE SURVIVAL WORLD</span><h1>雪很大。<br>火还<span>亮着。</span></h1><p>带上斧头，走进雪原。<br>搜一间木屋，生一堆火，等朋友一起回来。</p><div class="feature-pills"><span>实时联机</span><span>自由建造</span><span>四季流转</span></div></div>
+        <div class="landing-story"><span class="eyebrow" data-i18n="landing.eyebrow">一片安静的生存世界</span><h1 data-i18n-html="landing.headline">雪很大。<br>火还<span>亮着。</span></h1><p data-i18n-html="landing.story">带上斧头，走进雪原。<br>搜一间木屋，生一堆火，等朋友一起回来。</p><div class="feature-pills"><span data-i18n="landing.multiplayer">实时联机</span><span data-i18n="landing.build">自由建造</span><span data-i18n="landing.seasons">四季流转</span></div></div>
         <form id="login-form" class="login-card glass">
-          <div class="login-card-top"><img src="{{ url_for('static', filename='assets/campfire_lit.png') }}" alt="篝火"><span class="eyebrow">FIND YOUR WARMTH</span></div>
-          <h2>在雪原落脚</h2><p class="login-subtitle">选一个名字，加入这个共同的世界。</p>
-          <label for="player-id">你的名字 <span>PLAYER ID</span></label>
-          <input id="player-id" name="player_id" maxlength="64" required autocomplete="username" placeholder="雪原上的旅人" spellcheck="false">
-          <label for="server-password">服务器口令 <span>SERVER PASSWORD</span></label>
-          <div class="password-field"><input id="server-password" name="password" type="password" required autocomplete="current-password" placeholder="在服务器启动终端查看"><button id="password-toggle" type="button" aria-label="显示口令">显示</button></div>
-          <label class="remember-label"><input id="remember-login" type="checkbox" checked><span>在本机记住名字与口令</span></label>
+          <div class="login-card-top"><img src="{{ url_for('static', filename='assets/campfire_lit.png') }}" data-i18n-alt="item.campfire" alt="篝火"><span class="eyebrow" data-i18n="login.eyebrow">寻找你的温暖</span></div>
+          <h2 data-i18n="login.title">在雪原落脚</h2><p class="login-subtitle" data-i18n="login.subtitle">选一个名字，加入这个共同的世界。</p>
+          <label for="player-id" data-i18n="login.name">你的名字</label>
+          <input id="player-id" name="player_id" maxlength="64" required autocomplete="username" data-i18n-placeholder="login.namePlaceholder" placeholder="雪原上的旅人" spellcheck="false">
+          <label for="server-password" data-i18n="login.password">服务器口令</label>
+          <div class="password-field"><input id="server-password" name="password" type="password" required autocomplete="current-password" data-i18n-placeholder="login.passwordPlaceholder" placeholder="在服务器启动终端查看"><button id="password-toggle" type="button" aria-label="显示口令">显示</button></div>
+          <label class="remember-label"><input id="remember-login" type="checkbox" checked><span data-i18n="login.remember">在本机记住名字与口令</span></label>
           <div id="login-error" class="login-error" role="alert" hidden></div>
           <button id="join-button" type="submit" class="primary-button"><span>进入雪原</span><span aria-hidden="true">↗</span></button>
           <div id="server-status" class="server-status" role="status"><i></i><span>正在准备雪原与贴图…</span></div>
-          <p class="login-note">名字首次使用时创建角色，再次进入恢复原存档。<br>同一个名字同一时间只能有一个窗口在线。</p>
+          <p class="login-note" data-i18n-html="login.note">名字首次使用时创建角色，再次进入恢复原存档。<br>同一个名字同一时间只能有一个窗口在线。</p>
         </form>
       </div>
-      <footer class="landing-footer"><span>WASD 移动 <b>·</b> 鼠标探索 <b>·</b> B 制作</span><span>最后一位旅人离开，世界会停下来等你。</span></footer>
+      <footer class="landing-footer"><span data-i18n-html="landing.controls">WASD 移动 <b>·</b> 鼠标探索 <b>·</b> B 背包与合成</span><span data-i18n="landing.pause">最后一位旅人离开，世界会停下来等你。</span></footer>
     </section>
 
     <div id="help-overlay" class="modal-backdrop" hidden>
       <section class="help-card glass" role="dialog" aria-modal="true" aria-labelledby="help-title">
-        <header class="panel-heading"><div><span class="eyebrow">FIELD NOTES</span><h2 id="help-title">雪原生存手册</h2></div><button id="help-close" class="close-button" aria-label="关闭操作指南">×</button></header>
+        <header class="panel-heading"><div><span class="eyebrow" data-i18n="help.eyebrow">雪原笔记</span><h2 id="help-title" data-i18n="help.title">雪原生存手册</h2></div><button id="help-close" class="close-button" data-i18n-aria-label="help.close" aria-label="关闭操作指南">×</button></header>
         <div class="help-grid">
-          <article><h3>走进雪原</h3><p><kbd>WASD</kbd> 移动，全速每秒 4 格，怪物每秒 1.2 格。鼠标瞄准，数字 <kbd>1–0</kbd> 或滚轮选物，<kbd>Q</kbd> 丢弃，靠近掉落物自动拾取。</p></article>
-          <article><h3>收集与建造</h3><p>选斧头，长按左键砍树或拆墙。<kbd>B</kbd> 制作，选中建筑后右键放置。箱子与火堆的八个相邻格不能再放箱子或火堆。</p></article>
-          <article><h3>点一堆火</h3><p>点击附近篝火打开窗口，存入木材和火种后点燃。每单位木材燃烧 6 分钟。距离火堆 1–2 格可恢复体温，3 格仅保温。</p></article>
-          <article><h3>好好吃饭</h3><p>在燃烧篝火 1–3 格曼哈顿范围内，选食物瞄准空地长按左键 0.5 秒进食。饥饿值不封顶，仅大于 10 时不能再吃，等于 10 仍可吃。失温倒地后仍可制作、生火自救。</p></article>
-          <article><h3>背包与容器</h3><p>拖动物品到空格整理。点击箱内物品快速取出，<kbd>Shift</kbd> 点击背包物品快速存入已打开的容器。<kbd>Shift</kbd> 长按左键用斧头拆除空箱或篝火。</p></article>
-          <article><h3>留心身后</h3><p>手枪、霰弹枪单击射击，步枪可按住连发。斧头单击攻击 3 格内可见的怪物，每 0.5 秒最多命中一次，拆除仍需长按。玩家受击有音效，玩家之间也会受到枪击。</p></article>
+          <article><h3 data-i18n="help.movementTitle">走进雪原</h3><p data-i18n-html="help.movement"></p></article>
+          <article><h3 data-i18n="help.buildingTitle">收集与建造</h3><p data-i18n-html="help.building"></p></article>
+          <article><h3 data-i18n="help.fireTitle">点一堆火</h3><p data-i18n-html="help.fire"></p></article>
+          <article><h3 data-i18n="help.foodTitle">好好吃饭</h3><p data-i18n-html="help.food"></p></article>
+          <article><h3 data-i18n="help.storageTitle">背包与容器</h3><p data-i18n-html="help.storage"></p></article>
+          <article><h3 data-i18n="help.combatTitle">留心身后</h3><p data-i18n-html="help.combat"></p></article>
         </div>
-        <p class="help-bottom">这不是暂停菜单，在线时世界仍在运行。右上角可切换音效，只有当前前台窗口播放。<kbd>Esc</kbd> 返回雪原。</p>
+        <p class="help-bottom" data-i18n-html="help.bottom"></p>
       </section>
     </div>
     <div id="toasts" class="toasts" aria-live="polite"></div>
-    <noscript><div class="noscript">请启用 JavaScript 后进入雪原。</div></noscript>
+    <noscript><div class="noscript">请启用 JavaScript 后进入雪原。 / Enable JavaScript to enter the snow.</div></noscript>
   </main>
   <script type="module" src="{{ url_for('static', filename='js/game.js') }}"></script>
 </body>

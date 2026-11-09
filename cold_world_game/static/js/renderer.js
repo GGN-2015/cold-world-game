@@ -1,8 +1,9 @@
 import { buildings, distance, tileAt } from './catalog.js';
+import { t } from './i18n.js';
 
 export async function loadAssets() {
   const response = await fetch('/static/assets/manifest.json');
-  if (!response.ok) throw new Error('无法读取贴图目录。');
+  if (!response.ok) throw new Error('assets_unavailable');
   const manifest = await response.json();
   const images = new Map();
   await Promise.all(Object.entries(manifest.assets).map(async ([name, entry]) => {
@@ -34,8 +35,8 @@ function demoWorld() {
     add('tree', Math.round(horizontal), Math.round(vertical));
   }
   return {
-    structures, players: [{ id: '旅人', x: -1, y: 0.8, temperature: 36, hunger: 10 }], monsters: [], ground: [], projectiles: [],
-    environment: { hour: 18.5 }, chunks: [], you: { id: '旅人', x: -1, y: 1, inventory: [], selected: 0 },
+    structures, players: [{ id: 'demo-traveler', x: -1, y: 0.8, temperature: 36, hunger: 10 }], monsters: [], ground: [], projectiles: [],
+    environment: { hour: 18.5 }, chunks: [], you: { id: 'demo-traveler', x: -1, y: 1, inventory: [], selected: 0 },
   };
 }
 
@@ -170,7 +171,7 @@ export class WorldRenderer {
       if (entity.category === 'structure') {
         if (entity.kind === 'tree') this.sprite('tree', entity.x, entity.y, 2.05, 2.65, 0.62);
         else this.sprite(entity.lit ? 'campfire_lit' : entity.kind, entity.x, entity.y, entity.kind === 'wall' ? 1.15 : 1.05, entity.kind === 'wall' ? 1.6 : 1.05, entity.kind === 'wall' ? 0.27 : 0.06);
-        if (entity.monster_demolition) this.label('正在被怪物拆除', entity.x, entity.y - 1, '#df715b', 10);
+        if (entity.monster_demolition) this.label(t('world.demolition'), entity.x, entity.y - 1, '#df715b', 10);
       } else if (entity.category === 'player') {
         const owned = entity.id === state.you.id;
         const previous = this.facing?.get(entity.id) ?? entity.y;
@@ -184,7 +185,7 @@ export class WorldRenderer {
         const sprite = entity.downed ? 'player_downed' : `player${owned ? '' : '_other'}${this.directions?.get(entity.id) ? '_back' : ''}`;
         this.sprite(sprite, entity.x, entity.y, entity.downed ? 1.25 : 1.1, entity.downed ? 1.25 : 1.45, entity.downed ? 0 : 0.25);
         if (this.state) {
-          this.label(entity.id, entity.x, entity.y - 1.16, owned ? '#f4c886' : '#eff9f7', 11);
+          this.label(this.state ? entity.id : t('world.traveler'), entity.x, entity.y - 1.16, owned ? '#f4c886' : '#eff9f7', 11);
           if (!owned) this.bar(entity.x, entity.y - 0.94, entity.temperature / 36, '#8fcede', 0.7);
         }
       } else {

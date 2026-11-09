@@ -20,6 +20,8 @@
 
 `axe` 提供斧头攻击参数：`range: 3`、`interval: 0.5`、`damage: 4`。范围为玩家与怪物中心的欧氏距离，间隔单位为世界运行秒数，均由服务器校验。
 
+`storage` 提供 `inventory_slots: 10`、`backpack_slots: 30`、`drop_distance: 2.0`、`pickup_radius: 0.75`。每格按 1 米计；距离均为中心之间的欧氏距离，`drop_distance` 是丢弃距离上限，受阻时实际距离缩短。
+
 ## 瞬时动作反馈
 
 快照额外包含 `event_sequence` 和 `events`。`event_sequence` 是当前服务进程内的全局递增序号；`events` 是最近 1.5 秒、当前玩家附近的动作列表，最多保留 256 条，不是持久操作日志。例如：
@@ -41,7 +43,7 @@
 
 命令可以附带非负安全整数 `seq`，只用于匹配响应，不是持久幂等键。ack 丢失时，应以重连后的快照确认结果，不要盲目重复制作或转移命令。转移可附 `item_id` 防止来源格子变化后误取另一物品。
 
-`state` 包含 `tick`、累计世界运行秒数 `elapsed`、`environment`（季节、季节内第几天、游戏小时、室外温度）、`you`（完整背包和玩家状态）、附近的 `players`、`structures`、`monsters`、`projectiles`、`ground`、已生成 `chunks`、当前打开的 `container` 和 `interaction` 进度。坐标为世界坐标；`you.tile` 与 `you.offset` 表示格子中心和格内偏移。其他玩家只包含公开状态，不暴露背包；离线玩家不出现在快照中。木墙和柱子的 `kind` 均为 `wall`，不另发 `pillar`。
+`state` 包含 `tick`、累计世界运行秒数 `elapsed`、`environment`（季节、季节内第几天、游戏小时、室外温度）、`you`（完整物品栏、背包和玩家状态）、附近的 `players`、`structures`、`monsters`、`projectiles`、`ground`、已生成 `chunks`、当前打开的 `container` 和 `interaction` 进度。`you.inventory` 为独立的 10 格物品栏，`you.backpack` 为独立的 30 格背包，`you.selected` 仅索引物品栏，背包物品必须先转入物品栏才能使用。旧存档缺少 `backpack` 时初始化 30 个空格，不移动原物品栏物品。坐标为世界坐标；`you.tile` 与 `you.offset` 表示格子中心和格内偏移。其他玩家只包含公开状态，不暴露物品栏或背包；离线玩家不出现在快照中。木墙和柱子的 `kind` 均为 `wall`，不另发 `pillar`。
 
 结构的 `monster_demolition` 标记表示怪物正在拆除；篝火结构的 `lit` 表示燃烧。打开的容器快照包含箱子 `slots` 或篝火的 `fuel`、`igniter`、`burn_remaining`。`burn_remaining` 为当前燃烧单位剩余的现实运行秒数。每格是 `null` 或 `{kind,id,ammo,uses}`；物品不堆叠，木材缓冲区除外。
 
@@ -78,13 +80,13 @@
 {"type":"light","id":"篝火结构ID","seq":14}
 ```
 
-配方 ID：`fence`、`wall`、`floor`、`chest`、`campfire`、`recycle_fences`。最后一个消耗 2 个木栅栏，产出 1 个 `wood`，即用户所说的木材/木板。完整材料和产出数量由 `/api/info` 的 `recipes` 返回。制作单次执行一份配方。
+配方 ID：`fence`、`wall`、`floor`、`chest`、`campfire`、`recycle_fences`。最后一个消耗 2 个木栅栏，产出 1 个 `wood`，即用户所说的木材/木板。完整材料和产出数量由 `/api/info` 的 `recipes` 返回。制作单次执行一份配方，优先从背包再从物品栏扣材料，产物也优先放背包再放物品栏；扣材料后两个区域总空位不足时整次失败。浏览器 B 键同时打开背包与合成界面，I 为兼容快捷键。
 
-`place` 使用当前选中的建筑物品，x、y 必须是整数格子中心；放置前关闭 UI。`drop` 缺省 slot 为当前选中格，掉落到自己脚下。点火必须先打开对应篝火。
+`place` 使用当前选中的物品栏建筑物品，x、y 必须是整数格子中心；放置前关闭 UI。`drop` 缺省 slot 为当前选中的物品栏格。先发送包含当时鼠标世界坐标的 `input.aim`，服务器沿玩家到 aim 的归一化方向，寻找 2 格范围内最远的可达落点：无遮挡时为 2 格；遇到树、墙、栅栏、箱子、篝火或未生成区域时，截到首个障碍边界前，保留 0.000001 格间隙，不能穿过障碍或从斜角越墙。木地板不阻挡。aim 与玩家重合或该方向没有可用落点时才拒绝并保留物品。拖到场景的 `transfer` 地面目标也采用同一规则。点火必须先打开对应篝火。
 
 ## 原子物品转移
 
-每次转移一件物品或一单位缓冲木材。目标格必须为空，不自动交换，也不堆叠；挪动占用格需先把它移到空格。背包格 0～9，箱子格 0～29。
+每次转移一件物品或一单位缓冲木材。目标格必须为空，不自动交换，也不堆叠；挪动占用格需先把它移到空格。`inventory` 物品栏格 0～9，`backpack` 背包格 0～29，`chest` 箱子格 0～29，三者是独立区域。
 
 ```json
 {"type":"transfer","from":{"kind":"inventory","slot":3},"to":{"kind":"chest","id":"箱子ID","slot":8},"item_id":"物品ID","seq":20}
@@ -94,9 +96,12 @@
 {"type":"transfer","from":{"kind":"inventory","slot":2},"to":{"kind":"igniter","id":"篝火ID"},"seq":24}
 {"type":"transfer","from":{"kind":"igniter","id":"篝火ID"},"to":{"kind":"ground"},"seq":25}
 {"type":"transfer","from":{"kind":"ground","id":"掉落物ID"},"to":{"kind":"inventory","slot":5},"seq":26}
+{"type":"transfer","from":{"kind":"inventory","slot":3},"to":{"kind":"backpack","slot":29},"seq":27}
+{"type":"transfer","from":{"kind":"backpack","slot":29},"to":{"kind":"inventory","slot":3},"seq":28}
+{"type":"transfer","from":{"kind":"chest","id":"箱子ID","slot":8},"to":{"kind":"backpack","slot":0},"seq":29}
 ```
 
-背包内部整理也使用 transfer。涉及箱子/篝火的端点必须对应当前已打开且仍在交互范围内的容器。燃料只接受 `wood`，上限 16；火种槽只接受剩余次数大于 0 的火种。缓冲木材按数量保存，不使用稳定物品 ID，因此从 `fuel` 取出时不传 `item_id`。地面来源 ID 是 `ground` 实体 ID，不是其中物品的 ID。附近物品也会按游戏规则自动拾取；自己的手动丢弃物在 1 秒后才能取回。
+两个随身区域内部整理和彼此转移也使用 transfer。涉及箱子/篝火的端点必须对应当前已打开且仍在交互范围内的容器。燃料只接受 `wood`，上限 16；火种槽只接受剩余次数大于 0 的火种。缓冲木材按数量保存，不使用稳定物品 ID，因此从 `fuel` 取出时不传 `item_id`。地面来源 ID 是 `ground` 实体 ID，不是其中物品的 ID。地面取物要求距离不超过 0.75 米且路径可见，不能使用显式转移绕过距离检查。自动拾取只进入 30 格背包，背包满时不拾取，即使物品栏有空位也不例外；显式转移仍可指定物品栏空格。自己的手动丢弃物在 1 秒后才能取回。
 
 来源扣除、目标写入、剩余弹药/火种次数和掉落物增删一起保存在同一事务中；转移失败时保持操作前状态。需要原子保存的自动拾取、制作、建造、射击耗弹、点火和拆除掉落也通过同一机制提交。
 

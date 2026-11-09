@@ -1,8 +1,8 @@
 import math
 import time
 
-from .constants import BUILDINGS, BURN_SECONDS, FOODS, IGNITERS, RECIPES
-from .geometry import DIRECTIONS, circle_square, distance, normalized, tile
+from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, DROP_DISTANCE, FOODS, IGNITERS, INVENTORY_SLOTS, PICKUP_RADIUS, RECIPES, SOLID
+from .geometry import DIRECTIONS, circle_square, distance, normalized, segment_box, tile
 from .models import GroundItem, Item, Structure
 
 
@@ -95,14 +95,15 @@ class Actions:
         elif kind == "place":
             return self.place(player, controls, command)
         elif kind == "drop":
-            slot = integer(command.get("slot", player.selected), "slot", 0, 9)
+            slot = integer(command.get("slot", player.selected), "slot", 0, INVENTORY_SLOTS - 1)
             item = player.inventory[slot]
             if item is None:
                 raise GameError("empty_slot", "The source slot is empty")
+            position = self.drop_position(player, controls)
             self.touch()
             self.cancel_selected(player, controls, slot)
             player.inventory[slot] = None
-            ground = self.drop_item(item, player.x, player.y, player.id)
+            ground = self.drop_item(item, *position, player.id)
             return {"ground_id": ground.id}
         elif kind == "transfer":
             return self.transfer(player, controls, command)
@@ -123,20 +124,23 @@ class Actions:
         if not isinstance(recipe_id, str) or recipe_id not in RECIPES:
             raise GameError("invalid_recipe", "Unknown recipe")
         recipe = RECIPES[recipe_id]
+        storages = (player.backpack, player.inventory)
         consumed = []
         for item_kind, quantity in recipe["inputs"].items():
-            slots = [index for index, item in enumerate(player.inventory) if item and item.kind == item_kind]
+            slots = [(storage_index, slot) for storage_index, storage in enumerate(storages) for slot, item in enumerate(storage) if item and item.kind == item_kind]
             if len(slots) < quantity:
                 raise GameError("materials_missing", "Not enough crafting materials")
             consumed.extend(slots[:quantity])
-        if player.inventory.count(None) + len(consumed) < recipe["count"]:
+        if sum(storage.count(None) for storage in storages) + len(consumed) < recipe["count"]:
             raise GameError("inventory_full", "Not enough room for every crafted item")
         self.touch()
-        for slot in consumed:
-            self.cancel_selected(player, controls, slot)
-            player.inventory[slot] = None
+        for storage_index, slot in consumed:
+            if storage_index == 1:
+                self.cancel_selected(player, controls, slot)
+            storages[storage_index][slot] = None
         for count in range(recipe["count"]):
-            player.inventory[player.inventory.index(None)] = Item.create(recipe["output"])
+            storage = next(storage for storage in storages if None in storage)
+            storage[storage.index(None)] = Item.create(recipe["output"])
         return {"output": recipe["output"], "count": recipe["count"]}
 
     def place(self, player, controls, command):
@@ -202,15 +206,15 @@ class Actions:
         if not isinstance(endpoint, dict):
             raise GameError("invalid_endpoint", "Transfer endpoints must be objects")
         kind = endpoint.get("kind")
-        if kind == "inventory":
-            slot = integer(endpoint.get("slot"), "slot", 0, 9)
+        if kind in ("inventory", "backpack"):
+            slot = integer(endpoint.get("slot"), "slot", 0, (INVENTORY_SLOTS if kind == "inventory" else BACKPACK_SLOTS) - 1)
             return kind, player, slot
         if kind == "ground":
             if destination:
-                return kind, None, None
+                return kind, self.drop_position(player, controls), None
             ground_id = endpoint.get("id")
             ground = self.ground.get(ground_id) if isinstance(ground_id, str) else None
-            if not ground or distance(player, ground) > 2:
+            if not ground or distance(player, ground) > PICKUP_RADIUS or not self.visible(player.x, player.y, ground.x, ground.y):
                 raise GameError("out_of_range", "Ground item is missing or too far away")
             if ground.dropped_by == player.id and self.elapsed < ground.immune_until:
                 raise GameError("pickup_cooldown", "Wait one second before retrieving your own drop")
@@ -228,8 +232,8 @@ class Actions:
     @staticmethod
     def endpoint_item(endpoint):
         kind, owner, slot = endpoint
-        if kind == "inventory":
-            return owner.inventory[slot]
+        if kind in ("inventory", "backpack"):
+            return getattr(owner, kind)[slot]
         if kind == "chest":
             return owner.slots[slot]
         if kind == "igniter":
@@ -268,6 +272,8 @@ class Actions:
         if kind == "inventory":
             self.cancel_selected(player, controls, slot)
             owner.inventory[slot] = item
+        elif kind == "backpack":
+            owner.backpack[slot] = item
         elif kind == "chest":
             owner.slots[slot] = item
         elif kind == "igniter":
@@ -276,9 +282,28 @@ class Actions:
             owner.fuel += 1 if item else -1
         elif kind == "ground":
             if item:
-                self.drop_item(item, player.x, player.y, player.id)
+                self.drop_item(item, *owner, player.id)
             else:
                 del self.ground[owner.id]
+
+    def drop_position(self, player, controls):
+        direction_x, direction_y = normalized(controls.aim_x - player.x, controls.aim_y - player.y)
+        if direction_x == direction_y == 0:
+            raise GameError("invalid_drop_direction", "Aim away from the player before dropping an item")
+        target_x = player.x + direction_x * DROP_DISTANCE
+        target_y = player.y + direction_y * DROP_DISTANCE
+        travel = DROP_DISTANCE
+        for tile_x in range(tile(min(player.x, target_x)) - 1, tile(max(player.x, target_x)) + 2):
+            for tile_y in range(tile(min(player.y, target_y)) - 1, tile(max(player.y, target_y)) + 2):
+                structure = self.structure_at(tile_x, tile_y)
+                if self.generated(tile_x, tile_y) and (structure is None or structure.kind not in SOLID):
+                    continue
+                fraction = segment_box(player.x, player.y, target_x, target_y, tile_x, tile_y)
+                if fraction is not None:
+                    travel = min(travel, max(0.0, fraction * DROP_DISTANCE - 1e-6))
+        if travel <= 1e-6:
+            raise GameError("drop_blocked", "No reachable drop position in this direction")
+        return player.x + direction_x * travel, player.y + direction_y * travel
 
     def drop_item(self, item, x, y, dropped_by=None):
         ground = GroundItem(item, x, y, dropped_by=dropped_by, immune_until=self.elapsed + 1 if dropped_by else 0)

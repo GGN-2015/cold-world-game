@@ -1,4 +1,5 @@
-import { assetUrl, distance, errorText, itemDetail, itemName, seasons } from './catalog.js';
+import { assetUrl, distance, errorText, itemDetail, itemName, seasonName } from './catalog.js';
+import { t } from './i18n.js';
 
 const element = (tag, className = '', text = '') => {
   const node = document.createElement(tag);
@@ -21,7 +22,7 @@ export class GameUI {
     this.panelSignature = '';
     this.hotbarSignature = '';
     byId('inventory-button').onclick = () => this.togglePanel('inventory');
-    byId('craft-button').onclick = () => this.togglePanel('craft');
+    byId('craft-button').onclick = () => this.togglePanel('inventory');
     byId('panel-close').onclick = () => this.closePanel();
     byId('help-button').onclick = () => this.toggleHelp();
     byId('help-close').onclick = () => this.toggleHelp(false);
@@ -35,12 +36,20 @@ export class GameUI {
       this.panelSignature = '';
       if (this.state) this.update(this.state);
     });
+    window.addEventListener('cold-world-languagechange', () => {
+      this.panelSignature = '';
+      this.hotbarSignature = '';
+      if (this.state) this.update(this.state);
+      for (const node of byId('toasts').children) node.refresh();
+    });
   }
 
   isOpen() { return Boolean(this.panel || this.helpOpen); }
 
   toast(text, success = false) {
-    const node = element('div', `toast${success ? ' success' : ''}`, text);
+    const node = element('div', `toast${success ? ' success' : ''}`);
+    node.refresh = () => { node.textContent = typeof text === 'function' ? text() : text; };
+    node.refresh();
     byId('toasts').append(node);
     while (byId('toasts').children.length > 4) byId('toasts').firstChild.remove();
     setTimeout(() => node.remove(), 4500);
@@ -64,7 +73,7 @@ export class GameUI {
       if (success) this.toast(success, true);
       return true;
     } catch (error) {
-      this.toast(errorText(error));
+      this.toast(() => errorText(error));
       return false;
     } finally {
       this.busy = false;
@@ -115,17 +124,17 @@ export class GameUI {
   update(state) {
     this.state = state;
     const you = state.you;
-    byId('season-label').textContent = `${seasons[state.environment.season]} · 第 ${state.environment.day} 天`;
+    byId('season-label').textContent = t('world.seasonDay', { season: seasonName(state.environment.season), day: state.environment.day });
     const totalMinutes = Math.floor(state.environment.hour * 60) % 1440;
     byId('clock-label').textContent = `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
-    byId('ambient-label').textContent = `体感 ${you.ambient_temperature.toFixed(0)}°C`;
+    byId('ambient-label').textContent = t('world.ambient', { temperature: you.ambient_temperature.toFixed(0) });
     byId('temperature-label').textContent = `${you.temperature.toFixed(1)}°C`;
     byId('temperature-fill').style.width = `${Math.max(0, you.temperature / 36 * 100)}%`;
     const displayHunger = you.hunger > 10 && you.hunger.toFixed(1) === '10.0' ? '>10' : you.hunger.toFixed(1);
-    byId('hunger-label').textContent = `${displayHunger}${you.hunger > 10 ? ' · 已饱' : ''}`;
-    byId('hunger-label').title = `当前饥饿值 ${you.hunger.toFixed(3)}；大于 10 时不能继续进食。`;
+    byId('hunger-label').textContent = `${displayHunger}${you.hunger > 10 ? t('vital.full') : ''}`;
+    byId('hunger-label').title = t('vital.hungerHint', { value: you.hunger.toFixed(3) });
     byId('hunger-fill').style.width = `${Math.max(0, Math.min(100, you.hunger * 10))}%`;
-    byId('coordinate-label').textContent = `坐标 ${you.x.toFixed(1)}, ${you.y.toFixed(1)}`;
+    byId('coordinate-label').textContent = t('world.coordinates', { x: you.x.toFixed(1), y: you.y.toFixed(1) });
     byId('player-label').textContent = you.id;
     byId('downed-notice').hidden = !you.downed;
     const selected = this.controls.selected();
@@ -135,12 +144,12 @@ export class GameUI {
       this.hotbarSignature = hotbarSignature;
       byId('hotbar').replaceChildren(...you.inventory.map((item, slot) => this.itemSlot(item, { kind: 'inventory', slot }, true)));
     }
-    if (state.container && !this.helpOpen && !['craft', 'inventory'].includes(this.panel)) this.panel = 'container';
+    if (state.container && !this.helpOpen && this.panel !== 'inventory') this.panel = 'container';
     if (!state.container && this.panel === 'container') this.closePanel(false);
     this.refreshPanel();
     if (state.fault) {
       byId('connection-banner').hidden = false;
-      byId('connection-banner').textContent = '服务器存档异常，世界已暂停。请检查服务端终端。';
+      byId('connection-banner').textContent = t('connection.fault');
     }
   }
 
@@ -151,11 +160,11 @@ export class GameUI {
     let text = '';
     if (target.category === 'structure') {
       const near = distance(this.state.you, target) <= (['chest', 'campfire'].includes(target.kind) ? 2 : 3);
-      if (['chest', 'campfire'].includes(target.kind)) text = `${itemName(target.kind)} · ${near ? '左键打开' : '再靠近一点'}${equipped?.kind === 'axe' && distance(this.state.you, target) <= 3 ? ' · Shift + 长按左键拆除' : ''}`;
-      else if (equipped?.kind === 'axe') text = `${itemName(target.kind)} · ${target.monster_demolition ? '怪物正在拆除，无法同时拆除' : near ? '长按左键收集' : '再靠近一点'}`;
+      if (['chest', 'campfire'].includes(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${equipped?.kind === 'axe' && distance(this.state.you, target) <= 3 ? t('hint.dismantle') : ''}`;
+      else if (equipped?.kind === 'axe') text = `${itemName(target.kind)} · ${t(target.monster_demolition ? 'hint.busy' : near ? 'hint.gather' : 'hint.nearer')}`;
     } else {
-      text = `${target.big ? '大怪' : '小怪'} · ${target.hp} HP`;
-      if (equipped?.kind === 'axe') text += distance(this.state.you, target) <= this.catalog.axe.range ? ' · 单击左键攻击' : ` · 超出斧头 ${this.catalog.axe.range} 格范围`;
+      text = `${t(target.big ? 'hint.bigMonster' : 'hint.smallMonster')} · ${target.hp} HP`;
+      if (equipped?.kind === 'axe') text += distance(this.state.you, target) <= this.catalog.axe.range ? t('hint.attack') : t('hint.axeRange', { range: this.catalog.axe.range });
     }
     hint.textContent = text;
     hint.hidden = !text;
@@ -164,36 +173,49 @@ export class GameUI {
   refreshPanel() {
     if (!this.state || !this.panel || this.dragSource) return;
     const container = this.state.container;
-    const signature = JSON.stringify([this.panel, this.state.you.inventory, this.controls.selected(), container ? { ...container, burn_remaining: Math.ceil(container.burn_remaining || 0) } : null, this.busy]);
+    const signature = JSON.stringify([this.panel, this.state.you.inventory, this.state.you.backpack, this.controls.selected(), container ? { ...container, burn_remaining: Math.ceil(container.burn_remaining || 0) } : null, this.busy]);
     if (signature === this.panelSignature) return;
     this.panelSignature = signature;
     const body = byId('panel-body');
     body.replaceChildren();
     byId('side-panel').hidden = false;
-    byId('panel-kicker').textContent = this.panel === 'craft' ? 'MADE BY YOU' : this.panel === 'container' ? 'A LITTLE SHELTER' : 'SURVIVAL KIT';
-    if (this.panel === 'craft') this.renderCraft(body);
-    else if (this.panel === 'inventory') {
-      byId('panel-title').textContent = '随身背包';
-      byId('panel-description').textContent = '每格一件物品。拖到空格整理，选中后按 Q 丢弃。';
-      const grid = element('div', 'bag-grid');
-      grid.append(...this.state.you.inventory.map((item, slot) => this.itemSlot(item, { kind: 'inventory', slot })));
-      body.append(grid, element('p', 'bag-description', '枪械弹药和火种次数显示在物品右下角。靠近地面物品会自动拾取；新丢下的物品有一秒拾取冷却。'));
-      const drop = element('button', 'small-button wide', '丢弃当前选中物品');
-      drop.disabled = this.busy || !this.state.you.inventory[this.controls.selected()];
-      drop.onclick = () => this.action('drop', { slot: this.controls.selected() });
-      body.append(drop);
+    byId('panel-kicker').textContent = t(this.panel === 'container' ? 'panel.shelter' : 'panel.kit');
+    const layout = element('div', 'storage-layout');
+    const bag = element('section', 'storage-column backpack-section');
+    this.renderBackpack(bag);
+    const detail = element('section', 'storage-column detail-section');
+    if (this.panel !== 'container') {
+      byId('panel-title').textContent = t('panel.inventoryTitle');
+      byId('panel-description').textContent = t('panel.inventoryDescription');
+      detail.append(element('h3', 'storage-heading', t('button.craft')));
+      this.renderCraft(detail);
     } else if (container) {
       byId('panel-title').textContent = itemName(container.kind);
-      byId('panel-description').textContent = '拖动背包物品到空格存入。点击容器物品取出，Shift 点击背包物品快速存入。';
+      byId('panel-description').textContent = t('panel.containerDescription');
+      detail.append(element('h3', 'storage-heading', itemName(container.kind)));
       if (container.kind === 'chest') {
-        body.append(element('div', 'container-meta', `${container.slots.filter(Boolean).length} / 30 格 · 物品不堆叠`));
+        detail.append(element('div', 'container-meta', t('panel.chestSlots', { count: container.slots.filter(Boolean).length })));
         const grid = element('div', 'chest-grid');
         grid.append(...container.slots.map((item, slot) => this.itemSlot(item, { kind: 'chest', id: container.id, slot })));
-        body.append(grid);
-      } else this.renderFire(body, container);
+        detail.append(grid);
+      } else this.renderFire(detail, container);
       const structure = this.state.structures.find((entry) => entry.id === container.id);
-      if (structure?.monster_demolition) body.append(element('p', 'panel-warning', '怪物正在拆除这个建筑，你不能同时拆除它。'));
+      if (structure?.monster_demolition) detail.append(element('p', 'panel-warning', t('panel.monsterWarning')));
     }
+    layout.append(bag, detail);
+    body.append(layout);
+  }
+
+  renderBackpack(body) {
+    body.append(element('h3', 'storage-heading', t('bag.title')), element('div', 'container-meta', t('bag.slots', { count: this.state.you.backpack.filter(Boolean).length })));
+    const grid = element('div', 'bag-grid');
+    grid.append(...this.state.you.backpack.map((item, slot) => this.itemSlot(item, { kind: 'backpack', slot })));
+    body.append(grid, element('p', 'bag-description', t('bag.transferHint')));
+    body.append(element('p', 'bag-description', t('bag.pickupHint')));
+  }
+
+  playerItems() {
+    return ['backpack', 'inventory'].flatMap((kind) => this.state.you[kind].map((item, slot) => ({ item, endpoint: { kind, slot } })));
   }
 
   itemSlot(item, endpoint, hotbar = false) {
@@ -201,7 +223,7 @@ export class GameUI {
     const node = element('button', `item-slot${item ? '' : ' empty'}${selected ? ' selected' : ''}`);
     node.type = 'button';
     node.title = itemDetail(item, this.catalog);
-    node.setAttribute('aria-label', `${endpoint.kind === 'inventory' ? '背包' : '容器'}格 ${endpoint.slot == null ? '' : endpoint.slot + 1}：${itemDetail(item, this.catalog)}`);
+    node.setAttribute('aria-label', t('slot.label', { area: t(`slot.${['inventory', 'backpack'].includes(endpoint.kind) ? endpoint.kind : 'container'}`), slot: endpoint.slot == null ? '' : endpoint.slot + 1, item: itemDetail(item, this.catalog) }));
     node.dataset.kind = endpoint.kind;
     if (endpoint.slot != null) node.dataset.slot = endpoint.slot;
     if (hotbar) node.append(element('span', 'slot-key', String((endpoint.slot + 1) % 10)));
@@ -219,7 +241,17 @@ export class GameUI {
       if (this.busy) return;
       if (endpoint.kind === 'inventory') {
         this.controls.select(endpoint.slot);
-        if (event.shiftKey && item && this.state.container) this.quickDeposit(endpoint, item);
+        if (event.shiftKey && item) {
+          if (this.state.container) this.quickDeposit(endpoint, item);
+          else this.quickTake(endpoint, item);
+        }
+      } else if (endpoint.kind === 'backpack' && item) {
+        if (event.shiftKey && this.state.container) this.quickDeposit(endpoint, item);
+        else {
+          const slot = this.state.you.inventory.findIndex((entry) => !entry);
+          if (slot < 0) return this.toast(() => t('storage.hotbarFull'));
+          this.transfer(endpoint, { kind: 'inventory', slot }, item);
+        }
       } else if (item) this.quickTake(endpoint, item);
     };
     node.draggable = Boolean(item);
@@ -254,9 +286,9 @@ export class GameUI {
   }
 
   quickTake(endpoint, item) {
-    const slot = this.state.you.inventory.findIndex((entry) => !entry);
-    if (slot < 0) return this.toast('背包已满，请先腾出空格。');
-    this.transfer(endpoint, { kind: 'inventory', slot }, item);
+    const slot = this.state.you.backpack.findIndex((entry) => !entry);
+    if (slot < 0) return this.toast(() => t('storage.backpackFull'));
+    this.transfer(endpoint, { kind: 'backpack', slot }, item);
   }
 
   quickDeposit(endpoint, item) {
@@ -264,17 +296,16 @@ export class GameUI {
     if (!container) return;
     if (container.kind === 'chest') {
       const slot = container.slots.findIndex((entry) => !entry);
-      if (slot < 0) return this.toast('箱子已满。');
+      if (slot < 0) return this.toast(() => t('storage.chestFull'));
       this.transfer(endpoint, { kind: 'chest', id: container.id, slot }, item);
     } else if (item.kind === 'wood') this.transfer(endpoint, { kind: 'fuel', id: container.id }, item);
     else if (this.catalog.igniters[item.kind]) this.transfer(endpoint, { kind: 'igniter', id: container.id }, item);
-    else this.toast('篝火只接受木材和火种。');
+    else this.toast(() => t('storage.fireOnly'));
   }
 
   renderCraft(body) {
-    byId('panel-title').textContent = '用双手，留住温暖';
-    byId('panel-description').textContent = '制作立即完成。材料消耗与产物一起保存，背包需要有足够空格。';
-    const inventory = this.state.you.inventory;
+    body.append(element('p', 'craft-description', t('craft.description')));
+    const inventory = [...this.state.you.backpack, ...this.state.you.inventory];
     const counts = {};
     for (const item of inventory.filter(Boolean)) counts[item.kind] = (counts[item.kind] || 0) + 1;
     const list = element('div', 'recipe-list');
@@ -289,10 +320,10 @@ export class GameUI {
       const image = element('img'); image.src = assetUrl(recipe.output); image.alt = '';
       icon.append(image, element('small', '', `×${recipe.count}`));
       const copy = element('span', 'recipe-copy');
-      copy.append(element('strong', '', identifier === 'recycle_fences' ? '回收木栅栏 → 木材' : itemName(recipe.output)));
+      copy.append(element('strong', '', identifier === 'recycle_fences' ? t('craft.recycle') : itemName(recipe.output)));
       copy.append(element('span', enough ? '' : 'missing', Object.entries(recipe.inputs).map(([kind, amount]) => `${itemName(kind)} ${counts[kind] || 0}/${amount}`).join(' · ')));
       card.append(icon, copy, element('span', '', '＋'));
-      card.onclick = () => this.action('craft', { recipe: identifier }, `制作了 ${recipe.count} 个${itemName(recipe.output)}`);
+      card.onclick = () => this.action('craft', { recipe: identifier }, () => t('craft.success', { count: recipe.count, name: itemName(recipe.output) }));
       list.append(card);
     }
     body.append(list);
@@ -302,13 +333,13 @@ export class GameUI {
     const structure = this.state.structures.find((entry) => entry.id === container.id);
     const lit = Boolean(structure?.lit);
     const overview = element('div', 'fire-overview');
-    const image = element('img'); image.src = assetUrl(lit ? 'campfire_lit' : 'campfire'); image.alt = '篝火';
+    const image = element('img'); image.src = assetUrl(lit ? 'campfire_lit' : 'campfire'); image.alt = itemName('campfire');
     const copy = element('div');
     const remaining = Math.ceil(container.burn_remaining || 0);
-    copy.append(element('strong', '', lit ? '火还亮着' : '生一堆火吧'), element('p', '', lit ? `本段燃烧剩余 ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : '放入木材与火种后点燃'));
+    copy.append(element('strong', '', t(lit ? 'fire.lit' : 'fire.unlit')), element('p', '', lit ? t('fire.remaining', { time: `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` }) : t('fire.needs')));
     overview.append(image, copy); body.append(overview);
     const fuel = element('section', 'fire-section');
-    fuel.append(element('div', 'fire-section-label', `储备木材 · ${container.fuel} / 16`));
+    fuel.append(element('div', 'fire-section-label', t('fire.fuel', { count: container.fuel })));
     const grid = element('div', 'fuel-grid');
     for (let index = 0; index < 16; index++) grid.append(element('span', `fuel-unit${index < container.fuel ? ' filled' : ''}`));
     grid.addEventListener('dragover', (event) => {
@@ -321,29 +352,29 @@ export class GameUI {
       if (this.dragSource) this.transfer(this.dragSource.endpoint, { kind: 'fuel', id: container.id }, this.dragSource.item);
     });
     const buttons = element('div', 'fire-buttons');
-    const put = element('button', 'small-button', '存入 1 木材');
-    const woodSlot = this.state.you.inventory.findIndex((item) => item?.kind === 'wood');
-    put.disabled = this.busy || woodSlot < 0 || container.fuel >= 16;
+    const put = element('button', 'small-button', t('fire.putWood'));
+    const wood = this.playerItems().find(({ item }) => item?.kind === 'wood');
+    put.disabled = this.busy || !wood || container.fuel >= 16;
     put.dataset.action = 'put-fuel';
-    put.onclick = () => this.transfer({ kind: 'inventory', slot: woodSlot }, { kind: 'fuel', id: container.id }, this.state.you.inventory[woodSlot]);
-    const take = element('button', 'small-button', '取回 1 木材');
+    put.onclick = () => this.transfer(wood.endpoint, { kind: 'fuel', id: container.id }, wood.item);
+    const take = element('button', 'small-button', t('fire.takeWood'));
     take.disabled = this.busy || container.fuel <= 0;
     take.onclick = () => this.quickTake({ kind: 'fuel', id: container.id }, { kind: 'wood' });
     buttons.append(put, take); fuel.append(grid, buttons); body.append(fuel);
     const igniter = element('section', 'fire-section');
-    igniter.append(element('div', 'fire-section-label', '火种 · 点燃时消耗 1 次'));
+    igniter.append(element('div', 'fire-section-label', t('fire.igniter')));
     const row = element('div', 'igniter-row');
     row.append(this.itemSlot(container.igniter, { kind: 'igniter', id: container.id }));
-    const igniterSlot = this.state.you.inventory.findIndex((item) => item && this.catalog.igniters[item.kind] && item.uses > 0);
-    const insert = element('button', 'small-button', container.igniter ? '取回火种' : '从背包放入火种');
-    insert.disabled = this.busy || (!container.igniter && igniterSlot < 0);
+    const igniterItem = this.playerItems().find(({ item }) => item && this.catalog.igniters[item.kind] && item.uses > 0);
+    const insert = element('button', 'small-button', t(container.igniter ? 'fire.takeIgniter' : 'fire.putIgniter'));
+    insert.disabled = this.busy || (!container.igniter && !igniterItem);
     insert.dataset.action = 'put-igniter';
-    insert.onclick = () => container.igniter ? this.quickTake({ kind: 'igniter', id: container.id }, container.igniter) : this.transfer({ kind: 'inventory', slot: igniterSlot }, { kind: 'igniter', id: container.id }, this.state.you.inventory[igniterSlot]);
+    insert.onclick = () => container.igniter ? this.quickTake({ kind: 'igniter', id: container.id }, container.igniter) : this.transfer(igniterItem.endpoint, { kind: 'igniter', id: container.id }, igniterItem.item);
     row.append(insert); igniter.append(row); body.append(igniter);
-    const light = element('button', 'primary-button fire-light', lit ? '正在燃烧' : '点燃篝火');
+    const light = element('button', 'primary-button fire-light', t(lit ? 'fire.burning' : 'fire.light'));
     light.disabled = this.busy || lit || !container.fuel || !(container.igniter?.uses > 0);
     light.dataset.action = 'light';
-    light.onclick = () => this.action('light', { id: container.id }, '篝火已点燃，靠近一点取暖吧。');
-    body.append(light, element('p', 'bag-description', '每个木材燃烧现实 6 分钟，储备木材会自动续燃。1–2 格恢复体温，3 格保温；距离按曼哈顿距离计算。'));
+    light.onclick = () => this.action('light', { id: container.id }, () => t('fire.success'));
+    body.append(light, element('p', 'bag-description', t('fire.description')));
   }
 }

@@ -9,7 +9,7 @@ from contextlib import contextmanager
 
 from .actions import Actions, GameError
 from .combat import Combat
-from .constants import AXE, BODY_RADIUS, BURN_SECONDS, CHUNK_SIZE, DAY_SECONDS, FOODS, GUNS, IGNITERS, ITEM_KINDS, MONSTER_SPEED, OPAQUE, PLAYER_SPEED, RECIPES, SEASON_DAYS, SEASON_OFFSETS, SEASONS, SOLID, TICK_RATE
+from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BURN_SECONDS, CHUNK_SIZE, DAY_SECONDS, DROP_DISTANCE, FOODS, GUNS, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, MONSTER_SPEED, OPAQUE, PICKUP_RADIUS, PLAYER_SPEED, RECIPES, SEASON_DAYS, SEASON_OFFSETS, SEASONS, SOLID, TICK_RATE
 from .geometry import circle_square, distance, segment_box, tile
 from .models import Controls, GroundItem, Item, Monster, Player, Projectile, encode, item_from, player_from, structure_from
 from .monsters import Monsters
@@ -309,11 +309,11 @@ class World(Actions, Combat, Monsters, Terrain):
 
     def pickup(self, player):
         for ground_id, ground in list(self.ground.items()):
-            if None not in player.inventory:
+            if None not in player.backpack:
                 return
-            if distance(player, ground) <= 2 and not (ground.dropped_by == player.id and self.elapsed < ground.immune_until):
+            if distance(player, ground) <= PICKUP_RADIUS and self.visible(player.x, player.y, ground.x, ground.y) and not (ground.dropped_by == player.id and self.elapsed < ground.immune_until):
                 self.touch()
-                player.inventory[player.inventory.index(None)] = ground.item
+                player.backpack[player.backpack.index(None)] = ground.item
                 del self.ground[ground_id]
 
     def snapshot(self, player_id):
@@ -347,7 +347,7 @@ class World(Actions, Combat, Monsters, Terrain):
 
     @staticmethod
     def catalog():
-        return {"tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "axe": AXE, "guns": GUNS, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED}, "protocol": 1}
+        return {"tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "axe": AXE, "guns": GUNS, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED}, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "protocol": 1}
 
     def close(self):
         with self.lock:

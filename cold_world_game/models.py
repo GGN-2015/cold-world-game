@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field, is_dataclass
 from uuid import uuid4
 
-from .constants import GUNS, IGNITERS
+from .constants import BACKPACK_SLOTS, GUNS, IGNITERS, INVENTORY_SLOTS
 
 
 def identifier() -> str:
@@ -41,7 +41,8 @@ class Player:
     id: str
     x: float
     y: float
-    inventory: list[Item | None] = field(default_factory=lambda: [None] * 10)
+    inventory: list[Item | None] = field(default_factory=lambda: [None] * INVENTORY_SLOTS)
+    backpack: list[Item | None] = field(default_factory=lambda: [None] * BACKPACK_SLOTS)
     temperature: float = 36.0
     hunger: float = 10.0
     selected: int = 0
@@ -134,6 +135,7 @@ def structure_from(data: dict) -> Structure:
 def player_from(data: dict) -> Player:
     values = dict(data)
     values["inventory"] = [item_from(item) for item in data["inventory"]]
+    values["backpack"] = [item_from(item) for item in data.get("backpack", [None] * BACKPACK_SLOTS)]
     return Player(**values)
 
 
