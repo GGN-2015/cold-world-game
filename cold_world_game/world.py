@@ -33,6 +33,7 @@ class World(Actions, Combat, Monsters, Terrain):
         self.event_sequence = 0
         self._pending_events = []
         self._path_cursor = None
+        self._velocities = {}
         state = storage.load()
         if state:
             self.restore(state)
@@ -124,7 +125,7 @@ class World(Actions, Combat, Monsters, Terrain):
     def emit_event(self, event_type, actor, kind, x, y, **details):
         self._pending_events.append({"type": event_type, "actor": actor, "kind": kind, "x": x, "y": y, "time": self.elapsed, **details})
 
-    def join(self, player_id):
+    def join(self, player_id, client_movement=False):
         if not isinstance(player_id, str) or not player_id.strip() or len(player_id) > 64 or not player_id.isprintable():
             raise GameError("invalid_id", "Player ID must contain 1-64 printable characters")
         with self.lock, self.transaction():
@@ -154,7 +155,7 @@ class World(Actions, Combat, Monsters, Terrain):
                 player.next_axe_attack = self.elapsed + max(0, player.next_axe_attack - player.offline_since)
                 player.offline_since = None
             self.online.add(player_id)
-            self.controls[player_id] = Controls(aim_x=player.x + 1, aim_y=player.y, last_input=time.monotonic())
+            self.controls[player_id] = Controls(aim_x=player.x + 1, aim_y=player.y, last_input=time.monotonic(), client_movement=client_movement)
             for monster in self.monsters.values():
                 if monster.target not in self.online or self.players[monster.target].temperature <= 0:
                     self.clear_target(monster)
@@ -202,9 +203,12 @@ class World(Actions, Combat, Monsters, Terrain):
                     player, controls = self.players[player_id], self.controls[player_id]
                     if time.monotonic() - controls.last_input > 1:
                         controls.move_x = controls.move_y = 0.0
+                        controls.velocity_x = controls.velocity_y = 0.0
                         controls.stop_attack()
                     self.update_player(player, controls, seconds)
+                previous_monsters = {identifier: (monster.x, monster.y) for identifier, monster in self.monsters.items()}
                 self.update_monsters(seconds)
+                self._velocities = {identifier: ((monster.x - previous_monsters[identifier][0]) / seconds, (monster.y - previous_monsters[identifier][1]) / seconds) for identifier, monster in self.monsters.items() if identifier in previous_monsters and seconds > 0}
                 self.update_projectiles(seconds)
                 for player_id in list(self.online):
                     player, controls = self.players[player_id], self.controls[player_id]
@@ -336,6 +340,8 @@ class World(Actions, Combat, Monsters, Terrain):
         rate = 10 if ambient >= 20 else 0 if ambient >= 10 else -1 if ambient >= 0 else -2 if ambient >= -10 else -5 if ambient >= -20 else -10
         player.temperature = max(0.0, min(36.0, player.temperature + rate * seconds / 60))
         player.hunger = max(0.0, player.hunger - seconds / 60)
+        if (previous_temperature < 5) != (player.temperature < 5):
+            controls.movement_epoch += 1
         if player.temperature < 5:
             controls.stop_attack()
             controls.ghost_monsters.update(monster.id for monster in self.monsters.values() if distance(player, monster) < BODY_RADIUS * 2)
@@ -345,8 +351,14 @@ class World(Actions, Combat, Monsters, Terrain):
         if player.temperature >= 5:
             speed = PLAYER_SPEED * (0.5 if player.temperature < 18 else 1) * (0.5 if player.hunger == 0 else 1)
             self.ensure_terrain(player.x, player.y)
-            self.move_body(player, controls.move_x * speed * seconds, controls.move_y * speed * seconds, player_id=player.id)
-            self.ensure_terrain(player.x, player.y)
+            if not controls.client_movement:
+                previous_x, previous_y = player.x, player.y
+                self.move_body(player, controls.move_x * speed * seconds, controls.move_y * speed * seconds, player_id=player.id)
+                controls.velocity_x = (player.x - previous_x) / seconds if seconds > 0 else 0.0
+                controls.velocity_y = (player.y - previous_y) / seconds if seconds > 0 else 0.0
+                self.ensure_terrain(player.x, player.y)
+        else:
+            controls.velocity_x = controls.velocity_y = 0.0
 
     def pickup(self, player):
         has_space = None in player.backpack
@@ -380,12 +392,13 @@ class World(Actions, Combat, Monsters, Terrain):
                 "elapsed": self.elapsed,
                 "paused": not self.online or self.fault is not None,
                 "fault": self.fault,
+                "movement": {"mode": "client" if controls.client_movement else "server", "epoch": controls.movement_epoch},
                 "environment": self.environment(),
                 "you": {**encode(player), "tile": [tile(player.x), tile(player.y)], "offset": [player.x - tile(player.x), player.y - tile(player.y)], "ambient_temperature": self.temperature_at(player), "downed": player.temperature < 5},
-                "players": [{"id": other.id, "x": other.x, "y": other.y, "temperature": other.temperature, "hunger": other.hunger, "downed": other.temperature < 5} for other_id in sorted(self.online) if (other := self.players[other_id]) and abs(other.x - player.x) <= 20 and abs(other.y - player.y) <= 13],
+                "players": [{"id": other.id, "x": other.x, "y": other.y, "temperature": other.temperature, "hunger": other.hunger, "downed": other.temperature < 5, "velocity_x": self.controls[other_id].velocity_x, "velocity_y": self.controls[other_id].velocity_y} for other_id in sorted(self.online) if (other := self.players[other_id]) and abs(other.x - player.x) <= 20 and abs(other.y - player.y) <= 13],
                 "structures": structures,
                 "chunks": sorted(visible_chunks),
-                "monsters": [{"id": monster.id, "x": monster.x, "y": monster.y, "big": monster.big, "hp": monster.hp, "demolition": monster.demolition} for monster in self.monsters.values() if abs(monster.x - player.x) <= 20 and abs(monster.y - player.y) <= 13],
+                "monsters": [{"id": monster.id, "x": monster.x, "y": monster.y, "big": monster.big, "hp": monster.hp, "demolition": monster.demolition, "velocity_x": self._velocities.get(monster.id, (0.0, 0.0))[0], "velocity_y": self._velocities.get(monster.id, (0.0, 0.0))[1]} for monster in self.monsters.values() if abs(monster.x - player.x) <= 20 and abs(monster.y - player.y) <= 13],
                 "projectiles": [encode(projectile) for projectile in self.projectiles.values() if abs(projectile.x - player.x) <= 22 and abs(projectile.y - player.y) <= 15],
                 "ground": [encode(ground) for ground in self.ground.values() if abs(ground.x - player.x) <= 20 and abs(ground.y - player.y) <= 13],
                 "container": encode(container) if container else None,

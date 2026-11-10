@@ -33,7 +33,7 @@ export class GameConnection extends EventTarget {
     let joined = false;
     const handshakeTimer = setTimeout(() => socket.close(), 12000);
     socket.addEventListener('open', () => {
-      socket.send(JSON.stringify({ type: 'join', ...this.credentials, quiet_inputs: true }));
+      socket.send(JSON.stringify({ type: 'join', ...this.credentials, quiet_inputs: true, client_movement: true }));
     });
     socket.addEventListener('message', (event) => {
       if (socket !== this.socket) return;

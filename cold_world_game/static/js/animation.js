@@ -29,8 +29,11 @@ export class ActorAnimator {
       const horizontal = entity.x - motion.x;
       const vertical = entity.y - motion.y;
       const displacement = Math.hypot(horizontal, vertical);
-      motion.moving = timeStep > 0 && !state.paused && !entity.downed && displacement > 0.00001 && displacement <= 5;
-      if (motion.moving) motion.direction = movementDirection(horizontal, vertical, motion.direction);
+      const hasVelocity = Number.isFinite(entity.velocity_x) && Number.isFinite(entity.velocity_y);
+      const directionX = hasVelocity ? entity.velocity_x : horizontal;
+      const directionY = hasVelocity ? entity.velocity_y : vertical;
+      motion.moving = timeStep > 0 && !state.paused && !entity.downed && displacement > 0.00001 && displacement <= 5 && Math.hypot(directionX, directionY) > 0.00001;
+      if (motion.moving) motion.direction = movementDirection(directionX, directionY, motion.direction);
       else motion.travel = 0;
       motion.x = entity.x;
       motion.y = entity.y;

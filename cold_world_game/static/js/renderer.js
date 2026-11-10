@@ -4,6 +4,7 @@ import { ActorAnimator } from './animation.js';
 import { isMobileDevice } from './mobile.js';
 import { CombatEffects } from './effects.js';
 import { SnapshotMotion } from './motion.js';
+import { ClientMovement, CollisionMap } from './movement.js';
 
 export async function loadAssets() {
   const response = await fetch('/static/assets/manifest.json');
@@ -45,13 +46,15 @@ function demoWorld() {
 }
 
 export class WorldRenderer {
-  constructor(canvas, images, animations = {}, effects = {}) {
+  constructor(canvas, images, animations = {}, effects = {}, catalog = {}) {
     this.canvas = canvas;
     this.context = canvas.getContext('2d', { alpha: false });
     this.images = images;
     this.animator = new ActorAnimator(animations);
     this.effects = new CombatEffects(effects);
-    this.motion = new SnapshotMotion();
+    this.collision = new CollisionMap(catalog);
+    this.movement = new ClientMovement(this.collision, catalog.movement?.player_speed ?? 4);
+    this.motion = new SnapshotMotion(this.collision);
     this.state = null;
     this.demo = demoWorld();
     this.camera = { x: -3, y: 1 };
@@ -82,6 +85,8 @@ export class WorldRenderer {
   setState(state) {
     const first = !this.state;
     this.state = state;
+    this.collision.update(state);
+    this.movement.observe(state);
     if (first) {
       this.camera = { x: state.you.x, y: state.you.y };
       this.positions.clear();
@@ -101,6 +106,7 @@ export class WorldRenderer {
     this.animator.reset();
     this.effects.reset();
     this.motion.reset();
+    this.movement.reset();
     this.camera = { x: -3, y: 1 };
   }
 
@@ -129,11 +135,12 @@ export class WorldRenderer {
   }
 
   smooth(entity) {
-    const point = this.state ? this.motion.sample(entity) : { x: entity.x, y: entity.y };
+    const point = this.state ? (entity.id === this.state.you.id && this.movement.enabled ? this.movement.sample() : this.motion.sample(entity)) : { x: entity.x, y: entity.y };
     const previous = this.positions.get(entity.id) || point;
     const displacement = distance(previous, point);
     this.positions.set(entity.id, point);
-    return { ...entity, ...point, renderDistance: displacement > 5 ? 0 : displacement };
+    const velocity = entity.id === this.state?.you.id && this.movement.enabled ? { velocity_x: this.movement.velocity.x, velocity_y: this.movement.velocity.y } : {};
+    return { ...entity, ...point, ...velocity, renderDistance: displacement > 5 ? 0 : displacement };
   }
 
   findTarget() {
@@ -149,11 +156,14 @@ export class WorldRenderer {
     const state = this.state;
     if (!state || !item || !buildings.has(item.kind) || this.panelOpen) return false;
     if (state.you.downed && item.kind !== 'campfire') return false;
-    if (distance(state.you, tile) > 3) return false;
+    if (distance(this.movement.enabled ? this.movement.position : state.you, tile) > 3) return false;
     if (!state.chunks.some(([horizontal, vertical]) => Math.abs(tile.x - horizontal * 15) <= 7 && Math.abs(tile.y - vertical * 15) <= 7)) return false;
     if (state.structures.some((entity) => entity.x === tile.x && entity.y === tile.y)) return false;
     if (['chest', 'campfire'].includes(item.kind) && state.structures.some((entity) => ['chest', 'campfire'].includes(entity.kind) && Math.max(Math.abs(entity.x - tile.x), Math.abs(entity.y - tile.y)) <= 1)) return false;
-    return ![...state.players, ...state.monsters].some((entity) => Math.hypot(Math.max(Math.abs(entity.x - tile.x) - 0.5, 0), Math.max(Math.abs(entity.y - tile.y) - 0.5, 0)) < 0.35);
+    return ![...state.players, ...state.monsters].some((entity) => {
+      const point = entity.id === state.you.id && this.movement.enabled ? this.movement.position : this.positions.get(entity.id) || entity;
+      return Math.hypot(Math.max(Math.abs(point.x - tile.x) - 0.5, 0), Math.max(Math.abs(point.y - tile.y) - 0.5, 0)) < 0.35;
+    });
   }
 
   draw(delta) {
@@ -163,8 +173,9 @@ export class WorldRenderer {
     this.fps += (1 / Math.max(delta, 0.001) - this.fps) * 0.04;
     const state = this.state || this.demo;
     this.motion.advance(delta);
-    const players = state.players.map((entity) => this.smooth(entity));
     const monsters = state.monsters.map((entity) => this.smooth(entity));
+    this.movement.advance(delta, monsters);
+    const players = state.players.map((entity) => this.smooth(entity));
     if (this.state) this.animator.observe({ elapsed: this.motion.time ?? state.elapsed, paused: state.paused, players, monsters });
     const local = players.find((entity) => entity.id === state.you.id) || state.you;
     if (this.state) {
@@ -230,7 +241,10 @@ export class WorldRenderer {
     this.drawProjectiles(state.projectiles.map((projectile) => ({ ...projectile, ...this.motion.sample(projectile) })));
     this.effects.draw(this);
     if (this.state && this.pointer.active && !this.panelOpen) this.drawPointer();
-    if (this.state?.interaction.progress > 0) this.bar(local.x, local.y + 0.7, Math.min(1, this.state.interaction.progress / (['wall', 'chest', 'vending_machine'].includes(this.target?.kind) ? 1.5 : 0.5)), '#efbb78', 0.9);
+    if (this.state?.interaction.progress > 0) {
+      const target = state.structures.find((structure) => `structure:${structure.id}` === state.interaction.target);
+      this.bar(local.x, local.y + 0.7, Math.min(1, state.interaction.progress / (['wall', 'chest', 'vending_machine'].includes(target?.kind) ? 1.5 : 0.5)), '#efbb78', 0.9);
+    }
     context.fillStyle = 'rgba(255,255,255,.55)';
     for (let index = 0; index < 65; index++) {
       const horizontal = ((index * 197.3 + this.elapsed * (7 + index % 3)) % (this.width + 20)) - 10;
@@ -275,8 +289,9 @@ export class WorldRenderer {
     for (const projectile of projectiles) {
       const point = this.screenPoint(projectile.x, projectile.y);
       const magnitude = Math.hypot(projectile.velocity_x, projectile.velocity_y) || 1;
-      const tailX = point.x - projectile.velocity_x / magnitude * this.scale * 0.8;
-      const tailY = point.y - projectile.velocity_y / magnitude * this.scale * 0.8;
+      const length = Number.isFinite(projectile.origin_x) && Number.isFinite(projectile.origin_y) ? Math.min(0.8, Math.hypot(projectile.x - projectile.origin_x, projectile.y - projectile.origin_y)) : 0.8;
+      const tailX = point.x - projectile.velocity_x / magnitude * this.scale * length;
+      const tailY = point.y - projectile.velocity_y / magnitude * this.scale * length;
       const color = projectile.hostile ? '#ff356d' : '#ff493d';
       context.beginPath();
       context.moveTo(tailX, tailY);

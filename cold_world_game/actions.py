@@ -43,6 +43,17 @@ class Actions:
             target = command.get("target_id", controls.aim_target)
             if target is not None and (not isinstance(target, str) or len(target) > 64):
                 raise GameError("invalid_argument", "target_id must be an entity ID or null")
+            position = command.get("position")
+            if controls.client_movement and position is not None:
+                velocity = command.get("velocity", [0, 0])
+                if not isinstance(position, list) or len(position) != 2 or not isinstance(velocity, list) or len(velocity) != 2:
+                    raise GameError("invalid_argument", "position and velocity must be two-element arrays")
+                position_x, position_y = number(position[0], "position.x"), number(position[1], "position.y")
+                velocity_x, velocity_y = number(velocity[0], "velocity.x"), number(velocity[1], "velocity.y")
+                epoch = integer(command.get("movement_epoch"), "movement_epoch", 0, 2 ** 53 - 1)
+                if epoch == controls.movement_epoch and player.temperature >= 5:
+                    player.x, player.y = position_x, position_y
+                    controls.velocity_x, controls.velocity_y = velocity_x, velocity_y
             if math.hypot(move_x, move_y) > 1:
                 move_x, move_y = normalized(move_x, move_y)
             controls.move_x, controls.move_y = move_x, move_y
@@ -64,7 +75,7 @@ class Actions:
             if controls.ui:
                 return {"accepted": False}
             target = self.structure_at(tile(controls.aim_x), tile(controls.aim_y))
-            if not shift and target and target.kind in CONTAINERS and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
+            if target and target.kind in CONTAINERS and (not shift or target.kind == "chest") and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
                 self.open_container(player, controls, target.id)
                 return {"opened": target.id}
             item = player.inventory[player.selected]
@@ -77,9 +88,29 @@ class Actions:
                     self.strike_axe(player, controls)
             controls.held = True
             controls.shift = shift
+        elif kind == "dismantle_chest":
+            pressed = boolean(command.get("pressed"), "pressed")
+            controls.last_input = time.monotonic()
+            if not pressed:
+                controls.stop_attack()
+                return {"accepted": True}
+            structure = self.access_container(player, command.get("id"))
+            item = player.inventory[player.selected]
+            if not controls.ui or controls.container != structure.id or structure.kind != "chest":
+                raise GameError("invalid_container", "Open this chest before dismantling it")
+            if any(structure.slots):
+                raise GameError("chest_not_empty", "Empty this chest before dismantling it")
+            if player.temperature < 5 or item is None or item.kind != "axe" or self.demolition_locked(structure.id):
+                raise GameError("demolition_unavailable", "Dismantling requires an axe, a standing player and no monster dismantling this chest")
+            if controls.demolition_container != structure.id:
+                controls.stop_attack()
+            controls.demolition_container = structure.id
+            controls.held = True
+            return {"accepted": True}
         elif kind == "stop":
             controls.stop_attack()
             controls.move_x = controls.move_y = 0.0
+            controls.velocity_x = controls.velocity_y = 0.0
         elif kind == "ui":
             controls.ui = boolean(command.get("open"), "open")
             controls.container = None

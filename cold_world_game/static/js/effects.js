@@ -84,7 +84,7 @@ export class CombatEffects {
       const direction = heading(event);
       const actor = renderer.positions.get(event.actor) || event;
       if (event.type === 'shot') {
-        this.frame(renderer, 'fx_muzzle', actor.x + direction.x * 0.7, actor.y - 0.35 + direction.y * 0.7, 0.85, phase, direction.angle);
+        this.frame(renderer, 'fx_muzzle', actor.x, actor.y, 0.85, phase, direction.angle);
       } else if (event.type === 'melee' || event.type === 'chop') {
         const monster = event.kind.startsWith('monster');
         this.frame(renderer, monster ? 'fx_claw' : 'fx_slash', actor.x, actor.y - 0.28, monster ? 1.8 : 2.1, phase, direction.angle);

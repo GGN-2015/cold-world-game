@@ -3,7 +3,7 @@ import math
 from collections import deque
 from functools import lru_cache
 
-from .constants import BODY_RADIUS, CHUNK_SIZE, KNOCKBACK, MONSTER_DEMOLITION, MONSTER_LIMIT, MONSTER_SPEED, SOLID
+from .constants import BODY_RADIUS, CHUNK_SIZE, KNOCKBACK, MONSTER_DEMOLITION, MONSTER_LIMIT, MONSTER_PROJECTILE_SPEED, MONSTER_SPEED, SOLID
 from .geometry import DIRECTIONS, distance, normalized, tile
 from .models import Monster, Projectile
 
@@ -96,7 +96,7 @@ class Monsters:
                 continue
             if monster.big and can_see and 1 < separation <= 12 and self.elapsed + 1e-9 >= monster.next_attack:
                 direction_x, direction_y = normalized(target.x - monster.x, target.y - monster.y)
-                projectile = Projectile(monster.x, monster.y, direction_x * 1.5, direction_y * 1.5, 12, 5, monster.id, hostile=True)
+                projectile = Projectile(monster.x, monster.y, direction_x * MONSTER_PROJECTILE_SPEED, direction_y * MONSTER_PROJECTILE_SPEED, 12, 5, monster.id, hostile=True, origin_x=monster.x, origin_y=monster.y, spawned_at=self.elapsed)
                 self.projectiles[projectile.id] = projectile
                 self.emit_event("shot", monster.id, "monster", monster.x, monster.y, direction=[direction_x, direction_y])
                 monster.next_attack = self.elapsed + 2

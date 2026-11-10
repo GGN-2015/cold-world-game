@@ -25,6 +25,8 @@ export class GameUI {
     this.touchTransfer = false;
     this.touchSelection = null;
     this.closedContainer = null;
+    this.demolitionHold = null;
+    this.demolitionButton = null;
     if (isMobileDevice) {
       const label = byId('inventory-button').querySelector('[data-i18n]');
       label.dataset.i18n = 'touch.backpack';
@@ -78,6 +80,7 @@ export class GameUI {
 
   async action(type, payload = {}, success = '') {
     if (this.busy) return false;
+    this.cancelDemolition();
     this.busy = true;
     this.refreshPanel();
     try {
@@ -140,6 +143,7 @@ export class GameUI {
   }
 
   reset() {
+    this.cancelDemolition();
     this.state = null;
     this.panel = null;
     this.helpOpen = false;
@@ -189,6 +193,7 @@ export class GameUI {
     if (state.container && state.container.id !== this.closedContainer && !this.helpOpen && this.panel !== 'inventory') this.panel = 'container';
     if (!state.container && this.panel === 'container') this.closePanel(false);
     this.refreshPanel();
+    this.updateDemolitionButton();
     if (state.fault) {
       byId('connection-banner').hidden = false;
       byId('connection-banner').textContent = t('connection.fault');
@@ -202,7 +207,7 @@ export class GameUI {
     let text = '';
     if (target.category === 'structure') {
       const near = distance(this.state.you, target) <= (containers.has(target.kind) ? 2 : 3);
-      if (containers.has(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${equipped?.kind === 'axe' && distance(this.state.you, target) <= 3 ? t('hint.dismantle') : ''}`;
+      if (containers.has(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${equipped?.kind === 'axe' && distance(this.state.you, target) <= 3 ? t(target.kind === 'chest' ? 'hint.chestDismantle' : 'hint.dismantle') : ''}`;
       else if (equipped?.kind === 'axe') text = `${itemName(target.kind)} · ${t(target.monster_demolition ? 'hint.busy' : near ? 'hint.gather' : 'hint.nearer')}`;
     } else {
       text = `${t(target.big ? 'hint.bigMonster' : 'hint.smallMonster')} · ${target.hp} HP`;
@@ -217,6 +222,8 @@ export class GameUI {
     const container = this.state.container;
     const signature = JSON.stringify([this.panel, this.state.you.inventory, this.state.you.backpack, this.state.you.money, this.controls.selected(), container ? { ...container, burn_remaining: Math.ceil(container.burn_remaining || 0) } : null, this.busy, this.touchTransfer, this.touchSelection]);
     if (signature === this.panelSignature) return;
+    this.cancelDemolition();
+    this.demolitionButton = null;
     this.panelSignature = signature;
     const body = byId('panel-body');
     body.replaceChildren();
@@ -243,6 +250,7 @@ export class GameUI {
         const grid = element('div', 'chest-grid');
         grid.append(...container.slots.map((item, slot) => this.itemSlot(item, { kind: 'chest', id: container.id, slot })));
         detail.append(grid);
+        this.renderChestDemolition(detail, container);
       } else if (container.kind === 'vending_machine') this.renderVending(detail, container);
       else this.renderFire(detail, container);
       const structure = this.state.structures.find((entry) => entry.id === container.id);
@@ -250,6 +258,80 @@ export class GameUI {
     }
     layout.append(bag, detail);
     body.append(layout);
+    this.updateDemolitionButton();
+  }
+
+  cancelDemolition() {
+    const hold = this.demolitionHold;
+    if (!hold) return;
+    this.demolitionHold = null;
+    hold.button.classList.remove('holding');
+    hold.button.style.setProperty('--demolition-progress', '0%');
+    hold.button.setAttribute('aria-pressed', 'false');
+    hold.button.textContent = t('chest.dismantle');
+    if (hold.pointer != null && hold.button.hasPointerCapture(hold.pointer)) hold.button.releasePointerCapture(hold.pointer);
+    if (this.connection.ready) this.connection.send('dismantle_chest', { pressed: false });
+  }
+
+  renderChestDemolition(body, container) {
+    const button = element('button', 'chest-demolition', t('chest.dismantle'));
+    button.type = 'button';
+    button.id = 'chest-demolition';
+    button.setAttribute('aria-pressed', 'false');
+    const hint = element('p', 'container-meta', t('chest.dismantleHint'));
+    hint.id = 'chest-demolition-hint';
+    button.setAttribute('aria-describedby', hint.id);
+    const start = (event, pointer = null) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (button.disabled || this.demolitionHold || (pointer != null && event.button !== 0)) return;
+      this.controls.stop();
+      const hold = { button, pointer, container: container.id, epoch: this.state.movement?.epoch };
+      this.demolitionHold = hold;
+      button.classList.add('holding');
+      button.setAttribute('aria-pressed', 'true');
+      if (pointer != null) button.setPointerCapture(pointer);
+      this.connection.command('dismantle_chest', { id: container.id, pressed: true }).catch((error) => {
+        if (this.demolitionHold !== hold) return;
+        this.cancelDemolition();
+        this.toast(() => errorText(error));
+      });
+    };
+    button.addEventListener('pointerdown', (event) => start(event, event.pointerId));
+    for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) button.addEventListener(name, (event) => {
+      if (this.demolitionHold?.pointer === event.pointerId) this.cancelDemolition();
+    });
+    button.addEventListener('keydown', (event) => {
+      if ([' ', 'Enter'].includes(event.key)) {
+        event.preventDefault();
+        if (!event.repeat) start(event);
+      }
+    });
+    button.addEventListener('keyup', (event) => {
+      if ([' ', 'Enter'].includes(event.key)) { event.preventDefault(); this.cancelDemolition(); }
+    });
+    button.addEventListener('blur', () => this.cancelDemolition());
+    button.addEventListener('contextmenu', (event) => event.preventDefault());
+    this.demolitionButton = button;
+    body.append(button, hint);
+  }
+
+  updateDemolitionButton() {
+    const button = this.demolitionButton;
+    const chest = this.state?.container;
+    if (!button || chest?.kind !== 'chest' || this.panel !== 'container') return;
+    const item = this.state.you.inventory[this.controls.selected()];
+    const locked = this.state.structures.some((structure) => structure.id === chest.id && structure.monster_demolition);
+    const empty = !chest.slots.some(Boolean);
+    button.disabled = this.busy || !empty || locked || item?.kind !== 'axe' || this.state.you.downed;
+    byId('chest-demolition-hint').textContent = t(!empty ? 'chest.emptyFirst' : locked ? 'panel.monsterWarning' : 'chest.dismantleHint');
+    if (button.disabled || (this.demolitionHold && this.demolitionHold.epoch !== this.state.movement?.epoch)) this.cancelDemolition();
+    if (this.demolitionHold) {
+      const progress = this.state.interaction.target === `structure:${chest.id}` ? this.state.interaction.progress : 0;
+      const percent = Math.min(100, Math.floor(progress / 1.5 * 100));
+      button.style.setProperty('--demolition-progress', `${percent}%`);
+      button.textContent = t('chest.dismantling', { percent });
+    }
   }
 
   renderBackpack(body) {

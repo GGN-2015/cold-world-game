@@ -70,6 +70,11 @@ class Controls:
     container: str | None = None
     last_input: float = 0.0
     ghost_monsters: set[str] = field(default_factory=set)
+    client_movement: bool = False
+    movement_epoch: int = 0
+    velocity_x: float = 0.0
+    velocity_y: float = 0.0
+    demolition_container: str | None = None
 
     def stop_attack(self) -> None:
         self.held = False
@@ -77,6 +82,7 @@ class Controls:
         self.target = None
         self.progress = 0.0
         self.next_demolition_feedback = 0.0
+        self.demolition_container = None
 
 
 @dataclass
@@ -123,6 +129,9 @@ class Projectile:
     hostile: bool = False
     id: str = field(default_factory=identifier)
     shot: str = field(default_factory=identifier)
+    origin_x: float | None = None
+    origin_y: float | None = None
+    spawned_at: float | None = None
 
 
 def item_from(data: dict | None) -> Item | None:

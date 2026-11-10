@@ -34,10 +34,13 @@ let latency = null;
 let serverStatus = { key: 'server.loading', parameters: {}, offline: false };
 
 function stop() {
+  ui?.cancelDemolition();
   keys.clear();
   attackHeld = false;
   mobileMove = { x: 0, y: 0 };
+  renderer?.movement.setInput(0, 0);
   mobileControls?.reset();
+  if (connection.ready && state) input(true);
   connection.send('stop');
 }
 
@@ -92,19 +95,29 @@ function select(slot) {
 }
 
 function aimPoint() {
-  if (isMobileDevice) return { x: state.you.x + mobileAim.x, y: state.you.y + mobileAim.y };
-  return pointerClient ? renderer.screenToWorld(pointerClient.x, pointerClient.y) : { x: state.you.x + 1, y: state.you.y };
+  const player = renderer.movement.enabled ? renderer.movement.position : state.you;
+  if (isMobileDevice) return { x: player.x + mobileAim.x, y: player.y + mobileAim.y };
+  return pointerClient ? renderer.screenToWorld(pointerClient.x, pointerClient.y) : { x: player.x + 1, y: player.y };
 }
 
-function input() {
-  if (!connection.ready || !state) return;
+function updateMovement() {
+  if (!renderer) return;
   const horizontal = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0) + mobileMove.x;
   const vertical = (keys.has('KeyS') ? 1 : 0) - (keys.has('KeyW') ? 1 : 0) + mobileMove.y;
-  const magnitude = Math.max(1, Math.hypot(horizontal, vertical));
+  const active = Boolean(connection.ready && state && !ui.helpOpen && !document.hidden && (!isMobileDevice || !ui.isOpen()));
+  renderer.movement.active = active;
+  renderer.movement.setInput(active ? horizontal : 0, active ? vertical : 0);
+}
+
+function input(force = false) {
+  if (!connection.ready || !state) return;
+  updateMovement();
+  const now = performance.now();
+  if (!force && now - lastInput < 50) return;
   const aim = aimPoint();
   if (isMobileDevice) renderer.pointer = { ...aim, active: true };
   const target = renderer.findTarget();
-  connection.send('input', { move: ui.helpOpen || document.hidden || (isMobileDevice && ui.isOpen()) ? [0, 0] : [horizontal / magnitude, vertical / magnitude], aim: [aim.x, aim.y], target_id: target?.id || null });
+  if (connection.send('input', { move: [renderer.movement.input.x, renderer.movement.input.y], aim: [aim.x, aim.y], target_id: target?.id || null, ...renderer.movement.report() })) lastInput = now;
 }
 
 function leave() {
@@ -160,11 +173,12 @@ byId('login-form').addEventListener('submit', (event) => {
 
 connection.addEventListener('welcome', (event) => {
   joining = false;
+  state = null;
+  renderer.reset();
   stop();
   audio.reset(event.detail.state.event_sequence || 0);
   pendingSelected = false;
   ui.reset();
-  renderer.reset();
   byId('login-screen').hidden = true;
   byId('game-hud').hidden = false;
   rememberCredentials(connection.credentials);
@@ -231,7 +245,7 @@ canvas.addEventListener('pointerdown', (event) => {
   focus();
   renderer.pointer = { ...renderer.screenToWorld(event.clientX, event.clientY), active: true };
   pointerClient = { x: event.clientX, y: event.clientY };
-  input();
+  input(true);
   if (event.button === 0 && !ui.panel) {
     const item = state.you.inventory[selected];
     const point = { x: tileAt(renderer.pointer.x), y: tileAt(renderer.pointer.y) };
@@ -270,7 +284,7 @@ canvas.addEventListener('drop', (event) => {
   event.preventDefault();
   if (ui?.dragSource) {
     pointerClient = { x: event.clientX, y: event.clientY };
-    input();
+    input(true);
     ui.transfer(ui.dragSource.endpoint, { kind: 'ground' }, ui.dragSource.item);
   }
 });
@@ -310,7 +324,7 @@ window.addEventListener('keyup', (event) => {
 window.addEventListener('blur', () => { stop(); audio.suspendPlayback(); });
 window.addEventListener('focus', () => audio.resumePlayback());
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { stop(); audio.suspendPlayback(); renderer?.effects.clear(); renderer?.motion.reset(); renderer?.positions.clear(); renderer?.animator.reset(); }
+  if (document.hidden) { stop(); audio.suspendPlayback(); renderer?.effects.clear(); renderer?.motion.reset(); renderer?.movement.reset(); renderer?.positions.clear(); renderer?.animator.reset(); }
   else audio.resumePlayback();
 });
 window.addEventListener('pagehide', () => { stop(); connection.disconnect(); });
@@ -346,7 +360,7 @@ async function initialize() {
     if (!response.ok) throw new Error('catalog_unavailable');
     const catalog = await response.json();
     if (catalog.protocol !== 1) throw new Error('protocol_mismatch');
-    renderer = new WorldRenderer(canvas, assets.images, assets.animations, assets.effects);
+    renderer = new WorldRenderer(canvas, assets.images, assets.animations, assets.effects, catalog);
     ui = new GameUI(connection, catalog, { stop, select, selected: () => selected, leave, focus, dropItem: (source) => {
       stop(); input();
       ui.transfer(source.endpoint, { kind: 'ground' }, source.item);
@@ -361,11 +375,12 @@ async function initialize() {
       },
       aimPoint: (horizontal, vertical) => {
         const point = renderer.screenToWorld(horizontal, vertical);
-        mobileAim = { x: point.x - state.you.x, y: point.y - state.you.y };
+        const player = renderer.movement.enabled ? renderer.movement.position : state.you;
+        mobileAim = { x: point.x - player.x, y: point.y - player.y };
         input();
       },
-      use: (pressed, shift) => { attackHeld = pressed; input(); connection.send('attack', { pressed, shift }); },
-      place: () => { input(); const point = aimPoint(); ui.action('place', { x: tileAt(point.x), y: tileAt(point.y) }); },
+      use: (pressed, shift) => { attackHeld = pressed; input(true); connection.send('attack', { pressed, shift }); },
+      place: () => { input(true); const point = aimPoint(); ui.action('place', { x: tileAt(point.x), y: tileAt(point.y) }); },
       drop: () => { stop(); input(); ui.action('drop', { slot: selected }); },
     });
     initialized = true;
@@ -390,8 +405,9 @@ function frame(now) {
   else if (pointerClient && renderer.pointer.active) renderer.pointer = { ...renderer.screenToWorld(pointerClient.x, pointerClient.y), active: true };
   renderer.panelOpen = ui.isOpen();
   mobileControls?.sync();
+  updateMovement();
   renderer.draw(delta);
-  if (now - lastInput >= 65) { input(); lastInput = now; }
+  if (now - lastInput >= 50) input();
   if (now - lastHint >= 150) {
     ui.updateHint(renderer.target);
     byId('fps-label').textContent = `${Math.round(renderer.fps)} FPS`;

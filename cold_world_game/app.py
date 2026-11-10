@@ -84,7 +84,7 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
             if message.get("type") != "join" or not password_matches(supplied_password, server.password):
                 raise GameError("unauthorized", "The first message must join with the correct server password")
             candidate_id = message.get("player_id")
-            state = server.world.join(candidate_id)
+            state = server.world.join(candidate_id, client_movement=message.get("client_movement") is True)
             player_id = candidate_id
             quiet_inputs = message.get("quiet_inputs") is True
             send(websocket, {"type": "welcome", "player_id": player_id, "protocol": 1, "state": state})

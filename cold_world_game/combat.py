@@ -8,7 +8,17 @@ from .models import Item, Projectile, identifier
 class Combat:
     def update_player_attack(self, player, controls, seconds):
         item = player.inventory[player.selected]
-        if not controls.held or controls.ui or item is None:
+        if not controls.held or item is None:
+            controls.stop_attack()
+            return
+        if controls.demolition_container:
+            structure = self.structures.get(controls.demolition_container)
+            if not controls.ui or controls.container != controls.demolition_container or structure is None or structure.kind != "chest" or distance(player, structure) > 2 or player.temperature < 5 or item.kind != "axe":
+                controls.stop_attack()
+                return
+            self.dismantle_structure(player, controls, structure, seconds)
+            return
+        if controls.ui:
             controls.stop_attack()
             return
         if item.kind in FOODS:
@@ -44,7 +54,7 @@ class Combat:
         offsets = (-12, -6, 0, 6, 12) if item.kind == "shotgun" else (0,)
         for offset in offsets:
             heading = angle + math.radians(offset)
-            projectile = Projectile(player.x, player.y, math.cos(heading) * settings["speed"], math.sin(heading) * settings["speed"], settings["range"], settings["damage"], player.id, shot=shot)
+            projectile = Projectile(player.x, player.y, math.cos(heading) * settings["speed"], math.sin(heading) * settings["speed"], settings["range"], settings["damage"], player.id, shot=shot, origin_x=player.x, origin_y=player.y, spawned_at=self.elapsed)
             self.projectiles[projectile.id] = projectile
         if item.ammo == 0:
             player.inventory[player.selected] = None
@@ -96,11 +106,20 @@ class Combat:
             controls.progress = 0.0
             return
         structure = self.structures.get(controls.aim_target) if controls.aim_target else self.structure_at(tile(controls.aim_x), tile(controls.aim_y))
-        if structure is None or distance(player, structure) > 3 or not self.visible(player.x, player.y, structure.x, structure.y, ignore=structure.id) or self.demolition_locked(structure.id) or (structure.kind in CONTAINERS and not controls.shift) or (structure.kind == "chest" and any(structure.slots)):
-            controls.target = None
-            controls.progress = 0
+        self.dismantle_structure(player, controls, structure, seconds)
+
+    def dismantle_structure(self, player, controls, structure, seconds):
+        if structure is None or distance(player, structure) > 3 or not self.visible(player.x, player.y, structure.x, structure.y, ignore=structure.id) or self.demolition_locked(structure.id) or (structure.kind in CONTAINERS and structure.kind != "chest" and not controls.shift) or (structure.kind == "chest" and (controls.demolition_container != structure.id or any(structure.slots))):
+            if controls.demolition_container:
+                controls.stop_attack()
+            else:
+                controls.target = None
+                controls.progress = 0
             return
         target = "structure:" + structure.id
+        previous_progress = controls.progress if controls.target == target else 0.0
+        if previous_progress + seconds + 1e-9 >= DEMOLITION[structure.kind]:
+            self.touch()
         if controls.target != target:
             controls.next_demolition_feedback = 0.0
         self.progress(controls, target, seconds)
@@ -141,8 +160,13 @@ class Combat:
             body.next_demolition_feedback = 0.0
         elif player_id in self.controls:
             controls = self.controls[player_id]
-            controls.target = None
-            controls.progress = 0.0
+            controls.movement_epoch += 1
+            controls.velocity_x = controls.velocity_y = 0.0
+            if controls.demolition_container:
+                controls.stop_attack()
+            else:
+                controls.target = None
+                controls.progress = 0.0
         return [body.x - previous_x, body.y - previous_y]
 
     def hurt_monster(self, monster, amount, actor, kind, direction, shot=None):
@@ -182,6 +206,7 @@ class Combat:
         if player.temperature < 5:
             controls.stop_attack()
             if previous >= 5:
+                controls.movement_epoch += 1
                 controls.ghost_monsters.update(monster.id for monster in self.monsters.values() if distance(player, monster) < BODY_RADIUS * 2)
         if player.temperature <= 0:
             for monster in self.monsters.values():
@@ -202,7 +227,7 @@ class Combat:
                         candidates.append((fraction, 0, "structure", structure))
             for player_id in self.online:
                 player = self.players[player_id]
-                if player.temperature <= 0 or (not projectile.hostile and player_id == projectile.owner):
+                if player.temperature <= 0 or player_id == projectile.owner:
                     continue
                 fraction = segment_circle(projectile.x, projectile.y, end_x, end_y, player.x, player.y)
                 if fraction is not None:
