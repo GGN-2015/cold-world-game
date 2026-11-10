@@ -2,12 +2,13 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#152c32">
   <meta name="description" content="寒境：一片雪原，一点火光。和朋友一起探索、建造与生存。">
   <title>寒境 · Cold World</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='assets/snowflake.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/game.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
 </head>
 <body>
   <main id="app">
@@ -39,9 +40,24 @@
         <section id="side-panel" class="side-panel glass" role="dialog" aria-modal="false" data-i18n-aria-label="panel.label" aria-label="物品操作面板" hidden>
           <header class="panel-heading"><div><span id="panel-kicker" class="eyebrow">SURVIVAL KIT</span><h2 id="panel-title">制作</h2></div><button id="panel-close" class="close-button" data-i18n-aria-label="panel.close" aria-label="关闭面板">×</button></header>
           <p id="panel-description" class="panel-description"></p>
+          <div class="touch-transfer-tools touch-only">
+            <button id="touch-transfer-button" type="button" class="small-button" aria-pressed="false" data-i18n="touch.organize">整理物品</button>
+            <button id="touch-transfer-drop" type="button" class="small-button" data-i18n="touch.dropSelected" disabled>丢弃选中</button>
+            <p id="touch-transfer-status" role="status"></p>
+          </div>
           <div id="panel-body"></div>
           <p class="panel-footer"><kbd>Esc</kbd> <span data-i18n="panel.footer">关闭 · 物品操作由服务器原子保存</span></p>
         </section>
+        <div id="touch-controls" class="touch-only" hidden>
+          <button id="touch-move" type="button" class="touch-stick" data-i18n-aria-label="touch.moveLabel"><span class="touch-thumb"></span><span class="touch-stick-label" data-i18n="touch.move">移动</span></button>
+          <button id="touch-aim" type="button" class="touch-stick" data-i18n-aria-label="touch.aimLabel"><span class="touch-thumb"></span><span class="touch-stick-label" data-i18n="touch.aim">瞄准</span></button>
+          <div class="touch-actions">
+            <button id="touch-use" type="button" class="touch-action" data-i18n="touch.use" data-i18n-aria-label="touch.useLabel">使用</button>
+            <button id="touch-place" type="button" class="touch-action" data-i18n="touch.place" data-i18n-aria-label="touch.placeLabel">放置</button>
+            <button id="touch-dismantle" type="button" class="touch-action" data-i18n="touch.dismantle" data-i18n-aria-label="touch.dismantleLabel">拆除</button>
+            <button id="touch-drop" type="button" class="touch-action" data-i18n="touch.drop" data-i18n-aria-label="touch.dropLabel">丢弃</button>
+          </div>
+        </div>
         <section class="inventory-dock">
           <div class="vitals-row">
             <div class="vital"><div class="vital-label"><span data-i18n="vital.temperature">体温</span><strong id="temperature-label">36.0°C</strong></div><div class="vital-track"><div id="temperature-fill" class="temperature-fill"></div></div></div>
@@ -78,6 +94,7 @@
       <section class="help-card glass" role="dialog" aria-modal="true" aria-labelledby="help-title">
         <header class="panel-heading"><div><span class="eyebrow" data-i18n="help.eyebrow">雪原笔记</span><h2 id="help-title" data-i18n="help.title">雪原生存手册</h2></div><button id="help-close" class="close-button" data-i18n-aria-label="help.close" aria-label="关闭操作指南">×</button></header>
         <div class="help-grid">
+          <section class="touch-guide touch-only"><h3 data-i18n="touch.helpTitle">手机操作</h3><p data-i18n="touch.help"></p></section>
           <article><h3 data-i18n="help.movementTitle">走进雪原</h3><p data-i18n-html="help.movement"></p></article>
           <article><h3 data-i18n="help.buildingTitle">收集与建造</h3><p data-i18n-html="help.building"></p></article>
           <article><h3 data-i18n="help.fireTitle">点一堆火</h3><p data-i18n-html="help.fire"></p></article>

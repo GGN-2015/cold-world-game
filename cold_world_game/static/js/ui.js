@@ -1,5 +1,6 @@
 import { assetUrl, distance, errorText, itemDetail, itemName, seasonName } from './catalog.js';
 import { t } from './i18n.js';
+import { isMobileDevice } from './mobile.js';
 
 const element = (tag, className = '', text = '') => {
   const node = document.createElement(tag);
@@ -21,6 +22,26 @@ export class GameUI {
     this.dragSource = null;
     this.panelSignature = '';
     this.hotbarSignature = '';
+    this.touchTransfer = false;
+    this.touchSelection = null;
+    this.closedContainer = null;
+    if (isMobileDevice) {
+      const label = byId('inventory-button').querySelector('[data-i18n]');
+      label.dataset.i18n = 'touch.backpack';
+      label.textContent = t('touch.backpack');
+      byId('world').setAttribute('data-i18n-aria-label', 'touch.worldLabel');
+      byId('world').setAttribute('aria-label', t('touch.worldLabel'));
+    }
+    byId('touch-transfer-button').onclick = () => {
+      this.touchTransfer = !this.touchTransfer;
+      this.setTouchSelection(null);
+    };
+    byId('touch-transfer-drop').onclick = () => {
+      if (!this.touchSelection || this.busy) return;
+      const source = this.touchSelection;
+      this.setTouchSelection(null);
+      this.controls.dropItem(source);
+    };
     byId('inventory-button').onclick = () => this.togglePanel('inventory');
     byId('craft-button').onclick = () => this.togglePanel('inventory');
     byId('panel-close').onclick = () => this.closePanel();
@@ -94,10 +115,18 @@ export class GameUI {
 
   closePanel(send = true) {
     this.controls.stop();
+    this.closedContainer = this.state?.container?.id || this.closedContainer;
     this.panel = null;
     byId('side-panel').hidden = true;
     this.panelSignature = '';
-    if (send) this.connection.send('close');
+    this.touchTransfer = false;
+    this.setTouchSelection(null);
+    if (send && this.connection.ready) {
+      const closed = this.closedContainer;
+      this.connection.command('close').then(() => {
+        if (this.closedContainer === closed) this.closedContainer = null;
+      }).catch(() => {});
+    }
   }
 
   toggleHelp(open = !this.helpOpen) {
@@ -115,6 +144,9 @@ export class GameUI {
     this.panel = null;
     this.helpOpen = false;
     this.dragSource = null;
+    this.touchTransfer = false;
+    this.touchSelection = null;
+    this.closedContainer = null;
     this.panelSignature = '';
     this.hotbarSignature = '';
     byId('side-panel').hidden = true;
@@ -139,12 +171,20 @@ export class GameUI {
     byId('downed-notice').hidden = !you.downed;
     const selected = this.controls.selected();
     byId('equipped-label').textContent = itemDetail(you.inventory[selected], this.catalog);
-    const hotbarSignature = JSON.stringify([you.inventory, selected]);
+    if (this.touchSelection) {
+      const source = this.touchSelection;
+      const endpoint = source.endpoint;
+      const current = ['inventory', 'backpack'].includes(endpoint.kind) ? you[endpoint.kind][endpoint.slot]
+        : state.container?.id === endpoint.id ? (endpoint.kind === 'igniter' ? state.container.igniter : state.container.slots?.[endpoint.slot]) : null;
+      if (current?.id !== source.item.id) this.touchSelection = null;
+    }
+    const hotbarSignature = JSON.stringify([you.inventory, selected, this.touchTransfer, this.touchSelection]);
     if (hotbarSignature !== this.hotbarSignature && !this.dragSource) {
       this.hotbarSignature = hotbarSignature;
       byId('hotbar').replaceChildren(...you.inventory.map((item, slot) => this.itemSlot(item, { kind: 'inventory', slot }, true)));
     }
-    if (state.container && !this.helpOpen && this.panel !== 'inventory') this.panel = 'container';
+    if (!state.container) this.closedContainer = null;
+    if (state.container && state.container.id !== this.closedContainer && !this.helpOpen && this.panel !== 'inventory') this.panel = 'container';
     if (!state.container && this.panel === 'container') this.closePanel(false);
     this.refreshPanel();
     if (state.fault) {
@@ -173,12 +213,15 @@ export class GameUI {
   refreshPanel() {
     if (!this.state || !this.panel || this.dragSource) return;
     const container = this.state.container;
-    const signature = JSON.stringify([this.panel, this.state.you.inventory, this.state.you.backpack, this.controls.selected(), container ? { ...container, burn_remaining: Math.ceil(container.burn_remaining || 0) } : null, this.busy]);
+    const signature = JSON.stringify([this.panel, this.state.you.inventory, this.state.you.backpack, this.controls.selected(), container ? { ...container, burn_remaining: Math.ceil(container.burn_remaining || 0) } : null, this.busy, this.touchTransfer, this.touchSelection]);
     if (signature === this.panelSignature) return;
     this.panelSignature = signature;
     const body = byId('panel-body');
     body.replaceChildren();
     byId('side-panel').hidden = false;
+    byId('touch-transfer-button').setAttribute('aria-pressed', String(this.touchTransfer));
+    byId('touch-transfer-drop').disabled = this.busy || !this.touchSelection;
+    byId('touch-transfer-status').textContent = this.touchSelection ? t('touch.transferSelected', { item: itemDetail(this.touchSelection.item, this.catalog) }) : t(this.touchTransfer ? 'touch.transferPick' : 'touch.transferOff');
     byId('panel-kicker').textContent = t(this.panel === 'container' ? 'panel.shelter' : 'panel.kit');
     const layout = element('div', 'storage-layout');
     const bag = element('section', 'storage-column backpack-section');
@@ -218,9 +261,27 @@ export class GameUI {
     return ['backpack', 'inventory'].flatMap((kind) => this.state.you[kind].map((item, slot) => ({ item, endpoint: { kind, slot } })));
   }
 
+  setTouchSelection(source) {
+    this.touchSelection = source;
+    this.hotbarSignature = '';
+    this.panelSignature = '';
+    if (this.state && this.panel) this.update(this.state);
+  }
+
+  touchTransferTo(endpoint, item) {
+    if (item) {
+      const same = this.touchSelection?.item.id === item.id;
+      this.setTouchSelection(same ? null : { endpoint, item });
+    } else if (this.touchSelection) {
+      const source = this.touchSelection;
+      this.setTouchSelection(null);
+      this.transfer(source.endpoint, endpoint, source.item);
+    }
+  }
+
   itemSlot(item, endpoint, hotbar = false) {
     const selected = endpoint.kind === 'inventory' && endpoint.slot === this.controls.selected();
-    const node = element('button', `item-slot${item ? '' : ' empty'}${selected ? ' selected' : ''}`);
+    const node = element('button', `item-slot${item ? '' : ' empty'}${selected ? ' selected' : ''}${item && this.touchSelection?.item.id === item.id ? ' touch-selected' : ''}`);
     node.type = 'button';
     node.title = itemDetail(item, this.catalog);
     node.setAttribute('aria-label', t('slot.label', { area: t(`slot.${['inventory', 'backpack'].includes(endpoint.kind) ? endpoint.kind : 'container'}`), slot: endpoint.slot == null ? '' : endpoint.slot + 1, item: itemDetail(item, this.catalog) }));
@@ -239,6 +300,7 @@ export class GameUI {
     node.addEventListener('pointerdown', (event) => { event.stopPropagation(); this.controls.stop(); });
     node.onclick = (event) => {
       if (this.busy) return;
+      if (isMobileDevice && this.touchTransfer && this.panel) return this.touchTransferTo(endpoint, item);
       if (endpoint.kind === 'inventory') {
         this.controls.select(endpoint.slot);
         if (event.shiftKey && item) {
@@ -254,7 +316,7 @@ export class GameUI {
         }
       } else if (item) this.quickTake(endpoint, item);
     };
-    node.draggable = Boolean(item);
+    node.draggable = Boolean(item) && !isMobileDevice;
     node.addEventListener('dragstart', (event) => {
       if (!item || this.busy || !this.connection.ready) { event.preventDefault(); return; }
       this.controls.stop();
@@ -341,6 +403,13 @@ export class GameUI {
     const fuel = element('section', 'fire-section');
     fuel.append(element('div', 'fire-section-label', t('fire.fuel', { count: container.fuel })));
     const grid = element('div', 'fuel-grid');
+    if (isMobileDevice) {
+      grid.setAttribute('role', 'button');
+      grid.tabIndex = 0;
+      grid.setAttribute('aria-label', t('fire.fuel', { count: container.fuel }));
+      grid.onclick = () => { if (this.touchTransfer && !this.busy && this.touchSelection) this.touchTransferTo({ kind: 'fuel', id: container.id }, null); };
+      grid.onkeydown = (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); grid.click(); } };
+    }
     for (let index = 0; index < 16; index++) grid.append(element('span', `fuel-unit${index < container.fuel ? ' filled' : ''}`));
     grid.addEventListener('dragover', (event) => {
       if (this.dragSource?.item.kind === 'wood') { event.preventDefault(); grid.classList.add('drop-target'); }

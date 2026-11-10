@@ -4,6 +4,7 @@ import { loadAssets, WorldRenderer } from './renderer.js';
 import { GameUI } from './ui.js';
 import { GameAudio } from './audio.js';
 import { initializeLanguage, t } from './i18n.js';
+import { isMobileDevice, MobileControls } from './mobile.js';
 
 const byId = (identifier) => document.getElementById(identifier);
 const canvas = byId('world');
@@ -17,6 +18,9 @@ let selected = 0;
 let pendingSelected = false;
 let attackHeld = false;
 let pointerClient = null;
+let mobileControls;
+let mobileMove = { x: 0, y: 0 };
+let mobileAim = { x: 2, y: 0 };
 let initialized = false;
 let lastInput = 0;
 let lastHint = 0;
@@ -32,6 +36,8 @@ let serverStatus = { key: 'server.loading', parameters: {}, offline: false };
 function stop() {
   keys.clear();
   attackHeld = false;
+  mobileMove = { x: 0, y: 0 };
+  mobileControls?.reset();
   connection.send('stop');
 }
 
@@ -85,14 +91,20 @@ function select(slot) {
   if (state) ui.update(state);
 }
 
+function aimPoint() {
+  if (isMobileDevice) return { x: state.you.x + mobileAim.x, y: state.you.y + mobileAim.y };
+  return pointerClient ? renderer.screenToWorld(pointerClient.x, pointerClient.y) : { x: state.you.x + 1, y: state.you.y };
+}
+
 function input() {
   if (!connection.ready || !state) return;
-  const horizontal = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
-  const vertical = (keys.has('KeyS') ? 1 : 0) - (keys.has('KeyW') ? 1 : 0);
+  const horizontal = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0) + mobileMove.x;
+  const vertical = (keys.has('KeyS') ? 1 : 0) - (keys.has('KeyW') ? 1 : 0) + mobileMove.y;
   const magnitude = Math.max(1, Math.hypot(horizontal, vertical));
-  const aim = pointerClient ? renderer.screenToWorld(pointerClient.x, pointerClient.y) : { x: state.you.x + 1, y: state.you.y };
+  const aim = aimPoint();
+  if (isMobileDevice) renderer.pointer = { ...aim, active: true };
   const target = renderer.findTarget();
-  connection.send('input', { move: ui.helpOpen || document.hidden ? [0, 0] : [horizontal / magnitude, vertical / magnitude], aim: [aim.x, aim.y], target_id: target?.id || null });
+  connection.send('input', { move: ui.helpOpen || document.hidden || (isMobileDevice && ui.isOpen()) ? [0, 0] : [horizontal / magnitude, vertical / magnitude], aim: [aim.x, aim.y], target_id: target?.id || null });
 }
 
 function leave() {
@@ -193,8 +205,7 @@ connection.addEventListener('status', (event) => {
   renderConnectionStatus();
   if (!connected) {
     audio.stopAll();
-    keys.clear();
-    attackHeld = false;
+    stop();
     if (state) {
       ui.closePanel(false);
       ui.helpOpen = false;
@@ -207,12 +218,14 @@ connection.addEventListener('status', (event) => {
 });
 
 canvas.addEventListener('pointermove', (event) => {
+  if (isMobileDevice) return;
   pointerClient = { x: event.clientX, y: event.clientY };
   if (renderer) renderer.pointer = { ...renderer.screenToWorld(event.clientX, event.clientY), active: true };
 });
-window.addEventListener('pointermove', (event) => { pointerClient = { x: event.clientX, y: event.clientY }; });
-canvas.addEventListener('pointerleave', () => { if (renderer) renderer.pointer.active = false; });
+window.addEventListener('pointermove', (event) => { if (!isMobileDevice) pointerClient = { x: event.clientX, y: event.clientY }; });
+canvas.addEventListener('pointerleave', () => { if (renderer && !isMobileDevice) renderer.pointer.active = false; });
 canvas.addEventListener('pointerdown', (event) => {
+  if (isMobileDevice) return;
   if (!connection.ready || !state || ui.helpOpen) return;
   event.preventDefault();
   focus();
@@ -227,6 +240,7 @@ canvas.addEventListener('pointerdown', (event) => {
   }
 });
 window.addEventListener('pointerup', (event) => {
+  if (isMobileDevice) return;
   if (event.button === 0 && attackHeld) {
     attackHeld = false;
     connection.send('attack', { pressed: false });
@@ -298,7 +312,8 @@ window.addEventListener('keydown', () => audio.unlock(), { capture: true });
 
 function updateSoundButton() {
   const button = byId('sound-button');
-  button.textContent = t(audio.available ? (audio.muted ? 'sound.off' : 'sound.on') : 'sound.unavailable');
+  const prefix = isMobileDevice ? 'touch.sound' : 'sound';
+  button.textContent = t(audio.available ? (audio.muted ? `${prefix}.off` : `${prefix}.on`) : `${prefix}.unavailable`);
   button.disabled = !audio.available;
   button.setAttribute('aria-pressed', String(!audio.muted));
   button.setAttribute('aria-label', t(audio.muted ? 'sound.enable' : 'sound.disable'));
@@ -325,7 +340,27 @@ async function initialize() {
     const catalog = await response.json();
     if (catalog.protocol !== 1) throw new Error('protocol_mismatch');
     renderer = new WorldRenderer(canvas, assets.images, assets.animations);
-    ui = new GameUI(connection, catalog, { stop, select, selected: () => selected, leave, focus });
+    ui = new GameUI(connection, catalog, { stop, select, selected: () => selected, leave, focus, dropItem: (source) => {
+      stop(); input();
+      ui.transfer(source.endpoint, { kind: 'ground' }, source.item);
+    } });
+    mobileControls = new MobileControls(canvas, {
+      canPlay: () => Boolean(connection.ready && state && !ui.isOpen() && !document.hidden),
+      cancel: stop,
+      move: (vector) => { mobileMove = vector; input(); },
+      aim: (vector) => {
+        if (Math.hypot(vector.x, vector.y) > 0.12) mobileAim = { x: vector.x * 3, y: vector.y * 3 };
+        input();
+      },
+      aimPoint: (horizontal, vertical) => {
+        const point = renderer.screenToWorld(horizontal, vertical);
+        mobileAim = { x: point.x - state.you.x, y: point.y - state.you.y };
+        input();
+      },
+      use: (pressed, shift) => { attackHeld = pressed; input(); connection.send('attack', { pressed, shift }); },
+      place: () => { input(); const point = aimPoint(); ui.action('place', { x: tileAt(point.x), y: tileAt(point.y) }); },
+      drop: () => { stop(); input(); ui.action('drop', { slot: selected }); },
+    });
     initialized = true;
     renderLogin();
     requestAnimationFrame(frame);
@@ -344,8 +379,10 @@ async function initialize() {
 function frame(now) {
   const delta = Math.min((now - lastFrame) / 1000, 0.1);
   lastFrame = now;
-  if (pointerClient && renderer.pointer.active) renderer.pointer = { ...renderer.screenToWorld(pointerClient.x, pointerClient.y), active: true };
+  if (isMobileDevice && state) renderer.pointer = { ...aimPoint(), active: true };
+  else if (pointerClient && renderer.pointer.active) renderer.pointer = { ...renderer.screenToWorld(pointerClient.x, pointerClient.y), active: true };
   renderer.panelOpen = ui.isOpen();
+  mobileControls?.sync();
   renderer.draw(delta);
   if (now - lastInput >= 65) { input(); lastInput = now; }
   if (now - lastHint >= 150) {

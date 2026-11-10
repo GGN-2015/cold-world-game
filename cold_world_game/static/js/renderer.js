@@ -1,6 +1,7 @@
 import { buildings, distance, tileAt } from './catalog.js';
 import { t } from './i18n.js';
 import { ActorAnimator } from './animation.js';
+import { isMobileDevice } from './mobile.js';
 
 export async function loadAssets() {
   const response = await fetch('/static/assets/manifest.json');
@@ -69,7 +70,7 @@ export class WorldRenderer {
     this.canvas.height = Math.round(this.height * ratio);
     this.context.setTransform(ratio, 0, 0, ratio, 0, 0);
     this.context.imageSmoothingEnabled = false;
-    this.scale = this.width / 32;
+    this.scale = isMobileDevice ? Math.max(this.width / 28, this.height / 24) : this.width / 32;
   }
 
   setState(state) {
@@ -162,15 +163,17 @@ export class WorldRenderer {
     const context = this.context;
     context.fillStyle = '#d7e5e7';
     context.fillRect(0, 0, this.width, this.height);
-    const minimumX = Math.floor(this.camera.x - 17);
-    const minimumY = Math.floor(this.camera.y - 10);
-    for (let horizontal = minimumX; horizontal <= minimumX + 35; horizontal++) {
-      for (let vertical = minimumY; vertical <= minimumY + 21; vertical++) {
+    const halfWidth = this.width / this.scale / 2;
+    const halfHeight = this.height / this.scale / 2;
+    const minimumX = Math.floor(this.camera.x - halfWidth - 1);
+    const minimumY = Math.floor(this.camera.y - halfHeight - 1);
+    for (let horizontal = minimumX; horizontal <= this.camera.x + halfWidth + 1; horizontal++) {
+      for (let vertical = minimumY; vertical <= this.camera.y + halfHeight + 1; vertical++) {
         const variant = Math.abs((horizontal * 73856093 ^ vertical * 19349663) % 3);
         this.sprite(`snow_${variant}`, horizontal, vertical, 1.01);
       }
     }
-    const visible = (entity) => Math.abs(entity.x - this.camera.x) < 18 && Math.abs(entity.y - this.camera.y) < 12;
+    const visible = (entity) => Math.abs(entity.x - this.camera.x) < halfWidth + 2 && Math.abs(entity.y - this.camera.y) < halfHeight + 3;
     for (const entity of state.structures) if (entity.kind === 'floor' && visible(entity)) this.sprite('floor', entity.x, entity.y, 1.03);
     for (const entity of state.ground) if (visible(entity)) {
       this.sprite(entity.item.kind, entity.x, entity.y + Math.sin(this.elapsed * 3 + entity.x) * 0.045, 0.57);
