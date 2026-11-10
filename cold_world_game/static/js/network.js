@@ -33,7 +33,7 @@ export class GameConnection extends EventTarget {
     let joined = false;
     const handshakeTimer = setTimeout(() => socket.close(), 12000);
     socket.addEventListener('open', () => {
-      socket.send(JSON.stringify({ type: 'join', ...this.credentials, quiet_inputs: true, client_movement: true }));
+      socket.send(JSON.stringify({ type: 'join', ...this.credentials, quiet_inputs: true, client_movement: true, player_roster: true }));
     });
     socket.addEventListener('message', (event) => {
       if (socket !== this.socket) return;
@@ -47,9 +47,12 @@ export class GameConnection extends EventTarget {
         this.attempt = 0;
         this.emit('welcome', message);
         this.emit('state', message.state);
+        if (message.roster) this.emit('roster', message.roster);
         this.emit('status', { phase: 'connected' });
       } else if (message.type === 'state') {
         this.emit('state', message.state);
+      } else if (message.type === 'roster') {
+        this.emit('roster', message);
       } else if (message.type === 'ack' || message.type === 'error') {
         const pending = this.pending.get(message.seq);
         if (pending) {

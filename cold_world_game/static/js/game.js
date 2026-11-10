@@ -5,6 +5,7 @@ import { GameUI } from './ui.js';
 import { GameAudio } from './audio.js';
 import { initializeLanguage, t } from './i18n.js';
 import { isMobileDevice, MobileControls } from './mobile.js';
+import { PlayerRoster } from './roster.js';
 
 const byId = (identifier) => document.getElementById(identifier);
 const canvas = byId('world');
@@ -13,6 +14,7 @@ const audio = new GameAudio();
 const keys = new Set();
 let renderer;
 let ui;
+let playerRoster;
 let state = null;
 let selected = 0;
 let pendingSelected = false;
@@ -126,6 +128,7 @@ function leave() {
   connection.disconnect();
   state = null;
   ui.reset();
+  playerRoster.reset();
   renderer.reset();
   pendingSelected = false;
   byId('game-hud').hidden = true;
@@ -179,6 +182,7 @@ connection.addEventListener('welcome', (event) => {
   audio.reset(event.detail.state.event_sequence || 0);
   pendingSelected = false;
   ui.reset();
+  playerRoster.reset(event.detail.player_id);
   byId('login-screen').hidden = true;
   byId('game-hud').hidden = false;
   rememberCredentials(connection.credentials);
@@ -202,6 +206,8 @@ connection.addEventListener('loginerror', (event) => {
   showLoginError(event.detail);
 });
 
+connection.addEventListener('roster', (event) => playerRoster.update(event.detail));
+
 connection.addEventListener('commanderror', (event) => {
   const text = errorText(event.detail);
   if (text !== lastError || performance.now() - lastErrorTime > 2500) {
@@ -216,6 +222,7 @@ connection.addEventListener('status', (event) => {
   latency = null;
   const { phase } = connectionStatus;
   const connected = phase === 'connected';
+  playerRoster?.setConnected(connected);
   renderConnectionStatus();
   if (!connected) {
     audio.stopAll();
@@ -295,6 +302,7 @@ window.addEventListener('keydown', (event) => {
   if (event.code === 'Escape') {
     event.preventDefault();
     if (ui.helpOpen) ui.toggleHelp(false);
+    else if (playerRoster.expanded) playerRoster.collapse();
     else ui.closePanel();
     stop(); focus(); return;
   }
@@ -361,12 +369,17 @@ async function initialize() {
     const catalog = await response.json();
     if (catalog.protocol !== 1) throw new Error('protocol_mismatch');
     renderer = new WorldRenderer(canvas, assets.images, assets.animations, assets.effects, catalog);
-    ui = new GameUI(connection, catalog, { stop, select, selected: () => selected, leave, focus, dropItem: (source) => {
+    ui = new GameUI(connection, catalog, { stop, select, selected: () => selected, leave, focus, closeRoster: () => playerRoster?.collapse(), dropItem: (source) => {
       stop(); input();
       ui.transfer(source.endpoint, { kind: 'ground' }, source.item);
     } });
+    playerRoster = new PlayerRoster({ stop, open: () => {
+      if (ui.helpOpen) ui.toggleHelp(false);
+      else ui.closePanel();
+      stop();
+    } });
     mobileControls = new MobileControls(canvas, {
-      canPlay: () => Boolean(connection.ready && state && !ui.isOpen() && !document.hidden),
+      canPlay: () => Boolean(connection.ready && state && !ui.isOpen() && !playerRoster.expanded && !document.hidden),
       cancel: stop,
       move: (vector) => { mobileMove = vector; input(); },
       aim: (vector) => {

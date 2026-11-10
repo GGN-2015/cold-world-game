@@ -51,6 +51,7 @@ class Player:
     last_shot_tick: int = -1
     offline_since: float | None = None
     money: int = 0
+    last_login_at: float | None = None
 
 
 @dataclass

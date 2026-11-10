@@ -1,6 +1,6 @@
 import math
 
-from .constants import AXE, BODY_RADIUS, BULLET_BLOCKERS, CONTAINERS, DEMOLITION, FOODS, GUNS, KNOCKBACK, MONSTER_COIN_DROPS
+from .constants import AXE, BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, FOODS, GUNS, KNOCKBACK, MONSTER_COIN_DROPS
 from .geometry import distance, normalized, segment_box, segment_circle, tile
 from .models import Item, Projectile, identifier
 
@@ -13,7 +13,7 @@ class Combat:
             return
         if controls.demolition_container:
             structure = self.structures.get(controls.demolition_container)
-            if not controls.ui or controls.container != controls.demolition_container or structure is None or structure.kind != "chest" or distance(player, structure) > 2 or player.temperature < 5 or item.kind != "axe":
+            if not controls.ui or controls.container != controls.demolition_container or structure is None or structure.kind not in ("chest", "vending_machine") or distance(player, structure) > 2 or player.temperature < 5 or item.kind != "axe":
                 controls.stop_attack()
                 return
             self.dismantle_structure(player, controls, structure, seconds)
@@ -109,7 +109,7 @@ class Combat:
         self.dismantle_structure(player, controls, structure, seconds)
 
     def dismantle_structure(self, player, controls, structure, seconds):
-        if structure is None or distance(player, structure) > 3 or not self.visible(player.x, player.y, structure.x, structure.y, ignore=structure.id) or self.demolition_locked(structure.id) or (structure.kind in CONTAINERS and structure.kind != "chest" and not controls.shift) or (structure.kind == "chest" and (controls.demolition_container != structure.id or any(structure.slots))):
+        if structure is None or distance(player, structure) > 3 or not self.visible(player.x, player.y, structure.x, structure.y, ignore=structure.id) or self.demolition_locked(structure.id) or (structure.kind == "campfire" and not controls.shift) or (structure.kind in ("chest", "vending_machine") and controls.demolition_container != structure.id) or (structure.kind == "chest" and any(structure.slots)):
             if controls.demolition_container:
                 controls.stop_attack()
             else:

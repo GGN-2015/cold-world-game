@@ -107,6 +107,7 @@ export class GameUI {
 
   togglePanel(kind) {
     if (!this.connection.ready) return;
+    this.controls.closeRoster?.();
     if (this.panel === kind) return this.closePanel();
     this.controls.stop();
     this.helpOpen = false;
@@ -134,6 +135,7 @@ export class GameUI {
 
   toggleHelp(open = !this.helpOpen) {
     if (!this.state) return;
+    if (open) this.controls.closeRoster?.();
     this.closePanel(false);
     this.helpOpen = open;
     byId('help-overlay').hidden = !open;
@@ -190,7 +192,10 @@ export class GameUI {
       byId('hotbar').replaceChildren(...you.inventory.map((item, slot) => this.itemSlot(item, { kind: 'inventory', slot }, true)));
     }
     if (!state.container) this.closedContainer = null;
-    if (state.container && state.container.id !== this.closedContainer && !this.helpOpen && this.panel !== 'inventory') this.panel = 'container';
+    if (state.container && state.container.id !== this.closedContainer && !this.helpOpen && this.panel !== 'inventory') {
+      this.panel = 'container';
+      this.controls.closeRoster?.();
+    }
     if (!state.container && this.panel === 'container') this.closePanel(false);
     this.refreshPanel();
     this.updateDemolitionButton();
@@ -207,7 +212,7 @@ export class GameUI {
     let text = '';
     if (target.category === 'structure') {
       const near = distance(this.state.you, target) <= (containers.has(target.kind) ? 2 : 3);
-      if (containers.has(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${equipped?.kind === 'axe' && distance(this.state.you, target) <= 3 ? t(target.kind === 'chest' ? 'hint.chestDismantle' : 'hint.dismantle') : ''}`;
+      if (containers.has(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${equipped?.kind === 'axe' && distance(this.state.you, target) <= 3 ? t(target.kind === 'chest' ? 'hint.chestDismantle' : target.kind === 'vending_machine' ? 'hint.vendingDismantle' : 'hint.dismantle') : ''}`;
       else if (equipped?.kind === 'axe') text = `${itemName(target.kind)} · ${t(target.monster_demolition ? 'hint.busy' : near ? 'hint.gather' : 'hint.nearer')}`;
     } else {
       text = `${t(target.big ? 'hint.bigMonster' : 'hint.smallMonster')} · ${target.hp} HP`;
@@ -250,8 +255,11 @@ export class GameUI {
         const grid = element('div', 'chest-grid');
         grid.append(...container.slots.map((item, slot) => this.itemSlot(item, { kind: 'chest', id: container.id, slot })));
         detail.append(grid);
-        this.renderChestDemolition(detail, container);
-      } else if (container.kind === 'vending_machine') this.renderVending(detail, container);
+        this.renderContainerDemolition(detail, container);
+      } else if (container.kind === 'vending_machine') {
+        this.renderVending(detail, container);
+        this.renderContainerDemolition(detail, container);
+      }
       else this.renderFire(detail, container);
       const structure = this.state.structures.find((entry) => entry.id === container.id);
       if (structure?.monster_demolition) detail.append(element('p', 'panel-warning', t('panel.monsterWarning')));
@@ -268,30 +276,32 @@ export class GameUI {
     hold.button.classList.remove('holding');
     hold.button.style.setProperty('--demolition-progress', '0%');
     hold.button.setAttribute('aria-pressed', 'false');
-    hold.button.textContent = t('chest.dismantle');
+    hold.button.textContent = t(hold.label);
     if (hold.pointer != null && hold.button.hasPointerCapture(hold.pointer)) hold.button.releasePointerCapture(hold.pointer);
-    if (this.connection.ready) this.connection.send('dismantle_chest', { pressed: false });
+    if (this.connection.ready) this.connection.send('dismantle_container', { pressed: false });
   }
 
-  renderChestDemolition(body, container) {
-    const button = element('button', 'chest-demolition', t('chest.dismantle'));
+  renderContainerDemolition(body, container) {
+    const kind = container.kind === 'chest' ? 'chest' : 'vending';
+    const label = `${kind}.dismantle`;
+    const button = element('button', 'chest-demolition', t(label));
     button.type = 'button';
-    button.id = 'chest-demolition';
+    button.id = `${kind}-demolition`;
     button.setAttribute('aria-pressed', 'false');
-    const hint = element('p', 'container-meta', t('chest.dismantleHint'));
-    hint.id = 'chest-demolition-hint';
+    const hint = element('p', 'container-meta', t(`${kind}.dismantleHint`));
+    hint.id = `${kind}-demolition-hint`;
     button.setAttribute('aria-describedby', hint.id);
     const start = (event, pointer = null) => {
       event.preventDefault();
       event.stopPropagation();
       if (button.disabled || this.demolitionHold || (pointer != null && event.button !== 0)) return;
       this.controls.stop();
-      const hold = { button, pointer, container: container.id, epoch: this.state.movement?.epoch };
+      const hold = { button, pointer, container: container.id, label, epoch: this.state.movement?.epoch };
       this.demolitionHold = hold;
       button.classList.add('holding');
       button.setAttribute('aria-pressed', 'true');
       if (pointer != null) button.setPointerCapture(pointer);
-      this.connection.command('dismantle_chest', { id: container.id, pressed: true }).catch((error) => {
+      this.connection.command('dismantle_container', { id: container.id, pressed: true }).catch((error) => {
         if (this.demolitionHold !== hold) return;
         this.cancelDemolition();
         this.toast(() => errorText(error));
@@ -318,16 +328,16 @@ export class GameUI {
 
   updateDemolitionButton() {
     const button = this.demolitionButton;
-    const chest = this.state?.container;
-    if (!button || chest?.kind !== 'chest' || this.panel !== 'container') return;
+    const container = this.state?.container;
+    if (!button || !['chest', 'vending_machine'].includes(container?.kind) || this.panel !== 'container') return;
     const item = this.state.you.inventory[this.controls.selected()];
-    const locked = this.state.structures.some((structure) => structure.id === chest.id && structure.monster_demolition);
-    const empty = !chest.slots.some(Boolean);
+    const locked = this.state.structures.some((structure) => structure.id === container.id && structure.monster_demolition);
+    const empty = container.kind !== 'chest' || !container.slots.some(Boolean);
     button.disabled = this.busy || !empty || locked || item?.kind !== 'axe' || this.state.you.downed;
-    byId('chest-demolition-hint').textContent = t(!empty ? 'chest.emptyFirst' : locked ? 'panel.monsterWarning' : 'chest.dismantleHint');
+    byId(button.getAttribute('aria-describedby')).textContent = t(!empty ? 'chest.emptyFirst' : locked ? 'panel.monsterWarning' : container.kind === 'chest' ? 'chest.dismantleHint' : 'vending.dismantleHint');
     if (button.disabled || (this.demolitionHold && this.demolitionHold.epoch !== this.state.movement?.epoch)) this.cancelDemolition();
     if (this.demolitionHold) {
-      const progress = this.state.interaction.target === `structure:${chest.id}` ? this.state.interaction.progress : 0;
+      const progress = this.state.interaction.target === `structure:${container.id}` ? this.state.interaction.progress : 0;
       const percent = Math.min(100, Math.floor(progress / 1.5 * 100));
       button.style.setProperty('--demolition-progress', `${percent}%`);
       button.textContent = t('chest.dismantling', { percent });

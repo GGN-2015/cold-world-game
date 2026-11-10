@@ -87,8 +87,13 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
             state = server.world.join(candidate_id, client_movement=message.get("client_movement") is True)
             player_id = candidate_id
             quiet_inputs = message.get("quiet_inputs") is True
-            send(websocket, {"type": "welcome", "player_id": player_id, "protocol": 1, "state": state})
+            wants_roster = message.get("player_roster") is True
+            welcome = {"type": "welcome", "player_id": player_id, "protocol": 1, "state": state}
+            if wants_roster:
+                welcome["roster"] = server.world.player_roster()
+            send(websocket, welcome)
             next_state = time.monotonic() + 0.1
+            next_roster = time.monotonic() + 1
             tokens, last_token = 120.0, time.monotonic()
             while not server.stopping.is_set():
                 raw = websocket.receive(timeout=max(0, min(0.05, next_state - time.monotonic())))
@@ -113,6 +118,9 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
                     send(websocket, {"type": "state", "state": server.world.snapshot(player_id)})
                     now = time.monotonic()
                     next_state += (int((now - next_state) / 0.1) + 1) * 0.1
+                if wants_roster and now >= next_roster:
+                    send(websocket, {"type": "roster", **server.world.player_roster()})
+                    next_roster = time.monotonic() + 1
         except GameError as error:
             try:
                 send(websocket, {"type": "error", "code": error.code, "message": str(error)})

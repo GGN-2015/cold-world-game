@@ -154,6 +154,7 @@ class World(Actions, Combat, Monsters, Terrain):
                 player.next_shot = self.elapsed + max(0, player.next_shot - player.offline_since)
                 player.next_axe_attack = self.elapsed + max(0, player.next_axe_attack - player.offline_since)
                 player.offline_since = None
+            player.last_login_at = time.time()
             self.online.add(player_id)
             self.controls[player_id] = Controls(aim_x=player.x + 1, aim_y=player.y, last_input=time.monotonic(), client_movement=client_movement)
             for monster in self.monsters.values():
@@ -177,6 +178,14 @@ class World(Actions, Combat, Monsters, Terrain):
                 for monster in self.monsters.values():
                     if monster.target == player_id:
                         self.clear_target(monster)
+
+    def player_roster(self):
+        with self.lock:
+            players = sorted(self.players.values(), key=lambda player: (player.id not in self.online, 0 if player.id in self.online else -(player.last_login_at or 0), player.id.casefold(), player.id))
+            return {
+                "server_time": time.time(),
+                "players": [{"id": player.id, "online": player.id in self.online, "hunger": player.hunger, "temperature": player.temperature, "money": player.money, "last_login_at": player.last_login_at} for player in players],
+            }
 
     def check_healthy(self):
         if self.fault:

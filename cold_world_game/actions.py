@@ -75,7 +75,7 @@ class Actions:
             if controls.ui:
                 return {"accepted": False}
             target = self.structure_at(tile(controls.aim_x), tile(controls.aim_y))
-            if target and target.kind in CONTAINERS and (not shift or target.kind == "chest") and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
+            if target and target.kind in CONTAINERS and (not shift or target.kind in ("chest", "vending_machine")) and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
                 self.open_container(player, controls, target.id)
                 return {"opened": target.id}
             item = player.inventory[player.selected]
@@ -88,7 +88,7 @@ class Actions:
                     self.strike_axe(player, controls)
             controls.held = True
             controls.shift = shift
-        elif kind == "dismantle_chest":
+        elif kind in ("dismantle_chest", "dismantle_container"):
             pressed = boolean(command.get("pressed"), "pressed")
             controls.last_input = time.monotonic()
             if not pressed:
@@ -96,12 +96,13 @@ class Actions:
                 return {"accepted": True}
             structure = self.access_container(player, command.get("id"))
             item = player.inventory[player.selected]
-            if not controls.ui or controls.container != structure.id or structure.kind != "chest":
-                raise GameError("invalid_container", "Open this chest before dismantling it")
-            if any(structure.slots):
+            allowed = ("chest",) if kind == "dismantle_chest" else ("chest", "vending_machine")
+            if not controls.ui or controls.container != structure.id or structure.kind not in allowed:
+                raise GameError("invalid_container", "Open this chest or vending machine before dismantling it")
+            if structure.kind == "chest" and any(structure.slots):
                 raise GameError("chest_not_empty", "Empty this chest before dismantling it")
             if player.temperature < 5 or item is None or item.kind != "axe" or self.demolition_locked(structure.id):
-                raise GameError("demolition_unavailable", "Dismantling requires an axe, a standing player and no monster dismantling this chest")
+                raise GameError("demolition_unavailable", "Dismantling requires an axe, a standing player and no monster dismantling this structure")
             if controls.demolition_container != structure.id:
                 controls.stop_attack()
             controls.demolition_container = structure.id

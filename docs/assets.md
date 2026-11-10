@@ -2,7 +2,7 @@
 
 ## 可直接替换的贴图
 
-全部 56 张贴图位于 `cold_world_game/static/assets/`，包含 45 张静态贴图、4 张四向角色动画图集、5 张动作特效图集和 2 张怪物死亡图集，是已经导出的真实 PNG 文件，不依赖外部图床或在线图像服务。当前美术使用手工编排的像素图样和统一色板生成，无第三方素材依赖。
+全部 59 张贴图位于 `cold_world_game/static/assets/`，包含 48 张静态贴图、4 张四向角色动画图集、5 张动作特效图集和 2 张怪物死亡图集，是已经导出的真实 PNG 文件，不依赖外部图床或在线图像服务。当前美术使用手工编排的像素图样和统一色板生成，无第三方素材依赖。
 
 静态图片为 96 × 96 像素，四向动画图集为 480 × 384 像素，动作特效与死亡图集为 576 × 96 像素，每帧仍为 96 × 96。原始图样按每帧 32 × 32 像素编排，再最近邻放大 3 倍。除雪地外使用透明 RGBA 背景；画面通过 Canvas 2D 绘制，关闭平滑插值。世界中的大小和落脚位置由渲染器决定，而不是图片像素尺寸。
 
@@ -15,6 +15,7 @@
 | 自己与其他玩家四向动画 | `player_motion.png`、`player_other_motion.png` |
 | 玩家旧版静态图（保留） | `player.png`、`player_back.png`、`player_other.png`、`player_other_back.png` |
 | 倒地玩家 | `player_downed.png` |
+| 玩家列表 | `roster.png` 为名单按钮图标；`roster_online.png`、`roster_offline.png` 为在线暖色与离线冷色头像，均为独立 96 × 96 透明 PNG，由 `roster_icons` 生成 |
 | 怪物四向动画 | `monster_small_motion.png`、`monster_big_motion.png` |
 | 怪物死亡动画 | `monster_small_death.png`、`monster_big_death.png` |
 | 动作特效 | `fx_slash.png`（挥斧）、`fx_claw.png`（爪痕）、`fx_impact.png`（受击）、`fx_debris.png`（木屑）、`fx_muzzle.png`（枪口闪光） |
@@ -68,6 +69,8 @@ Windows 与 Linux 命令相同，脚本根据自己的路径定位项目，不�
 
 - `templates/index.html`：登录页、游戏 HUD、操作帮助的页面结构。
 - `static/css/game.css`：登录页、面板、物品栏与响应式布局。
+- `static/css/roster.css`：可折叠玩家列表、在线/离线卡片与手机布局，不改变世界场景尺寸。
+- `static/js/roster.js`：独立低频名单更新、键控卡片复用、服务器真实时间与整数登录间隔、中英状态文案。
 - `static/js/game.js`：初始化、按键与鼠标、连接事件和动画循环。
 - `static/js/network.js`：WebSocket 握手、命令确认、超时与重连。
 - `static/js/renderer.js`：雪地背景缓存、PNG 绘制、插值位置呈现、光照与放置预览。缓存保留世界格子纹理，移动越出边界或窗口缩放时重建，不改变 PNG 替换方式。

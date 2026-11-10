@@ -82,6 +82,21 @@
       "width": 96,
       "height": 96
     },
+    "roster_online": {
+      "file": "roster_online.png",
+      "width": 96,
+      "height": 96
+    },
+    "roster_offline": {
+      "file": "roster_offline.png",
+      "width": 96,
+      "height": 96
+    },
+    "roster": {
+      "file": "roster.png",
+      "width": 96,
+      "height": 96
+    },
     "monster_small": {
       "file": "monster_small.png",
       "width": 96,

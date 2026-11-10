@@ -172,6 +172,37 @@ def travelers():
     save("player_downed", image)
 
 
+def roster_icons():
+    for online in (True, False):
+        image, drawing = canvas()
+        outline = PALETTE["outline"]
+        coat = "#d99363" if online else "#718c9f"
+        skin = "#f0c9a0" if online else "#b6c3c9"
+        scarf = "#a6d8b6" if online else "#a7bbce"
+        drawing.rectangle((5, 23, 26, 30), fill=outline)
+        drawing.rectangle((7, 23, 24, 29), fill=coat)
+        drawing.rectangle((8, 5, 23, 21), fill=outline)
+        drawing.rectangle((10, 8, 21, 19), fill=skin)
+        drawing.rectangle((8, 5, 23, 10), fill=outline)
+        drawing.rectangle((9, 5, 22, 8), fill=coat)
+        drawing.rectangle((7, 9, 24, 11), fill=scarf)
+        drawing.rectangle((8, 20, 23, 24), fill=outline)
+        drawing.rectangle((9, 20, 22, 22), fill=scarf)
+        drawing.rectangle((18, 22, 21, 27), fill=scarf)
+        for horizontal in (12, 19):
+            drawing.line((horizontal, 14, horizontal + (0 if online else 1), 14 + (1 if online else 0)), fill=outline)
+        drawing.line((14, 18, 17, 18), fill="#bf8d72" if online else "#8c9fae")
+        save("roster_online" if online else "roster_offline", image)
+    image, drawing = canvas()
+    for horizontal, vertical, color in ((17, 5, "#9acdbb"), (5, 10, "#edcd94")):
+        drawing.rectangle((horizontal - 3, vertical + 10, horizontal + 9, vertical + 18), fill=PALETTE["outline"])
+        drawing.rectangle((horizontal - 1, vertical + 11, horizontal + 7, vertical + 17), fill=color)
+        drawing.rectangle((horizontal, vertical, horizontal + 6, vertical + 9), fill=PALETTE["outline"])
+        drawing.rectangle((horizontal + 1, vertical + 1, horizontal + 5, vertical + 7), fill=color)
+        drawing.line((horizontal, vertical + 3, horizontal + 6, vertical + 3), fill=PALETTE["snow"])
+    save("roster", image)
+
+
 def monsters():
     for big in (False, True):
         image, drawing = canvas()
@@ -563,6 +594,7 @@ def main():
     construction()
     campfires()
     travelers()
+    roster_icons()
     monsters()
     actor_animations()
     equipment()

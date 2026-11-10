@@ -9,6 +9,7 @@
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='assets/snowflake.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/game.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/roster.css') }}">
 </head>
 <body>
   <main id="app">
@@ -27,12 +28,19 @@
             <span id="connection" class="connection glass"><i></i><span>连接中</span></span>
             <button id="sound-button" class="icon-button glass" title="切换音效" aria-label="关闭音效" aria-pressed="true">音效 开</button>
             <button id="language-button" type="button" class="icon-button glass" data-language-toggle title="切换到英语" aria-label="切换到英语">EN</button>
+            <button id="players-button" type="button" class="icon-button glass" aria-expanded="false" aria-controls="player-roster"><img src="{{ url_for('static', filename='assets/roster.png') }}" alt=""><span class="players-button-label" data-i18n="players.button">玩家</span><span id="players-count" class="players-button-count">0</span></button>
             <button id="inventory-button" class="icon-button glass" data-i18n-title="button.backpackHint" data-i18n-aria-label="button.backpackOpen" title="背包与合成（B，兼容 I）" aria-label="打开背包与合成"><span data-i18n="button.backpack">背包</span> <kbd>B</kbd></button>
             <button id="craft-button" class="icon-button glass" data-i18n="button.craft" data-i18n-title="button.backpackOpen" data-i18n-aria-label="button.craftOpen" title="打开背包与合成" aria-label="打开合成界面">合成</button>
             <button id="help-button" class="icon-button glass" data-i18n-title="button.helpHint" data-i18n-aria-label="button.help" title="操作指南（H）" aria-label="操作指南">?</button>
             <button id="leave-button" class="icon-button glass" data-i18n="button.leave" data-i18n-title="button.leaveHint" data-i18n-aria-label="button.leaveHint" title="保存并离开" aria-label="保存并离开">离开</button>
           </div>
         </header>
+        <aside id="player-roster" class="player-roster glass" aria-labelledby="players-title" hidden>
+          <header class="roster-heading"><div><span class="eyebrow" data-i18n="players.eyebrow">雪原同行者</span><h2 id="players-title" data-i18n="players.title">玩家列表</h2><p id="players-summary"></p></div><button id="players-close" type="button" class="close-button" data-i18n-aria-label="players.close" aria-label="收起玩家列表">×</button></header>
+          <div id="players-list" class="roster-list" role="list" data-i18n-aria-label="players.title"></div>
+          <p id="players-empty" class="roster-empty" data-i18n="players.loading">正在同步旅人状态…</p>
+          <p id="players-footer" class="roster-footer"></p>
+        </aside>
         <div id="connection-banner" class="connection-banner" role="status" hidden></div>
         <div id="downed-notice" class="downed-notice glass" hidden><strong data-i18n="downed.title">失温倒地</strong> <span data-i18n="downed.description">靠近火堆取暖，体温达到 5°C 后重新站起。仍可制作、放置和点燃篝火。</span></div>
         <div class="position-readout"><span id="coordinate-label">坐标 0, 0</span><span id="fps-label">60 FPS</span><span id="player-label"></span></div>
