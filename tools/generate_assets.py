@@ -1,4 +1,5 @@
 import json
+import math
 import random
 from pathlib import Path
 
@@ -22,6 +23,7 @@ PALETTE = {
 }
 ASSETS = {}
 ANIMATIONS = {}
+COMBAT_EFFECTS = {}
 ACTOR_DIRECTIONS = ("down", "left", "right", "up")
 WALK_POSES = ((0, 0, 0), (3, -2, 0), (1, 0, -1), (-3, 2, 0), (-1, 1, -1))
 
@@ -400,6 +402,45 @@ def equipment():
         save(kind, image)
 
 
+def vending_items():
+    image, drawing = canvas()
+    drawing.ellipse((5, 25, 28, 30), fill=(38, 62, 72, 65))
+    drawing.rectangle((5, 3, 26, 28), fill=PALETTE["outline"])
+    drawing.rectangle((7, 5, 24, 26), fill="#bb5553")
+    drawing.rectangle((24, 5, 25, 26), fill="#783e46")
+    drawing.rectangle((8, 6, 22, 8), fill="#f4d3a0")
+    drawing.rectangle((8, 10, 19, 21), fill="#314e5b")
+    drawing.line((9, 11, 9, 19), fill="#88bdc7")
+    for vertical in (12, 17):
+        for horizontal, color in ((11, "#e9b566"), (15, "#d97161")):
+            drawing.rectangle((horizontal, vertical, horizontal + 2, vertical + 2), fill=color)
+            drawing.point((horizontal + 1, vertical - 1), fill=PALETTE["light"])
+    drawing.rectangle((21, 11, 22, 13), fill=PALETTE["outline"])
+    drawing.point((22, 16), fill=PALETTE["gold"])
+    drawing.rectangle((9, 23, 21, 25), fill=PALETTE["outline"])
+    drawing.rectangle((8, 28, 10, 29), fill=PALETTE["outline"])
+    drawing.rectangle((22, 28, 24, 29), fill=PALETTE["outline"])
+    save("vending_machine", image)
+    image, drawing = canvas()
+    drawing.ellipse((6, 7, 26, 27), fill=PALETTE["outline"])
+    drawing.ellipse((7, 7, 25, 25), fill="#b4803d")
+    drawing.ellipse((7, 6, 25, 24), fill=PALETTE["gold"])
+    drawing.ellipse((10, 9, 22, 21), outline="#b4803d", width=1)
+    drawing.line((16, 11, 16, 19), fill="#fff0c6", width=2)
+    drawing.line((13, 13, 16, 11), fill="#fff0c6", width=2)
+    save("coin", image)
+    image, drawing = canvas()
+    drawing.rectangle((13, 4, 19, 8), fill=PALETTE["outline"])
+    drawing.rectangle((14, 4, 18, 5), fill="#e57869")
+    drawing.rectangle((14, 7, 18, 9), fill="#8fb0b8")
+    drawing.polygon(((13, 9), (19, 9), (22, 14), (22, 26), (20, 28), (12, 28), (10, 26), (10, 14)), fill=PALETTE["outline"])
+    drawing.rectangle((12, 13, 20, 26), fill="#653c3c")
+    drawing.rectangle((12, 16, 20, 22), fill="#c35c54")
+    drawing.line((13, 20, 19, 18), fill=PALETTE["light"], width=2)
+    drawing.line((12, 12, 12, 15), fill="#b8d2d3")
+    save("cola", image)
+
+
 def food():
     kinds = ("instant_noodles", "dumplings", "wontons", "pork_trotters", "beef", "lamb", "sardines", "tuna", "beef_balls", "hotpot_vegetables", "oreos", "compressed_biscuits")
     colors = ("#bd7253", "#88a5b4", "#758f9e", "#b67c6a", "#a65e5d", "#9d7a68", "#839e9d", "#6b8fa5", "#b78c67", "#789677", "#496c96", "#b49b72")
@@ -462,6 +503,59 @@ def effects():
     save("footprint", image)
 
 
+def combat_effects():
+    durations = {"fx_slash": 0.28, "fx_claw": 0.32, "fx_impact": 0.3, "fx_debris": 0.5, "fx_muzzle": 0.15}
+    for name, duration in durations.items():
+        sheet = Image.new("RGBA", (32 * 6, 32))
+        for frame in range(6):
+            image, drawing = canvas()
+            phase = frame / 5
+            alpha = round(255 * (1 - phase * 0.75))
+            if name == "fx_slash":
+                start = -100 + phase * 120
+                drawing.arc((3, 3, 29, 29), start, start + 90, fill=(220, 151, 71, alpha), width=5)
+                drawing.arc((5, 5, 27, 27), start + 5, start + 80, fill=(255, 241, 197, alpha), width=2)
+            elif name == "fx_claw":
+                for offset in (-5, 0, 5):
+                    top = 7 + offset + round(phase * 4)
+                    drawing.line(((7, top), (16, top + 3), (25, top + 9)), fill=(103, 43, 79, alpha), width=4)
+                    drawing.line(((8, top), (16, top + 2), (25, top + 8)), fill=(255, 158, 165, alpha), width=2)
+            elif name == "fx_impact":
+                radius = 5 + phase * 9
+                points = []
+                for vertex in range(16):
+                    angle = vertex * math.pi / 8 + frame * 0.08
+                    reach = radius if vertex % 2 == 0 else radius * 0.32
+                    points.append((16 + math.cos(angle) * reach, 16 + math.sin(angle) * reach))
+                drawing.polygon(points, fill=(232, 104, 87, alpha))
+                drawing.ellipse((12, 12, 20, 20), fill=(255, 239, 192, alpha))
+            elif name == "fx_debris":
+                for chip in range(9):
+                    angle = chip * math.tau / 9 + 0.3
+                    reach = 2 + phase * (8 + chip % 3)
+                    horizontal = round(16 + math.cos(angle) * reach)
+                    vertical = round(16 + math.sin(angle) * reach - math.sin(phase * math.pi) * 3)
+                    drawing.rectangle((horizontal, vertical, horizontal + 1 + chip % 2, vertical + 1), fill=(213, 172, 118, alpha) if chip % 2 else (112, 76, 62, alpha))
+            else:
+                reach = round(26 - phase * 11)
+                drawing.polygon(((4, 16), (13, 11), (reach, 4 + frame), (reach - 3, 13), (30 - frame, 16), (reach - 3, 19), (reach, 28 - frame), (13, 21)), fill=(245, 182, 83, alpha))
+                drawing.polygon(((5, 16), (17, 13), (23 - frame, 16), (17, 19)), fill=(255, 250, 219, alpha))
+            sheet.alpha_composite(image, (frame * 32, 0))
+        save(name, sheet)
+        COMBAT_EFFECTS[name] = {"asset": name, "frame_width": 96, "frame_height": 96, "frames": 6, "duration": duration}
+    for kind in ("monster_small", "monster_big"):
+        source = Image.open(DESTINATION / f"{kind}.png").convert("RGBA").resize((32, 32), Image.Resampling.NEAREST)
+        sheet = Image.new("RGBA", (32 * 6, 32))
+        for frame in range(6):
+            image = source.rotate(-min(90, frame * 24), resample=Image.Resampling.NEAREST, center=(16, 20))
+            opacity = (255, 255, 240, 200, 125, 45)[frame]
+            image.putalpha(image.getchannel("A").point(lambda value: value * opacity // 255))
+            sheet.alpha_composite(image, (frame * 32, 0))
+        name = f"{kind}_death"
+        save(name, sheet)
+        COMBAT_EFFECTS[name] = {"asset": name, "frame_width": 96, "frame_height": 96, "frames": 6, "duration": 0.65}
+
+
 def main():
     DESTINATION.mkdir(parents=True, exist_ok=True)
     snow()
@@ -472,9 +566,11 @@ def main():
     monsters()
     actor_animations()
     equipment()
+    vending_items()
     food()
     effects()
-    (DESTINATION / "manifest.json").write_text(json.dumps({"version": 2, "pixel_art": True, "assets": ASSETS, "animations": ANIMATIONS}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    combat_effects()
+    (DESTINATION / "manifest.json").write_text(json.dumps({"version": 2, "pixel_art": True, "assets": ASSETS, "animations": ANIMATIONS, "effects": COMBAT_EFFECTS}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Exported {len(ASSETS)} replaceable PNG assets to {DESTINATION}")
 
 

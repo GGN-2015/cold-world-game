@@ -9,7 +9,7 @@ from contextlib import contextmanager
 
 from .actions import Actions, GameError
 from .combat import Combat
-from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BURN_SECONDS, CHUNK_SIZE, DAY_SECONDS, DROP_DISTANCE, FOODS, GUNS, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, MONSTER_SPEED, OPAQUE, PICKUP_RADIUS, PLAYER_SPEED, RECIPES, SEASON_DAYS, SEASON_OFFSETS, SEASONS, SOLID, TICK_RATE
+from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BURN_SECONDS, CHUNK_SIZE, DAY_SECONDS, DROP_DISTANCE, FOODS, GUNS, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, MONSTER_COIN_DROPS, MONSTER_SPEED, OPAQUE, PICKUP_RADIUS, PLAYER_SPEED, RECIPES, SEASON_DAYS, SEASON_OFFSETS, SEASONS, SOLID, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS
 from .geometry import circle_square, distance, segment_box, tile
 from .models import Controls, GroundItem, Item, Monster, Player, Projectile, encode, item_from, player_from, structure_from
 from .monsters import Monsters
@@ -32,6 +32,7 @@ class World(Actions, Combat, Monsters, Terrain):
         self.events = deque(maxlen=256)
         self.event_sequence = 0
         self._pending_events = []
+        self._path_cursor = None
         state = storage.load()
         if state:
             self.restore(state)
@@ -49,6 +50,8 @@ class World(Actions, Combat, Monsters, Terrain):
             self.projectiles = {}
             self.ground = {}
             self.shot_hits = {}
+            self.shot_impacts = {}
+            self.chunk_versions = {}
             self.ensure_terrain(0, 0)
             self.storage.save(self.export())
         self.next_save = self.elapsed + 2
@@ -60,6 +63,7 @@ class World(Actions, Combat, Monsters, Terrain):
             "elapsed": self.elapsed,
             "tick_number": self.tick_number,
             "chunks": sorted(self.chunks),
+            "chunk_versions": [[*point, self.chunk_versions.get(point, 1)] for point in sorted(self.chunks)],
             "origin_region": self.origin_region,
             "structures": [encode(value) for value in self.structures.values()],
             "players": [encode(value) for value in self.players.values()],
@@ -67,6 +71,7 @@ class World(Actions, Combat, Monsters, Terrain):
             "projectiles": [encode(value) for value in self.projectiles.values()],
             "ground": [encode(value) for value in self.ground.values()],
             "shot_hits": {shot: sorted(players) for shot, players in self.shot_hits.items()},
+            "shot_impacts": {shot: sorted(monsters) for shot, monsters in self.shot_impacts.items()},
         }
 
     def restore(self, state):
@@ -76,6 +81,8 @@ class World(Actions, Combat, Monsters, Terrain):
         self.elapsed = state["elapsed"]
         self.tick_number = state["tick_number"]
         self.chunks = {tuple(point) for point in state["chunks"]}
+        versions = {(chunk_x, chunk_y): version for chunk_x, chunk_y, version in state.get("chunk_versions", [])}
+        self.chunk_versions = {point: versions.get(point, 1) for point in self.chunks}
         self.origin_region = [tuple(point) for point in state["origin_region"]]
         self.structures = {values["id"]: structure_from(values) for values in state["structures"]}
         self.tiles = {(value.x, value.y): value.id for value in self.structures.values()}
@@ -84,6 +91,7 @@ class World(Actions, Combat, Monsters, Terrain):
         self.projectiles = {values["id"]: Projectile(**values) for values in state["projectiles"]}
         self.ground = {values["id"]: GroundItem(**{**values, "item": item_from(values["item"])}) for values in state["ground"]}
         self.shot_hits = {shot: set(players) for shot, players in state["shot_hits"].items()}
+        self.shot_impacts = {shot: set(monsters) for shot, monsters in state.get("shot_impacts", {}).items()}
 
     def touch(self):
         if self._backup is None:
@@ -113,8 +121,8 @@ class World(Actions, Combat, Monsters, Terrain):
             self._runtime_backup = None
             self._pending_events = []
 
-    def emit_event(self, event_type, actor, kind, x, y):
-        self._pending_events.append({"type": event_type, "actor": actor, "kind": kind, "x": x, "y": y, "time": self.elapsed})
+    def emit_event(self, event_type, actor, kind, x, y, **details):
+        self._pending_events.append({"type": event_type, "actor": actor, "kind": kind, "x": x, "y": y, "time": self.elapsed, **details})
 
     def join(self, player_id):
         if not isinstance(player_id, str) or not player_id.strip() or len(player_id) > 64 or not player_id.isprintable():
@@ -252,6 +260,39 @@ class World(Actions, Combat, Monsters, Terrain):
         return True
 
     def nearby_structures(self, start_x, start_y, end_x, end_y):
+        first_x, first_y = tile(start_x), tile(start_y)
+        last_x, last_y = tile(end_x), tile(end_y)
+        width, height = abs(last_x - first_x) + 3, abs(last_y - first_y) + 3
+        if width * height > (width + height) * 5:
+            direction_x = (end_x > start_x) - (end_x < start_x)
+            direction_y = (end_y > start_y) - (end_y < start_y)
+            step_x = 1 / abs(end_x - start_x) if direction_x else math.inf
+            step_y = 1 / abs(end_y - start_y) if direction_y else math.inf
+            next_x = ((first_x + direction_x * 0.5) - start_x) / (end_x - start_x) if direction_x else math.inf
+            next_y = ((first_y + direction_y * 0.5) - start_y) / (end_y - start_y) if direction_y else math.inf
+            visited = set()
+            current_x, current_y = first_x, first_y
+            while True:
+                for offset_x in (-1, 0, 1):
+                    for offset_y in (-1, 0, 1):
+                        point = current_x + offset_x, current_y + offset_y
+                        if point not in visited:
+                            visited.add(point)
+                            structure = self.structure_at(*point)
+                            if structure:
+                                yield structure
+                if (current_x, current_y) == (last_x, last_y):
+                    return
+                if current_x == last_x:
+                    next_x = math.inf
+                if current_y == last_y:
+                    next_y = math.inf
+                if next_x < next_y:
+                    current_x += direction_x
+                    next_x += step_x
+                else:
+                    current_y += direction_y
+                    next_y += step_y
         for tile_x in range(tile(min(start_x, end_x)) - 1, tile(max(start_x, end_x)) + 2):
             for tile_y in range(tile(min(start_y, end_y)) - 1, tile(max(start_y, end_y)) + 2):
                 structure = self.structure_at(tile_x, tile_y)
@@ -269,7 +310,7 @@ class World(Actions, Combat, Monsters, Terrain):
         season = (day // SEASON_DAYS) % len(SEASONS)
         hour = (self.elapsed % DAY_SECONDS) / 60
         spring = -20 + hour * (20 / 12) if hour <= 12 else 20 - hour * (20 / 12)
-        return {"season": SEASONS[season], "day": day % SEASON_DAYS + 1, "hour": hour, "ambient_temperature": spring + SEASON_OFFSETS[season]}
+        return {"year": day // (SEASON_DAYS * len(SEASONS)) + 1, "season": SEASONS[season], "day": day % SEASON_DAYS + 1, "hour": hour, "ambient_temperature": spring + SEASON_OFFSETS[season]}
 
     def temperature_at(self, player):
         nearest = min((abs(tile(player.x) - fire.x) + abs(tile(player.y) - fire.y) for fire in self.structures.values() if fire.kind == "campfire" and fire.lit), default=math.inf)
@@ -308,24 +349,32 @@ class World(Actions, Combat, Monsters, Terrain):
             self.ensure_terrain(player.x, player.y)
 
     def pickup(self, player):
+        has_space = None in player.backpack
         for ground_id, ground in list(self.ground.items()):
-            if None not in player.backpack:
-                return
+            if ground.item.kind != "coin" and not has_space:
+                continue
             if distance(player, ground) <= PICKUP_RADIUS and self.visible(player.x, player.y, ground.x, ground.y) and not (ground.dropped_by == player.id and self.elapsed < ground.immune_until):
                 self.touch()
-                player.backpack[player.backpack.index(None)] = ground.item
+                if ground.item.kind == "coin":
+                    player.money += 1
+                else:
+                    player.backpack[player.backpack.index(None)] = ground.item
+                    has_space = None in player.backpack
                 del self.ground[ground_id]
 
     def snapshot(self, player_id):
         with self.lock:
             player = self.players[player_id]
             structures = []
-            for structure in self.structures.values():
-                if abs(structure.x - player.x) <= 20 and abs(structure.y - player.y) <= 13:
-                    structures.append({"id": structure.id, "kind": structure.kind, "x": structure.x, "y": structure.y, "lit": structure.lit, "monster_demolition": self.demolition_locked(structure.id)})
+            demolitions = {monster.demolition for monster in self.monsters.values() if monster.demolition}
+            for horizontal in range(math.ceil(player.x - 20), math.floor(player.x + 20) + 1):
+                for vertical in range(math.ceil(player.y - 13), math.floor(player.y + 13) + 1):
+                    structure = self.structure_at(horizontal, vertical)
+                    if structure:
+                        structures.append({"id": structure.id, "kind": structure.kind, "x": structure.x, "y": structure.y, "lit": structure.lit, "monster_demolition": structure.id in demolitions})
             controls = self.controls[player_id]
             container = self.structures.get(controls.container)
-            visible_chunks = [point for point in self.chunks if abs(point[0] * 15 - player.x) <= 30 and abs(point[1] * 15 - player.y) <= 24]
+            visible_chunks = [(horizontal, vertical) for horizontal in range(math.ceil((player.x - 30) / CHUNK_SIZE), math.floor((player.x + 30) / CHUNK_SIZE) + 1) for vertical in range(math.ceil((player.y - 24) / CHUNK_SIZE), math.floor((player.y + 24) / CHUNK_SIZE) + 1) if (horizontal, vertical) in self.chunks]
             return {
                 "tick": self.tick_number,
                 "elapsed": self.elapsed,
@@ -347,7 +396,7 @@ class World(Actions, Combat, Monsters, Terrain):
 
     @staticmethod
     def catalog():
-        return {"tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "axe": AXE, "guns": GUNS, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED}, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "protocol": 1}
+        return {"tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "vending_offers": VENDING_OFFERS, "currency": {"item": "coin", "player_field": "money", "uses_slots": False}, "monster_coin_drops": MONSTER_COIN_DROPS, "terrain": {"version": TERRAIN_VERSION, "vending_machine_chance": VENDING_MACHINE_CHANCE, "unexplored_uses_latest": True}, "axe": AXE, "guns": GUNS, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED}, "knockback": KNOCKBACK, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "protocol": 1}
 
     def close(self):
         with self.lock:

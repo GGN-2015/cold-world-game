@@ -3,9 +3,13 @@ import math
 from collections import deque
 from functools import lru_cache
 
-from .constants import BODY_RADIUS, MONSTER_DEMOLITION, MONSTER_LIMIT, MONSTER_SPEED, SOLID
+from .constants import BODY_RADIUS, CHUNK_SIZE, KNOCKBACK, MONSTER_DEMOLITION, MONSTER_LIMIT, MONSTER_SPEED, SOLID
 from .geometry import DIRECTIONS, distance, normalized, tile
 from .models import Monster, Projectile
+
+
+PATH_STEPS = tuple((offset_x, offset_y, math.hypot(offset_x, offset_y) / MONSTER_SPEED) for offset_x, offset_y in DIRECTIONS)
+PATH_PLANS_PER_TICK = 8
 
 
 class Monsters:
@@ -18,6 +22,7 @@ class Monsters:
         monster.path = []
         monster.demolition = None
         monster.demolition_progress = 0.0
+        monster.next_demolition_feedback = 0.0
         monster.next_plan = 0.0
 
     def spawn_monster(self):
@@ -39,6 +44,15 @@ class Monsters:
         self.monsters[monster.id] = monster
 
     def update_monsters(self, seconds):
+        identifiers = list(self.monsters)
+        cursor = getattr(self, "_path_cursor", None)
+        if cursor in self.monsters:
+            pivot = identifiers.index(cursor) + 1
+            identifiers = identifiers[pivot:] + identifiers[:pivot]
+        due = [identifier for identifier in identifiers if self.monsters[identifier].next_plan <= self.elapsed and (self.monsters[identifier].target is not None or any(distance(self.monsters[identifier], self.players[player_id]) <= 32 for player_id in self.online))]
+        planning = set(due[:PATH_PLANS_PER_TICK])
+        if planning:
+            self._path_cursor = due[min(len(due), PATH_PLANS_PER_TICK) - 1]
         for monster_id, monster in list(self.monsters.items()):
             if all(distance(monster, self.players[player_id]) > 120 for player_id in self.online):
                 del self.monsters[monster_id]
@@ -76,16 +90,17 @@ class Monsters:
             separation = distance(monster, target)
             if can_see and separation <= 1:
                 if self.elapsed + 1e-9 >= monster.next_attack:
-                    self.hurt_player(target, 2 if monster.big else 1)
+                    self.emit_event("melee", monster.id, "monster_big" if monster.big else "monster", monster.x, monster.y, target=target.id, target_x=target.x, target_y=target.y)
+                    self.hurt_player(target, 2 if monster.big else 1, source=monster.id, direction=(target.x - monster.x, target.y - monster.y), knockback=KNOCKBACK["monster_big_melee" if monster.big else "monster_melee"])
                     monster.next_attack = self.elapsed + (1.5 if monster.big else 1)
                 continue
             if monster.big and can_see and 1 < separation <= 12 and self.elapsed + 1e-9 >= monster.next_attack:
                 direction_x, direction_y = normalized(target.x - monster.x, target.y - monster.y)
                 projectile = Projectile(monster.x, monster.y, direction_x * 1.5, direction_y * 1.5, 12, 5, monster.id, hostile=True)
                 self.projectiles[projectile.id] = projectile
-                self.emit_event("shot", monster.id, "monster", monster.x, monster.y)
+                self.emit_event("shot", monster.id, "monster", monster.x, monster.y, direction=[direction_x, direction_y])
                 monster.next_attack = self.elapsed + 2
-            if self.elapsed >= monster.next_plan:
+            if self.elapsed >= monster.next_plan and monster.id in planning:
                 path, reached = self.find_path(monster, allow_demolition=False)
                 if monster.big and not reached:
                     path, reached = self.find_path(monster, allow_demolition=True)
@@ -97,13 +112,18 @@ class Monsters:
         if monster.demolition != structure.id:
             monster.demolition = structure.id
             monster.demolition_progress = 0.0
+            monster.next_demolition_feedback = 0.0
         for controls in self.controls.values():
             if controls.target == "structure:" + structure.id:
                 controls.target = None
                 controls.progress = 0.0
         monster.demolition_progress += seconds
+        if self.elapsed + 1e-9 >= monster.next_demolition_feedback:
+            self.emit_event("chop", monster.id, "monster", monster.x, monster.y, target=structure.id, target_x=structure.x, target_y=structure.y)
+            monster.next_demolition_feedback = self.elapsed + 0.3
         if monster.demolition_progress + 1e-9 >= MONSTER_DEMOLITION[structure.kind]:
             self.touch()
+            self.emit_event("break", monster.id, structure.kind, structure.x, structure.y, target=structure.id)
             self.remove_structure(structure)
             monster.demolition = None
             monster.demolition_progress = 0.0
@@ -147,8 +167,9 @@ class Monsters:
         occupied.discard(start)
 
         @lru_cache(maxsize=None)
-        def cell_cost(point, breakable=allow_demolition):
-            if abs(point[0] - start[0]) > 48 or abs(point[1] - start[1]) > 48 or point in occupied or not self.generated(*point):
+        def cell_cost(point, breakable):
+            point_chunk = (point[0] + CHUNK_SIZE // 2) // CHUNK_SIZE, (point[1] + CHUNK_SIZE // 2) // CHUNK_SIZE
+            if abs(point[0] - start[0]) > 48 or abs(point[1] - start[1]) > 48 or point in occupied or point_chunk not in self.chunks:
                 return None
             structure = self.structure_at(*point)
             if structure and structure.kind in SOLID:
@@ -156,22 +177,47 @@ class Monsters:
             return 0.0
 
         def neighbors(current):
-            for offset_x, offset_y in DIRECTIONS:
+            for offset_x, offset_y, movement_cost in PATH_STEPS:
                 neighbor = current[0] + offset_x, current[1] + offset_y
-                extra = cell_cost(neighbor)
+                extra = cell_cost(neighbor, allow_demolition)
                 if extra is None:
                     continue
                 if offset_x and offset_y and (cell_cost((current[0] + offset_x, current[1]), False) is None or cell_cost((current[0], current[1] + offset_y), False) is None):
                     continue
-                yield neighbor, math.hypot(offset_x, offset_y) / MONSTER_SPEED + extra
+                yield neighbor, movement_cost + extra
 
         goals = set()
         for point_x in range(tile(goal_x) - 1, tile(goal_x) + 2):
             for point_y in range(tile(goal_y) - 1, tile(goal_y) + 2):
                 structure = self.structure_at(point_x, point_y)
                 ignored = structure.id if allow_demolition and structure and structure.kind in MONSTER_DEMOLITION else None
-                if math.hypot(point_x - goal_x, point_y - goal_y) <= 1 + 1e-9 and cell_cost((point_x, point_y)) is not None and self.visible(point_x, point_y, goal_x, goal_y, ignore=ignored):
+                if math.hypot(point_x - goal_x, point_y - goal_y) <= 1 + 1e-9 and cell_cost((point_x, point_y), allow_demolition) is not None and self.visible(point_x, point_y, goal_x, goal_y, ignore=ignored):
                     goals.add((point_x, point_y))
+        if start in goals:
+            return [], True
+        if not any(neighbors(start)):
+            return [], False
+
+        def travel_distance(point, goal):
+            horizontal, vertical = abs(point[0] - goal[0]), abs(point[1] - goal[1])
+            return horizontal + vertical + (math.sqrt(2) - 2) * min(horizontal, vertical)
+
+        shortest = min((travel_distance(start, goal) for goal in goals), default=math.inf)
+        for goal in sorted(goals):
+            if travel_distance(start, goal) > shortest + 1e-9:
+                continue
+            current = start
+            direct = []
+            while current != goal:
+                offset_x = (goal[0] > current[0]) - (goal[0] < current[0])
+                offset_y = (goal[1] > current[1]) - (goal[1] < current[1])
+                neighbor = current[0] + offset_x, current[1] + offset_y
+                if cell_cost(neighbor, allow_demolition) != 0 or (offset_x and offset_y and (cell_cost((current[0] + offset_x, current[1]), False) is None or cell_cost((current[0], current[1] + offset_y), False) is None)):
+                    break
+                direct.append(neighbor)
+                current = neighbor
+            else:
+                return direct, True
         fallback = False
         if not allow_demolition:
             region, frontier = set(goals), deque(goals)
@@ -190,7 +236,7 @@ class Monsters:
                             if max(abs(offset_x), abs(offset_y)) != radius:
                                 continue
                             point = tile(goal_x) + offset_x, tile(goal_y) + offset_y
-                            if point not in region and cell_cost(point) is not None:
+                            if point not in region and cell_cost(point, allow_demolition) is not None:
                                 candidates.append(point)
                     if candidates:
                         closest_radius = min(math.hypot(point[0] - goal_x, point[1] - goal_y) for point in candidates)
@@ -201,11 +247,14 @@ class Monsters:
         goal_radius = max(math.hypot(point[0] - goal_x, point[1] - goal_y) for point in goals)
 
         def heuristic(point):
+            return min(travel_distance(point, goal) for goal in goals) / MONSTER_SPEED
+
+        def remaining_distance(point):
             return max(0, math.hypot(point[0] - goal_x, point[1] - goal_y) - goal_radius) / MONSTER_SPEED
 
         pending = [(heuristic(start), 0, start)]
         costs, parents = {start: 0.0}, {}
-        closest, closest_distance = start, heuristic(start)
+        closest, closest_distance = start, remaining_distance(start)
         visited = set()
         reached = False
         while pending and len(visited) < 4096:
@@ -213,7 +262,7 @@ class Monsters:
             if current in visited:
                 continue
             visited.add(current)
-            remaining = heuristic(current)
+            remaining = remaining_distance(current)
             if remaining < closest_distance:
                 closest, closest_distance = current, remaining
             if current in goals:

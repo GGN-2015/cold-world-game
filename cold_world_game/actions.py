@@ -1,7 +1,7 @@
 import math
 import time
 
-from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, DROP_DISTANCE, FOODS, IGNITERS, INVENTORY_SLOTS, PICKUP_RADIUS, RECIPES, SOLID
+from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DROP_DISTANCE, FOODS, IGNITERS, INVENTORY_SLOTS, PICKUP_RADIUS, RECIPES, SOLID, VENDING_OFFERS
 from .geometry import DIRECTIONS, circle_square, distance, normalized, segment_box, tile
 from .models import GroundItem, Item, Structure
 
@@ -64,7 +64,7 @@ class Actions:
             if controls.ui:
                 return {"accepted": False}
             target = self.structure_at(tile(controls.aim_x), tile(controls.aim_y))
-            if not shift and target and target.kind in ("chest", "campfire") and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
+            if not shift and target and target.kind in CONTAINERS and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
                 self.open_container(player, controls, target.id)
                 return {"opened": target.id}
             item = player.inventory[player.selected]
@@ -92,6 +92,8 @@ class Actions:
             controls.stop_attack()
         elif kind == "craft":
             return self.craft(player, controls, command.get("recipe"))
+        elif kind == "trade":
+            return self.trade(player, controls, command)
         elif kind == "place":
             return self.place(player, controls, command)
         elif kind == "drop":
@@ -124,23 +126,47 @@ class Actions:
         if not isinstance(recipe_id, str) or recipe_id not in RECIPES:
             raise GameError("invalid_recipe", "Unknown recipe")
         recipe = RECIPES[recipe_id]
+        return self.consume_and_produce(player, controls, recipe)
+
+    def trade(self, player, controls, command):
+        structure = self.access_container(player, command.get("id"))
+        if structure.kind != "vending_machine":
+            raise GameError("invalid_container", "This building is not a vending machine")
+        if not controls.ui or controls.container != structure.id:
+            raise GameError("container_closed", "Open the vending machine before trading")
+        offer_id = command.get("offer")
+        if not isinstance(offer_id, str) or offer_id not in VENDING_OFFERS:
+            raise GameError("invalid_offer", "Unknown vending offer")
+        return self.consume_and_produce(player, controls, VENDING_OFFERS[offer_id])
+
+    def consume_and_produce(self, player, controls, recipe):
         storages = (player.backpack, player.inventory)
         consumed = []
+        payment = recipe["inputs"].get("coin", 0)
+        if player.money < payment:
+            raise GameError("insufficient_money", "Not enough money")
         for item_kind, quantity in recipe["inputs"].items():
+            if item_kind == "coin":
+                continue
             slots = [(storage_index, slot) for storage_index, storage in enumerate(storages) for slot, item in enumerate(storage) if item and item.kind == item_kind]
             if len(slots) < quantity:
-                raise GameError("materials_missing", "Not enough crafting materials")
+                raise GameError("materials_missing", "Not enough required materials")
             consumed.extend(slots[:quantity])
-        if sum(storage.count(None) for storage in storages) + len(consumed) < recipe["count"]:
-            raise GameError("inventory_full", "Not enough room for every crafted item")
+        output_slots = 0 if recipe["output"] == "coin" else recipe["count"]
+        if sum(storage.count(None) for storage in storages) + len(consumed) < output_slots:
+            raise GameError("inventory_full", "Not enough room for every output item")
         self.touch()
+        player.money -= payment
         for storage_index, slot in consumed:
             if storage_index == 1:
                 self.cancel_selected(player, controls, slot)
             storages[storage_index][slot] = None
-        for count in range(recipe["count"]):
-            storage = next(storage for storage in storages if None in storage)
-            storage[storage.index(None)] = Item.create(recipe["output"])
+        if recipe["output"] == "coin":
+            player.money += recipe["count"]
+        else:
+            for count in range(recipe["count"]):
+                storage = next(storage for storage in storages if None in storage)
+                storage[storage.index(None)] = Item.create(recipe["output"])
         return {"output": recipe["output"], "count": recipe["count"]}
 
     def place(self, player, controls, command):
@@ -187,7 +213,7 @@ class Actions:
         if not isinstance(structure_id, str):
             raise GameError("invalid_container", "A container ID is required")
         structure = self.structures.get(structure_id)
-        if structure is None or structure.kind not in ("chest", "campfire"):
+        if structure is None or structure.kind not in CONTAINERS:
             raise GameError("invalid_container", "Container no longer exists")
         if distance(player, structure) > 2 or not self.visible(player.x, player.y, structure.x, structure.y, ignore=structure.id):
             raise GameError("out_of_range", "Container is too far away or occluded")
@@ -209,6 +235,8 @@ class Actions:
         if kind in ("inventory", "backpack"):
             slot = integer(endpoint.get("slot"), "slot", 0, (INVENTORY_SLOTS if kind == "inventory" else BACKPACK_SLOTS) - 1)
             return kind, player, slot
+        if kind == "wallet" and destination:
+            return kind, player, None
         if kind == "ground":
             if destination:
                 return kind, self.drop_position(player, controls), None
@@ -253,8 +281,13 @@ class Actions:
             raise GameError("empty_slot", "The source is empty")
         if "item_id" in command and item.id != command["item_id"]:
             raise GameError("stale_item", "The source item has changed")
+        if item.kind == "coin" and destination[0] in ("inventory", "backpack"):
+            destination = "wallet", player, None
         target_kind, target, target_slot = destination
-        if target_kind == "fuel":
+        if target_kind == "wallet":
+            if item.kind != "coin":
+                raise GameError("invalid_currency", "Only coins can be collected as money")
+        elif target_kind == "fuel":
             if item.kind != "wood" or target.fuel >= 16:
                 raise GameError("invalid_fuel", "Fuel accepts wood only, with a capacity of 16")
         elif target_kind == "igniter":
@@ -280,6 +313,8 @@ class Actions:
             owner.igniter = item
         elif kind == "fuel":
             owner.fuel += 1 if item else -1
+        elif kind == "wallet":
+            owner.money += 1
         elif kind == "ground":
             if item:
                 self.drop_item(item, *owner, player.id)

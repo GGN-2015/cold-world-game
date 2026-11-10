@@ -3,7 +3,7 @@ import math
 import random
 from collections import deque
 
-from .constants import CHUNK_SIZE, FOODS, IGNITERS, SOLID, WORLD_RADIUS
+from .constants import CHUNK_SIZE, FOODS, IGNITERS, SOLID, TERRAIN_VERSION, VENDING_MACHINE_CHANCE, WORLD_RADIUS
 from .geometry import chunk
 from .models import Item, Structure
 
@@ -47,12 +47,15 @@ class Terrain:
         return changed
 
     def generate_chunk(self, chunk_x, chunk_y):
+        if (chunk_x, chunk_y) in self.chunks:
+            return
         digest = hashlib.blake2b(f"{self.seed}:{chunk_x}:{chunk_y}".encode(), digest_size=16).digest()
         generator = random.Random(int.from_bytes(digest, "big"))
         center_x, center_y = chunk_x * CHUNK_SIZE, chunk_y * CHUNK_SIZE
         roll = generator.random()
         if (chunk_x, chunk_y) == (0, 0) or roll >= 0.9:
             objects, interior = self.building(generator, center_x, center_y)
+            self.populate_vending_machine(objects, interior, chunk_x, chunk_y)
             for structure in objects:
                 self.add_structure(structure)
             if (chunk_x, chunk_y) == (0, 0):
@@ -63,6 +66,28 @@ class Terrain:
                     if generator.random() < 0.1:
                         self.add_structure(Structure("tree", tile_x, tile_y))
         self.chunks.add((chunk_x, chunk_y))
+        self.chunk_versions[chunk_x, chunk_y] = TERRAIN_VERSION
+
+    def feature_generator(self, feature, chunk_x, chunk_y):
+        digest = hashlib.blake2b(f"{self.seed}:{feature}:{chunk_x}:{chunk_y}".encode(), digest_size=16).digest()
+        return random.Random(int.from_bytes(digest, "big"))
+
+    def populate_vending_machine(self, objects, interior, chunk_x, chunk_y):
+        generator = self.feature_generator("vending_machine:v1", chunk_x, chunk_y)
+        if generator.random() >= VENDING_MACHINE_CHANCE:
+            return
+        center_x, center_y = chunk_x * CHUNK_SIZE, chunk_y * CHUNK_SIZE
+        bounds = center_x - 8, center_x + 8, center_y - 8, center_y + 8
+        blocked = {(structure.x, structure.y) for structure in objects if structure.kind in SOLID}
+        chests = [(structure.x, structure.y) for structure in objects if structure.kind == "chest"]
+        candidates = sorted(set(interior) - blocked)
+        generator.shuffle(candidates)
+        for position in candidates:
+            reachable = flood([(bounds[0], bounds[2])], blocked | {position}, bounds)
+            if not (set(interior) & reachable) or any(not any((target[0] + offset_x, target[1] + offset_y) in reachable for offset_x, offset_y in ((1, 0), (-1, 0), (0, 1), (0, -1))) for target in [*chests, position]):
+                continue
+            objects.append(Structure("vending_machine", *position))
+            return
 
     def building(self, generator, center_x, center_y):
         for attempt in range(100):

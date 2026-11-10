@@ -1,4 +1,4 @@
-import { assetUrl, distance, errorText, itemDetail, itemName, seasonName } from './catalog.js';
+import { assetUrl, containers, distance, errorText, itemDetail, itemName, seasonName } from './catalog.js';
 import { t } from './i18n.js';
 import { isMobileDevice } from './mobile.js';
 
@@ -156,7 +156,7 @@ export class GameUI {
   update(state) {
     this.state = state;
     const you = state.you;
-    byId('season-label').textContent = t('world.seasonDay', { season: seasonName(state.environment.season), day: state.environment.day });
+    byId('season-label').textContent = t('world.seasonDay', { year: state.environment.year ?? 1, season: seasonName(state.environment.season), day: state.environment.day });
     const totalMinutes = Math.floor(state.environment.hour * 60) % 1440;
     byId('clock-label').textContent = `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
     byId('ambient-label').textContent = t('world.ambient', { temperature: you.ambient_temperature.toFixed(0) });
@@ -166,6 +166,8 @@ export class GameUI {
     byId('hunger-label').textContent = `${displayHunger}${you.hunger > 10 ? t('vital.full') : ''}`;
     byId('hunger-label').title = t('vital.hungerHint', { value: you.hunger.toFixed(3) });
     byId('hunger-fill').style.width = `${Math.max(0, Math.min(100, you.hunger * 10))}%`;
+    byId('money-label').textContent = String(you.money ?? 0);
+    byId('money-balance').title = t('money.balance', { count: you.money ?? 0 });
     byId('coordinate-label').textContent = t('world.coordinates', { x: you.x.toFixed(1), y: you.y.toFixed(1) });
     byId('player-label').textContent = you.id;
     byId('downed-notice').hidden = !you.downed;
@@ -199,8 +201,8 @@ export class GameUI {
     const equipped = this.state.you.inventory[this.controls.selected()];
     let text = '';
     if (target.category === 'structure') {
-      const near = distance(this.state.you, target) <= (['chest', 'campfire'].includes(target.kind) ? 2 : 3);
-      if (['chest', 'campfire'].includes(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${equipped?.kind === 'axe' && distance(this.state.you, target) <= 3 ? t('hint.dismantle') : ''}`;
+      const near = distance(this.state.you, target) <= (containers.has(target.kind) ? 2 : 3);
+      if (containers.has(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${equipped?.kind === 'axe' && distance(this.state.you, target) <= 3 ? t('hint.dismantle') : ''}`;
       else if (equipped?.kind === 'axe') text = `${itemName(target.kind)} · ${t(target.monster_demolition ? 'hint.busy' : near ? 'hint.gather' : 'hint.nearer')}`;
     } else {
       text = `${t(target.big ? 'hint.bigMonster' : 'hint.smallMonster')} · ${target.hp} HP`;
@@ -213,7 +215,7 @@ export class GameUI {
   refreshPanel() {
     if (!this.state || !this.panel || this.dragSource) return;
     const container = this.state.container;
-    const signature = JSON.stringify([this.panel, this.state.you.inventory, this.state.you.backpack, this.controls.selected(), container ? { ...container, burn_remaining: Math.ceil(container.burn_remaining || 0) } : null, this.busy, this.touchTransfer, this.touchSelection]);
+    const signature = JSON.stringify([this.panel, this.state.you.inventory, this.state.you.backpack, this.state.you.money, this.controls.selected(), container ? { ...container, burn_remaining: Math.ceil(container.burn_remaining || 0) } : null, this.busy, this.touchTransfer, this.touchSelection]);
     if (signature === this.panelSignature) return;
     this.panelSignature = signature;
     const body = byId('panel-body');
@@ -234,14 +236,15 @@ export class GameUI {
       this.renderCraft(detail);
     } else if (container) {
       byId('panel-title').textContent = itemName(container.kind);
-      byId('panel-description').textContent = t('panel.containerDescription');
+      byId('panel-description').textContent = t(container.kind === 'vending_machine' ? 'vending.description' : 'panel.containerDescription');
       detail.append(element('h3', 'storage-heading', itemName(container.kind)));
       if (container.kind === 'chest') {
         detail.append(element('div', 'container-meta', t('panel.chestSlots', { count: container.slots.filter(Boolean).length })));
         const grid = element('div', 'chest-grid');
         grid.append(...container.slots.map((item, slot) => this.itemSlot(item, { kind: 'chest', id: container.id, slot })));
         detail.append(grid);
-      } else this.renderFire(detail, container);
+      } else if (container.kind === 'vending_machine') this.renderVending(detail, container);
+      else this.renderFire(detail, container);
       const structure = this.state.structures.find((entry) => entry.id === container.id);
       if (structure?.monster_demolition) detail.append(element('p', 'panel-warning', t('panel.monsterWarning')));
     }
@@ -251,9 +254,10 @@ export class GameUI {
 
   renderBackpack(body) {
     body.append(element('h3', 'storage-heading', t('bag.title')), element('div', 'container-meta', t('bag.slots', { count: this.state.you.backpack.filter(Boolean).length })));
+    body.append(element('div', 'container-meta wallet-summary', t('money.balance', { count: this.state.you.money ?? 0 })));
     const grid = element('div', 'bag-grid');
     grid.append(...this.state.you.backpack.map((item, slot) => this.itemSlot(item, { kind: 'backpack', slot })));
-    body.append(grid, element('p', 'bag-description', t('bag.transferHint')));
+    body.append(grid, element('p', 'bag-description', t(this.state.container?.kind === 'vending_machine' ? 'vending.backpackHint' : 'bag.transferHint')));
     body.append(element('p', 'bag-description', t('bag.pickupHint')));
   }
 
@@ -300,6 +304,7 @@ export class GameUI {
     node.addEventListener('pointerdown', (event) => { event.stopPropagation(); this.controls.stop(); });
     node.onclick = (event) => {
       if (this.busy) return;
+      if (item?.kind === 'coin') return this.quickTake(endpoint, item);
       if (isMobileDevice && this.touchTransfer && this.panel) return this.touchTransferTo(endpoint, item);
       if (endpoint.kind === 'inventory') {
         this.controls.select(endpoint.slot);
@@ -342,12 +347,14 @@ export class GameUI {
   }
 
   transfer(source, destination, item) {
+    if (item.kind === 'coin' && ['inventory', 'backpack'].includes(destination.kind)) destination = { kind: 'wallet' };
     const payload = { from: source, to: destination };
     if (source.kind !== 'fuel') payload.item_id = item.id;
     return this.action('transfer', payload);
   }
 
   quickTake(endpoint, item) {
+    if (item.kind === 'coin') return this.transfer(endpoint, { kind: 'wallet' }, item);
     const slot = this.state.you.backpack.findIndex((entry) => !entry);
     if (slot < 0) return this.toast(() => t('storage.backpackFull'));
     this.transfer(endpoint, { kind: 'backpack', slot }, item);
@@ -356,6 +363,7 @@ export class GameUI {
   quickDeposit(endpoint, item) {
     const container = this.state.container;
     if (!container) return;
+    if (container.kind === 'vending_machine') return this.toast(() => t('vending.useOffers'));
     if (container.kind === 'chest') {
       const slot = container.slots.findIndex((entry) => !entry);
       if (slot < 0) return this.toast(() => t('storage.chestFull'));
@@ -389,6 +397,36 @@ export class GameUI {
       list.append(card);
     }
     body.append(list);
+  }
+
+  renderVending(body, container) {
+    const inventory = this.playerItems().map((entry) => entry.item);
+    const counts = {};
+    for (const item of inventory.filter(Boolean)) counts[item.kind] = (counts[item.kind] || 0) + 1;
+    counts.coin = this.state.you.money ?? 0;
+    body.append(element('p', 'craft-description', t('vending.balance', { wood: counts.wood || 0, coin: counts.coin || 0 })));
+    const list = element('div', 'recipe-list vending-offers');
+    for (const [identifier, offer] of Object.entries(this.catalog.vending_offers || {})) {
+      const card = element('button', 'recipe-card');
+      card.type = 'button';
+      card.dataset.offer = identifier;
+      const enough = Object.entries(offer.inputs).every(([kind, amount]) => (counts[kind] || 0) >= amount);
+      const free = inventory.filter((item) => !item).length + Object.entries(offer.inputs).reduce((total, [kind, amount]) => total + (kind === 'coin' ? 0 : amount), 0);
+      const required = offer.output === 'coin' ? 0 : offer.count;
+      card.disabled = this.busy || !enough || free < required;
+      const icon = element('span', 'recipe-icon');
+      const image = element('img'); image.src = assetUrl(offer.output); image.alt = '';
+      icon.append(image, element('small', '', `×${offer.count}`));
+      const copy = element('span', 'recipe-copy');
+      const cost = Object.entries(offer.inputs).map(([kind, amount]) => `${amount} × ${itemName(kind)}`).join(' + ');
+      copy.append(element('strong', '', `${cost} → ${offer.count} × ${itemName(offer.output)}`));
+      copy.append(element('span', enough ? '' : 'missing', Object.entries(offer.inputs).map(([kind, amount]) => `${itemName(kind)} ${counts[kind] || 0}/${amount}`).join(' · ')));
+      card.title = t(free < required ? 'error.inventory_full' : 'vending.exchange');
+      card.append(icon, copy, element('span', '', '→'));
+      card.onclick = () => this.action('trade', { id: container.id, offer: identifier }, () => t('vending.success', { count: offer.count, name: itemName(offer.output) }));
+      list.append(card);
+    }
+    body.append(list, element('p', 'bag-description', t('vending.capacity')));
   }
 
   renderFire(body, container) {

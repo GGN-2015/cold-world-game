@@ -64,6 +64,41 @@ def hurt(seconds, generator):
     return envelope * (impact * 0.5 + scrape * 0.35 + grunt * 0.15)
 
 
+def chop(seconds, generator):
+    envelope = min(1.0, seconds / 0.0015) * math.exp(-seconds * 28)
+    wood = math.sin(math.tau * 210 * seconds) + 0.4 * math.sin(math.tau * 480 * seconds)
+    return envelope * (wood * 0.36 + generator.uniform(-1, 1) * 0.3)
+
+
+def wood_break(seconds, generator):
+    result = 0.0
+    for start, strength in ((0, 0.5), (0.055, 0.4), (0.12, 0.3), (0.21, 0.2)):
+        age = seconds - start
+        if age >= 0:
+            result += min(1, age / 0.002) * math.exp(-age * 24) * strength * (generator.uniform(-1, 1) * 0.7 + math.sin(math.tau * 125 * age) * 0.3)
+    return result
+
+
+def hit(seconds, generator):
+    envelope = min(1.0, seconds / 0.002) * math.exp(-seconds * 24)
+    impact = math.sin(math.tau * (110 * seconds + 2 * (1 - math.exp(-seconds * 50))))
+    return envelope * (impact * 0.6 + generator.uniform(-1, 1) * 0.3)
+
+
+def swing(seconds, generator, monster=False):
+    center = 0.1 if monster else 0.065
+    envelope = math.exp(-((seconds - center) / (0.055 if monster else 0.035)) ** 2)
+    frequency = 85 if monster else 800
+    return envelope * (generator.uniform(-1, 1) * 0.38 + math.sin(math.tau * frequency * seconds) * (0.3 if monster else 0.07))
+
+
+def monster_death(seconds, generator):
+    envelope = min(1.0, seconds / 0.015) * math.exp(-seconds * 6)
+    voice = math.sin(math.tau * (155 * seconds - 85 * seconds * seconds))
+    rumble = math.sin(math.tau * 58 * seconds) * 0.3
+    return envelope * (voice * 0.4 + rumble + generator.uniform(-1, 1) * 0.17)
+
+
 def main():
     DESTINATION.mkdir(parents=True, exist_ok=True)
     export("handgun", 0.23, lambda seconds, generator: gunshot(seconds, generator, 36, 0.3))
@@ -72,7 +107,13 @@ def main():
     export("eat", 0.48, eat)
     export("place", 0.22, place)
     export("hurt", 0.3, hurt)
-    print(f"Exported 6 replaceable WAV sound effects to {DESTINATION}")
+    export("chop", 0.2, chop)
+    export("break", 0.4, wood_break)
+    export("hit", 0.25, hit)
+    export("axe", 0.2, swing)
+    export("monster_attack", 0.3, lambda seconds, generator: swing(seconds, generator, monster=True))
+    export("monster_death", 0.65, monster_death)
+    print(f"Exported 12 replaceable WAV sound effects to {DESTINATION}")
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@
         <header class="game-header">
           <div class="world-heading glass">
             <img src="{{ url_for('static', filename='assets/snowflake.png') }}" alt="" class="brand-snow">
-            <div><span class="eyebrow">COLD WORLD</span><strong id="season-label">春 · 第 1 天</strong></div>
+            <div><span class="eyebrow">COLD WORLD</span><strong id="season-label">第 1 年 · 春 · 第 1 天</strong></div>
             <div class="heading-divider"></div>
             <div><span id="clock-label" class="clock-label">00:00</span><span id="ambient-label" class="small-muted" data-i18n="world.outdoors">室外 −20°C</span></div>
           </div>
@@ -62,10 +62,11 @@
           <div class="vitals-row">
             <div class="vital"><div class="vital-label"><span data-i18n="vital.temperature">体温</span><strong id="temperature-label">36.0°C</strong></div><div class="vital-track"><div id="temperature-fill" class="temperature-fill"></div></div></div>
             <div class="vital"><div class="vital-label"><span data-i18n="vital.hunger">饥饿</span><strong id="hunger-label">10.0</strong></div><div class="vital-track"><div id="hunger-fill" class="hunger-fill"></div></div></div>
+            <div id="money-balance" class="money-balance"><img src="{{ url_for('static', filename='assets/coin.png') }}" alt=""><span data-i18n="vital.money">金钱</span><strong id="money-label">0</strong></div>
             <div id="equipped-label" class="equipped-label">手枪 · 100 发</div>
           </div>
           <div id="hotbar" class="hotbar glass" data-i18n-aria-label="dock.hotbar" aria-label="10 格物品栏"></div>
-          <div class="dock-hints"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> <span data-i18n="dock.move">移动</span></span><span data-i18n="dock.use">左键 使用 · 右键 建造</span><span><kbd>Q</kbd> <span data-i18n="dock.drop">丢弃 · 滚轮 切换</span></span></div>
+          <div class="dock-hints"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> <span data-i18n="dock.move">移动</span></span><span data-i18n="dock.use">左键 使用 / 建造</span><span><kbd>Q</kbd> <span data-i18n="dock.drop">丢弃 · 滚轮 切换</span></span></div>
         </section>
     </div>
 

@@ -1,7 +1,9 @@
-import { buildings, distance, tileAt } from './catalog.js';
+import { buildings, containers, distance, tileAt } from './catalog.js';
 import { t } from './i18n.js';
 import { ActorAnimator } from './animation.js';
 import { isMobileDevice } from './mobile.js';
+import { CombatEffects } from './effects.js';
+import { SnapshotMotion } from './motion.js';
 
 export async function loadAssets() {
   const response = await fetch('/static/assets/manifest.json');
@@ -14,7 +16,7 @@ export async function loadAssets() {
     await image.decode();
     images.set(name, image);
   }));
-  return { images, animations: manifest.animations || {} };
+  return { images, animations: manifest.animations || {}, effects: manifest.effects || {} };
 }
 
 function demoWorld() {
@@ -43,11 +45,13 @@ function demoWorld() {
 }
 
 export class WorldRenderer {
-  constructor(canvas, images, animations = {}) {
+  constructor(canvas, images, animations = {}, effects = {}) {
     this.canvas = canvas;
     this.context = canvas.getContext('2d', { alpha: false });
     this.images = images;
     this.animator = new ActorAnimator(animations);
+    this.effects = new CombatEffects(effects);
+    this.motion = new SnapshotMotion();
     this.state = null;
     this.demo = demoWorld();
     this.camera = { x: -3, y: 1 };
@@ -71,6 +75,8 @@ export class WorldRenderer {
     this.context.setTransform(ratio, 0, 0, ratio, 0, 0);
     this.context.imageSmoothingEnabled = false;
     this.scale = isMobileDevice ? Math.max(this.width / 28, this.height / 24) : this.width / 32;
+    this.pixelRatio = ratio;
+    this.snow = null;
   }
 
   setState(state) {
@@ -80,14 +86,21 @@ export class WorldRenderer {
       this.camera = { x: state.you.x, y: state.you.y };
       this.positions.clear();
       this.animator.reset();
+      this.effects.reset(state.event_sequence || 0);
     }
-    this.animator.observe(state);
+    if (this.motion.observe(state)) {
+      this.positions.clear();
+      this.animator.reset();
+    }
+    this.effects.observe(state);
   }
 
   reset() {
     this.state = null;
     this.positions.clear();
     this.animator.reset();
+    this.effects.reset();
+    this.motion.reset();
     this.camera = { x: -3, y: 1 };
   }
 
@@ -110,24 +123,23 @@ export class WorldRenderer {
   }
 
   actorSprite(kind, entity, width, height, offset) {
-    const frame = this.animator.frame(kind, entity, entity.renderDistance);
-    this.sprite(frame?.asset || kind, entity.x, entity.y, width, height, offset, frame);
+    const pose = this.effects.pose(entity.id);
+    const frame = this.animator.frame(kind, entity, entity.renderDistance, pose);
+    this.sprite(frame?.asset || kind, entity.x + pose.x, entity.y + pose.y, width, height, offset, frame);
   }
 
-  smooth(entity, amount) {
-    const previous = this.positions.get(entity.id) || { x: entity.x, y: entity.y };
-    if (distance(previous, entity) > 5) Object.assign(previous, { x: entity.x, y: entity.y });
-    const displacement = distance(previous, entity) * amount;
-    previous.x += (entity.x - previous.x) * amount;
-    previous.y += (entity.y - previous.y) * amount;
-    this.positions.set(entity.id, previous);
-    return { ...entity, ...previous, renderDistance: displacement };
+  smooth(entity) {
+    const point = this.state ? this.motion.sample(entity) : { x: entity.x, y: entity.y };
+    const previous = this.positions.get(entity.id) || point;
+    const displacement = distance(previous, point);
+    this.positions.set(entity.id, point);
+    return { ...entity, ...point, renderDistance: displacement > 5 ? 0 : displacement };
   }
 
   findTarget() {
     if (!this.state || !this.pointer.active) return null;
     const point = this.pointer;
-    const monster = this.state.monsters.find((entity) => distance(entity, point) < (entity.big ? 0.65 : 0.5));
+    const monster = this.state.monsters.find((entity) => distance(this.positions.get(entity.id) || entity, point) < (entity.big ? 0.65 : 0.5));
     if (monster) return { ...monster, category: 'monster' };
     const structure = this.state.structures.find((entity) => entity.x === tileAt(point.x) && entity.y === tileAt(point.y));
     return structure ? { ...structure, category: 'structure' } : null;
@@ -147,11 +159,13 @@ export class WorldRenderer {
   draw(delta) {
     this.elapsed += delta;
     this.animator.advance(delta);
+    this.effects.advance(delta);
     this.fps += (1 / Math.max(delta, 0.001) - this.fps) * 0.04;
     const state = this.state || this.demo;
-    const amount = 1 - Math.exp(-delta * 19);
-    const players = state.players.map((entity) => this.smooth(entity, amount));
-    const monsters = state.monsters.map((entity) => this.smooth(entity, amount));
+    this.motion.advance(delta);
+    const players = state.players.map((entity) => this.smooth(entity));
+    const monsters = state.monsters.map((entity) => this.smooth(entity));
+    if (this.state) this.animator.observe({ elapsed: this.motion.time ?? state.elapsed, paused: state.paused, players, monsters });
     const local = players.find((entity) => entity.id === state.you.id) || state.you;
     if (this.state) {
       this.camera.x = local.x;
@@ -167,12 +181,7 @@ export class WorldRenderer {
     const halfHeight = this.height / this.scale / 2;
     const minimumX = Math.floor(this.camera.x - halfWidth - 1);
     const minimumY = Math.floor(this.camera.y - halfHeight - 1);
-    for (let horizontal = minimumX; horizontal <= this.camera.x + halfWidth + 1; horizontal++) {
-      for (let vertical = minimumY; vertical <= this.camera.y + halfHeight + 1; vertical++) {
-        const variant = Math.abs((horizontal * 73856093 ^ vertical * 19349663) % 3);
-        this.sprite(`snow_${variant}`, horizontal, vertical, 1.01);
-      }
-    }
+    this.drawSnow(minimumX, minimumY, halfWidth, halfHeight);
     const visible = (entity) => Math.abs(entity.x - this.camera.x) < halfWidth + 2 && Math.abs(entity.y - this.camera.y) < halfHeight + 3;
     for (const entity of state.structures) if (entity.kind === 'floor' && visible(entity)) this.sprite('floor', entity.x, entity.y, 1.03);
     for (const entity of state.ground) if (visible(entity)) {
@@ -186,8 +195,9 @@ export class WorldRenderer {
     this.target = this.findTarget();
     for (const entity of entities) {
       if (entity.category === 'structure') {
-        if (entity.kind === 'tree') this.sprite('tree', entity.x, entity.y, 2.05, 2.65, 0.62);
-        else this.sprite(entity.lit ? 'campfire_lit' : entity.kind, entity.x, entity.y, entity.kind === 'wall' ? 1.15 : 1.05, entity.kind === 'wall' ? 1.6 : 1.05, entity.kind === 'wall' ? 0.27 : 0.06);
+        const pose = this.effects.pose(entity.id);
+        if (entity.kind === 'tree') this.sprite('tree', entity.x + pose.x, entity.y + pose.y, 2.05, 2.65, 0.62);
+        else this.sprite(entity.lit ? 'campfire_lit' : entity.kind, entity.x + pose.x, entity.y + pose.y, entity.kind === 'wall' ? 1.15 : 1.05, entity.kind === 'wall' ? 1.6 : 1.05, entity.kind === 'wall' ? 0.27 : 0.06);
         if (entity.monster_demolition) this.label(t('world.demolition'), entity.x, entity.y - 1, '#df715b', 10);
       } else if (entity.category === 'player') {
         const owned = entity.id === state.you.id;
@@ -217,19 +227,44 @@ export class WorldRenderer {
       context.fillRect(point.x - radius, point.y - radius, radius * 2, radius * 2);
       this.sprite('spark', fire.x + Math.sin(this.elapsed * 2) * 0.12, fire.y - (this.elapsed * 0.8 % 1) - 0.4, 0.3);
     }
-    this.drawProjectiles(state.projectiles);
+    this.drawProjectiles(state.projectiles.map((projectile) => ({ ...projectile, ...this.motion.sample(projectile) })));
+    this.effects.draw(this);
     if (this.state && this.pointer.active && !this.panelOpen) this.drawPointer();
-    if (this.state?.interaction.progress > 0) this.bar(local.x, local.y + 0.7, Math.min(1, this.state.interaction.progress / (this.target?.kind === 'wall' || this.target?.kind === 'chest' ? 1.5 : 0.5)), '#efbb78', 0.9);
+    if (this.state?.interaction.progress > 0) this.bar(local.x, local.y + 0.7, Math.min(1, this.state.interaction.progress / (['wall', 'chest', 'vending_machine'].includes(this.target?.kind) ? 1.5 : 0.5)), '#efbb78', 0.9);
     context.fillStyle = 'rgba(255,255,255,.55)';
     for (let index = 0; index < 65; index++) {
       const horizontal = ((index * 197.3 + this.elapsed * (7 + index % 3)) % (this.width + 20)) - 10;
       const vertical = ((index * 73.7 + this.elapsed * (12 + index % 8)) % (this.height + 20)) - 10;
       context.fillRect(horizontal, vertical, index % 4 === 0 ? 2 : 1, index % 4 === 0 ? 2 : 1);
     }
-    if (this.positions.size > 400) {
-      const active = new Set([...players, ...monsters].map((entity) => entity.id));
-      for (const key of this.positions.keys()) if (!active.has(key)) this.positions.delete(key);
+    const active = new Set([...players, ...monsters].map((entity) => entity.id));
+    for (const key of this.positions.keys()) if (!active.has(key)) this.positions.delete(key);
+  }
+
+  drawSnow(minimumX, minimumY, halfWidth, halfHeight) {
+    if (!this.snow || minimumX < this.snow.left || minimumY < this.snow.top || this.camera.x + halfWidth + 1 > this.snow.right || this.camera.y + halfHeight + 1 > this.snow.bottom) {
+      const left = minimumX - 3, top = minimumY - 3;
+      const columns = Math.ceil(this.width / this.scale) + 10;
+      const rows = Math.ceil(this.height / this.scale) + 10;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(columns * this.scale * this.pixelRatio);
+      canvas.height = Math.ceil(rows * this.scale * this.pixelRatio);
+      const context = canvas.getContext('2d', { alpha: false });
+      context.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+      context.imageSmoothingEnabled = false;
+      context.fillStyle = '#d7e5e7';
+      context.fillRect(0, 0, columns * this.scale, rows * this.scale);
+      for (let horizontal = 0; horizontal < columns; horizontal++) {
+        for (let vertical = 0; vertical < rows; vertical++) {
+          const variant = Math.abs(((left + horizontal) * 73856093 ^ (top + vertical) * 19349663) % 3);
+          const image = this.images.get(`snow_${variant}`);
+          if (image) context.drawImage(image, Math.round(horizontal * this.scale), Math.round(vertical * this.scale), Math.ceil(this.scale * 1.01), Math.ceil(this.scale * 1.01));
+        }
+      }
+      this.snow = { canvas, left, top, right: left + columns - 1, bottom: top + rows - 1, width: canvas.width / this.pixelRatio, height: canvas.height / this.pixelRatio };
     }
+    const point = this.screenPoint(this.snow.left - 0.5, this.snow.top - 0.5);
+    this.context.drawImage(this.snow.canvas, point.x, point.y, this.snow.width, this.snow.height);
   }
 
   drawProjectiles(projectiles) {
@@ -282,7 +317,7 @@ export class WorldRenderer {
       this.sprite(item.kind, tile.x, tile.y, 1.05);
       context.globalAlpha = 1;
     } else if (this.target?.category === 'structure') {
-      context.strokeStyle = distance(this.state.you, this.target) <= (['chest', 'campfire'].includes(this.target.kind) ? 2 : 3) ? '#f4d3a0' : '#afbdc0';
+      context.strokeStyle = distance(this.state.you, this.target) <= (containers.has(this.target.kind) ? 2 : 3) ? '#f4d3a0' : '#afbdc0';
       context.lineWidth = 1.5;
       context.strokeRect(point.x - this.scale / 2 + 1, point.y - this.scale / 2 + 1, this.scale - 2, this.scale - 2);
     }

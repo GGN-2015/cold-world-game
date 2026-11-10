@@ -43,14 +43,14 @@ export class ActorAnimator {
     this.age += seconds;
   }
 
-  frame(kind, entity, displacement = 0) {
+  frame(kind, entity, displacement = 0, pose = {}) {
     const definition = this.definitions[kind];
     if (!definition) return null;
     const motion = this.actors.get(entity.id);
-    const walking = motion?.moving && this.age <= 0.3 && !entity.downed;
+    const walking = motion?.moving && this.age <= 0.3 && !entity.downed && !pose.reacting;
     if (motion) motion.travel = walking ? (motion.travel + displacement) % definition.stride : 0;
     const column = walking ? definition.walk_frames[Math.floor(motion.travel / definition.stride * definition.walk_frames.length)] : definition.idle_frame;
-    const row = Math.max(0, definition.directions.indexOf(motion?.direction || 'down'));
+    const row = Math.max(0, definition.directions.indexOf(pose.direction || motion?.direction || 'down'));
     return { asset: definition.asset, x: column * definition.frame_width, y: row * definition.frame_height, width: definition.frame_width, height: definition.frame_height };
   }
 }

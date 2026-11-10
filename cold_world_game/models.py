@@ -50,6 +50,7 @@ class Player:
     next_axe_attack: float = 0.0
     last_shot_tick: int = -1
     offline_since: float | None = None
+    money: int = 0
 
 
 @dataclass
@@ -64,6 +65,7 @@ class Controls:
     shift: bool = False
     target: str | None = None
     progress: float = 0.0
+    next_demolition_feedback: float = 0.0
     ui: bool = False
     container: str | None = None
     last_input: float = 0.0
@@ -74,6 +76,7 @@ class Controls:
         self.pending_shot = False
         self.target = None
         self.progress = 0.0
+        self.next_demolition_feedback = 0.0
 
 
 @dataclass
@@ -105,6 +108,7 @@ class Monster:
     next_wander: float = 0.0
     demolition: str | None = None
     demolition_progress: float = 0.0
+    next_demolition_feedback: float = 0.0
 
 
 @dataclass
@@ -136,6 +140,12 @@ def player_from(data: dict) -> Player:
     values = dict(data)
     values["inventory"] = [item_from(item) for item in data["inventory"]]
     values["backpack"] = [item_from(item) for item in data.get("backpack", [None] * BACKPACK_SLOTS)]
+    values["money"] = data.get("money", 0)
+    for storage in (values["inventory"], values["backpack"]):
+        for slot, item in enumerate(storage):
+            if item and item.kind == "coin":
+                values["money"] += 1
+                storage[slot] = None
     return Player(**values)
 
 

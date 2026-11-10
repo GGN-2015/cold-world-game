@@ -86,11 +86,12 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
             candidate_id = message.get("player_id")
             state = server.world.join(candidate_id)
             player_id = candidate_id
+            quiet_inputs = message.get("quiet_inputs") is True
             send(websocket, {"type": "welcome", "player_id": player_id, "protocol": 1, "state": state})
             next_state = time.monotonic() + 0.1
             tokens, last_token = 120.0, time.monotonic()
             while not server.stopping.is_set():
-                raw = websocket.receive(timeout=0.05)
+                raw = websocket.receive(timeout=max(0, min(0.05, next_state - time.monotonic())))
                 now = time.monotonic()
                 if raw is not None:
                     tokens = min(120, tokens + (now - last_token) * 60)
@@ -103,12 +104,15 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
                         command = parse_message(raw)
                         sequence = command.get("seq")
                         result = server.world.execute(player_id, command)
-                        send(websocket, {"type": "ack", "seq": sequence, "result": result})
+                        if sequence is not None or not quiet_inputs or command.get("type") not in ("input", "stop"):
+                            send(websocket, {"type": "ack", "seq": sequence, "result": result})
                     except GameError as error:
                         send(websocket, {"type": "error", "seq": sequence, "code": error.code, "message": str(error)})
+                now = time.monotonic()
                 if now >= next_state:
                     send(websocket, {"type": "state", "state": server.world.snapshot(player_id)})
-                    next_state = now + 0.1
+                    now = time.monotonic()
+                    next_state += (int((now - next_state) / 0.1) + 1) * 0.1
         except GameError as error:
             try:
                 send(websocket, {"type": "error", "code": error.code, "message": str(error)})

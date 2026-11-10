@@ -1,4 +1,4 @@
-import { errorText, tileAt } from './catalog.js';
+import { buildings, containers, errorText, tileAt } from './catalog.js';
 import { GameConnection } from './network.js';
 import { loadAssets, WorldRenderer } from './renderer.js';
 import { GameUI } from './ui.js';
@@ -233,10 +233,17 @@ canvas.addEventListener('pointerdown', (event) => {
   pointerClient = { x: event.clientX, y: event.clientY };
   input();
   if (event.button === 0 && !ui.panel) {
-    attackHeld = true;
-    connection.send('attack', { pressed: true, shift: event.shiftKey });
-  } else if (event.button === 2 && !ui.panel) {
-    ui.action('place', { x: tileAt(renderer.pointer.x), y: tileAt(renderer.pointer.y) });
+    const item = state.you.inventory[selected];
+    const point = { x: tileAt(renderer.pointer.x), y: tileAt(renderer.pointer.y) };
+    const container = state.structures.some((entity) => containers.has(entity.kind) && entity.x === point.x && entity.y === point.y);
+    if (buildings.has(item?.kind) && (!container || event.shiftKey)) {
+      attackHeld = false;
+      connection.send('attack', { pressed: false });
+      ui.action('place', point);
+    } else {
+      attackHeld = true;
+      connection.send('attack', { pressed: true, shift: event.shiftKey });
+    }
   }
 });
 window.addEventListener('pointerup', (event) => {
@@ -303,7 +310,7 @@ window.addEventListener('keyup', (event) => {
 window.addEventListener('blur', () => { stop(); audio.suspendPlayback(); });
 window.addEventListener('focus', () => audio.resumePlayback());
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { stop(); audio.suspendPlayback(); }
+  if (document.hidden) { stop(); audio.suspendPlayback(); renderer?.effects.clear(); renderer?.motion.reset(); renderer?.positions.clear(); renderer?.animator.reset(); }
   else audio.resumePlayback();
 });
 window.addEventListener('pagehide', () => { stop(); connection.disconnect(); });
@@ -339,7 +346,7 @@ async function initialize() {
     if (!response.ok) throw new Error('catalog_unavailable');
     const catalog = await response.json();
     if (catalog.protocol !== 1) throw new Error('protocol_mismatch');
-    renderer = new WorldRenderer(canvas, assets.images, assets.animations);
+    renderer = new WorldRenderer(canvas, assets.images, assets.animations, assets.effects);
     ui = new GameUI(connection, catalog, { stop, select, selected: () => selected, leave, focus, dropItem: (source) => {
       stop(); input();
       ui.transfer(source.endpoint, { kind: 'ground' }, source.item);

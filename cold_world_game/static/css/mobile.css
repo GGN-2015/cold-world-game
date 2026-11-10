@@ -7,7 +7,7 @@
 .mobile-device #touch-controls[hidden],.mobile-device [hidden]{display:none!important}
 .mobile-device .game-header{top:max(6px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));gap:5px;align-items:center}
 .mobile-device .world-heading{padding:6px 9px;gap:9px;min-height:44px}
-.mobile-device .world-heading strong{font-size:12px}
+.mobile-device .world-heading strong{font-size:12px;max-width:160px}
 .mobile-device .clock-label{font-size:15px}
 .mobile-device .small-muted{font-size:11px}
 .mobile-device .world-heading .eyebrow{font-size:7px}

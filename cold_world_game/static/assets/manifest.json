@@ -157,6 +157,21 @@
       "width": 96,
       "height": 96
     },
+    "vending_machine": {
+      "file": "vending_machine.png",
+      "width": 96,
+      "height": 96
+    },
+    "coin": {
+      "file": "coin.png",
+      "width": 96,
+      "height": 96
+    },
+    "cola": {
+      "file": "cola.png",
+      "width": 96,
+      "height": 96
+    },
     "instant_noodles": {
       "file": "instant_noodles.png",
       "width": 96,
@@ -230,6 +245,41 @@
     "footprint": {
       "file": "footprint.png",
       "width": 96,
+      "height": 96
+    },
+    "fx_slash": {
+      "file": "fx_slash.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_claw": {
+      "file": "fx_claw.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_impact": {
+      "file": "fx_impact.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_debris": {
+      "file": "fx_debris.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_muzzle": {
+      "file": "fx_muzzle.png",
+      "width": 576,
+      "height": 96
+    },
+    "monster_small_death": {
+      "file": "monster_small_death.png",
+      "width": 576,
+      "height": 96
+    },
+    "monster_big_death": {
+      "file": "monster_big_death.png",
+      "width": 576,
       "height": 96
     }
   },
@@ -309,6 +359,57 @@
         4
       ],
       "stride": 1.35
+    }
+  },
+  "effects": {
+    "fx_slash": {
+      "asset": "fx_slash",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.28
+    },
+    "fx_claw": {
+      "asset": "fx_claw",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.32
+    },
+    "fx_impact": {
+      "asset": "fx_impact",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.3
+    },
+    "fx_debris": {
+      "asset": "fx_debris",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.5
+    },
+    "fx_muzzle": {
+      "asset": "fx_muzzle",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.15
+    },
+    "monster_small_death": {
+      "asset": "monster_small_death",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.65
+    },
+    "monster_big_death": {
+      "asset": "monster_big_death",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.65
     }
   }
 }
