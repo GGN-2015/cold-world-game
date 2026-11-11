@@ -365,7 +365,7 @@ class World(Actions, Combat, Monsters, Terrain):
 
     def temperature_at(self, player):
         nearest = min((abs(tile(player.x) - fire.x) + abs(tile(player.y) - fire.y) for fire in self.structures.values() if fire.kind == "campfire" and fire.lit), default=math.inf)
-        return {1: 30, 2: 20, 3: 10}.get(nearest, self.environment()["ambient_temperature"])
+        return next((temperature for radius, temperature in ((3, 30), (6, 20), (9, 10)) if 1 <= nearest <= radius), self.environment()["ambient_temperature"])
 
     def update_fires(self, seconds):
         for fire in self.structures.values():
