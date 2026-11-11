@@ -1,4 +1,10 @@
 const messages = {
+  'item.swiftness_ring': ['迅捷戒指', 'Swiftness ring'],
+  'item.equipped': ['{name} · 选中时移速 ×{speed_multiplier}', '{name} · ×{speed_multiplier} speed while selected'],
+  'guide.category.equipment': ['手持装备', 'HELD EQUIPMENT'],
+  'guide.effect.swiftness_ring': ['只有放在物品栏并选中时，当前体温和饥饿下的移动速度才乘 {speed_multiplier}。正常为12格/秒，低温或饥饿为6格/秒，两种减速同时存在为3格/秒；倒地仍不能移动。不增加怪物速度，多枚不叠加。', 'Only while selected in the hotbar, multiplies your temperature- and hunger-adjusted speed by {speed_multiplier}. Normal: 12 tiles/s; cold or starving: 6; both: 3. Downed players still cannot move. No monster speed increase; multiple rings do not stack.'],
+  'guide.use.equipment': ['从背包移入物品栏，再用数字键、滚轮或点按选中即可；无需点击使用，也不消耗。切换到其他格子、移回背包、存入箱子或丢弃即失去加速。手机点选物品栏戒指后使用移动摇杆。', 'Move from the backpack to the hotbar, then select with a number key, wheel or tap. No activation click or charges. Switching slots, moving to the bag, storing or dropping removes the boost. On mobile, tap its hotbar slot and use the movement stick.'],
+  'help.swiftnessRing': ['迅捷戒指在自然箱子中独立有2%概率出现。必须放在物品栏并选中才有3倍移速，保留体温和饥饿减速；倒地仍不能移动。背包中或未选中时无效，不消耗、不叠加。', 'Swiftness rings independently have a 2% natural-chest chance. Select one in the hotbar for 3× speed, retaining cold and starvation penalties; downed players still cannot move. No effect in the backpack or unselected. No charges or stacking.'],
   'hint.drink': ['对空地长按使用 {duration} 秒饮用，无需火；亢奋 {effect_duration} 秒，体感 {felt_temperature}°C', 'Aim at empty ground and hold Use for {duration} s; no fire needed. Excited for {effect_duration} s, feeling {felt_temperature}°C'],
   'item.sheriff_badge': ['警长徽章', 'Sheriff badge'],
   'item.vodka': ['伏特加', 'Vodka'],

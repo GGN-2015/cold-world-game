@@ -285,13 +285,13 @@
 
 ## 存档与地图生成兼容
 
-SQLite 存档格式为第 3 版：`world` 的版本记录为 3，顶层世界字段按名称分存于 `world_parts(name, payload)`，全部变化在同一事务内原子提交，保持 WAL 与 FULL 同步。兼容第 1 版整图 JSON 和第 2 版分区存档，首次保存时原子升级，失败则保留原版本与原内容。存档版本不等于 WebSocket 协议版本，也不等于地形生成版本；协议仍为第 1 版，地形为第 11 版。升级后的存档不供旧版程序读取，降级须使用升级前备份，详见 [服务器与存档](server.md)。
+SQLite 存档格式为第 3 版：`world` 的版本记录为 3，顶层世界字段按名称分存于 `world_parts(name, payload)`，全部变化在同一事务内原子提交，保持 WAL 与 FULL 同步。兼容第 1 版整图 JSON 和第 2 版分区存档，首次保存时原子升级，失败则保留原版本与原内容。存档版本不等于 WebSocket 协议版本，也不等于地形生成版本；协议仍为第 1 版，地形为第 12 版。升级后的存档不供旧版程序读取，降级须使用升级前备份，详见 [服务器与存档](server.md)。
 
 `structure:<id>` 每行保存一座建筑，行的存在与否为准。`structures` 保留初始有序 ID 基线，恢复时跳过已删 ID，再按 SQLite 行序追加后建建筑，因此增删单座建筑也不必重写全世界 ID 列表。事务只记录被修改建筑的旧值用于回滚，并只编码脏建筑；枪击、命中、普通移动不遍历、复制或序列化全图建筑。箱子、篝火、建筑增删及关联玩家/物品变更同事务提交，失败时一起恢复。第 2 版未拆分的 `structures` 数组也能读取并原子转换，保留实体顺序、物品、种子和旧区块版本。
 
 `chunk_versions` 字段为 `[chunk_x, chunk_y, generation_version]` 数组。旧存档缺少该字段时，已有 `chunks` 视为第 1 版已生成区域，其他区域保持未生成。区块版本字段不改变原有 `chunks`、实体 ID、物品和地形状态；玩家随身硬币仅按上述货币迁移规则转换为余额，其他物品不变。不需要删除或重建旧存档。
 
-当前生成器只处理不在 `chunks` 中的区块，新生成区块记录当前 `TERRAIN_VERSION: 11`，已有第 1～10 版区块保留原版本，不因版本较旧而重新生成。第 4 版对机器自然生成应用四类容器的八邻域间距，第 5 版增加箱内急救包，第 6 版增加回城法杖，第 7 版增加寒冰法杖，第 8 版增加自动枪械机及箱内手榴弹、烈焰法杖，第 9 版增加箱内除颤器；旧区块中已相邻的容器保持原位，重新放置则使用新规则。未探索区域始终使用当前服务端生成器，不受世界创建版本限制；各机器、急救包、回城与寒冰法杖、手榴弹、烈焰法杖、除颤器均使用基于世界种子、区块坐标和各自独立特征名的稳定随机流。保存与恢复保留混合版本区域及其物体，重启、重连、重访不重复生成。未来地形更新同样遵守仓库 `AGENTS.md` 的兼容约束。
+当前生成器只处理不在 `chunks` 中的区块，新生成区块记录当前 `TERRAIN_VERSION: 12`，已有第 1～11 版区块保留原版本，不因版本较旧而重新生成。第 4 版对机器自然生成应用四类容器的八邻域间距，第 5 版增加箱内急救包，第 6 版增加回城法杖，第 7 版增加寒冰法杖，第 8 版增加自动枪械机及箱内手榴弹、烈焰法杖，第 9 版增加箱内除颤器；旧区块中已相邻的容器保持原位，重新放置则使用新规则。未探索区域始终使用当前服务端生成器，不受世界创建版本限制；各机器、急救包、回城与寒冰法杖、手榴弹、烈焰法杖、除颤器均使用基于世界种子、区块坐标和各自独立特征名的稳定随机流。保存与恢复保留混合版本区域及其物体，重启、重连、重访不重复生成。未来地形更新同样遵守仓库 `AGENTS.md` 的兼容约束。
 
 ## HTTP 与生命周期
 
@@ -309,12 +309,20 @@ SQLite 存档格式为第 3 版：`world` 的版本记录为 3，顶层世界字
 - `bank` 命令：`{"type":"bank","id":"容器ID","operation":"deposit","amount":5}`，`operation` 也可为 `withdraw`。必须已打开 2 格内无遮挡的 `piggy_bank`，`amount` 为 1 至 `catalog.currency.max_coins` 的 JSON 整数，不接受浮点数、布尔或负值。响应包含 `operation`、`amount`、最新 `balance` 和玩家 `money`。
 - 打开的 `container.balance` 是所有玩家共享且持久保存的整数余额，缺失默认 0。附近建筑列表不发送余额或内容物，只向实际打开容器的客户端按现有差分同步；双方钱包和共享余额在同一次 SQLite 事务提交。命令串行检查最新余额，不依赖客户端显示值。
 - 存款不足报 `insufficient_money`，取款不足报 `insufficient_bank_balance`，超过整数上限报 `balance_limit`；非空拆除报 `bank_not_empty`。断开、离开距离、关闭窗口等访问限制与箱子一致。持有斧头时通过 `dismantle_container` 长按拆除，不允许把普通物品拖进存钱罐。
-- `catalog.terrain.piggy_bank_chance = 0.05`，`chest_heat_patch_chance = 0.02`，当前地形版本 11；`healing_items.heat_patch = {"duration":0.5,"temperature":36.0}`，无 `hunger` 字段即表示不改变饥饿。使用沿用 `attack` 按下/释放协议；成功后发送 `type: heal, kind: heat_patch` 事件，客户端以小画幅播放已有医疗 PNG。
+- `catalog.terrain.piggy_bank_chance = 0.05`，`chest_heat_patch_chance = 0.02`，当前地形版本 12；`healing_items.heat_patch = {"duration":0.5,"temperature":36.0}`，无 `hunger` 字段即表示不改变饥饿。使用沿用 `attack` 按下/释放协议；成功后发送 `type: heal, kind: heat_patch` 事件，客户端以小画幅播放已有医疗 PNG。
 
 ## 警长徽章、伏特加与物品说明
 
-`catalog.passive_items.sheriff_badge` 提供 `damage_multiplier:2`、`monster_kinds:["small","fast"]`、`stackable:false`；`catalog.drinks.vodka` 提供 `duration:0.5`、`effect_duration:30.0`、`felt_temperature:30.0`。`catalog.ready_to_eat_foods` 是无需篝火的食品列表，伏特加独立归于饮料而非 `foods`。`terrain.chest_sheriff_badge_chance` 与 `chest_vodka_chance` 均为0.02，当前 `TERRAIN_VERSION` 为11。
+`catalog.passive_items.sheriff_badge` 提供 `damage_multiplier:2`、`monster_kinds:["small","fast"]`、`stackable:false`；`catalog.drinks.vodka` 提供 `duration:0.5`、`effect_duration:30.0`、`felt_temperature:30.0`。`catalog.ready_to_eat_foods` 是无需篝火的食品列表，伏特加独立归于饮料而非 `foods`。`terrain.chest_sheriff_badge_chance` 与 `chest_vodka_chance` 均为0.02，当前 `TERRAIN_VERSION` 为12。
 
 玩家持久字段 `excitement_remaining:0.0` 缺失时默认0，仅在线tick递减；快照沿用玩家编码发送剩余秒数，自己的 `ambient_temperature` 在生效时为30。饮用沿用 `attack` 按下/释放与现有 `eat` 音效事件，无新增使用命令。徽章不新增玩家伤害属性，统一在怪物伤害结算时查两个人物存储区域。
 
 前端 `item-guide.js` 根据现有目录及物品剩余状态生成中英双语作用与用法。选择说明不发送网络请求，不做逐帧全物品遍历；实际转移仍使用原有 `transfer` 与乐观显示/原子保存。
+
+## 迅捷戒指与手持移速装备
+
+`catalog.equipped_items.swiftness_ring.speed_multiplier = 3` 表示只有选中物品栏该物品才生效，不属于只需携带的 `passive_items`。`terrain.chest_swiftness_ring_chance = 0.02`，当前地形版本12。戒指沿用普通Item字段，无弹药或次数，不增加玩家持久字段；`select`、数字键/滚轮/点选及原有 `transfer`、`drop` 协议不变。
+
+服务端 `player_speed` 和客户端 `playerSpeed` 使用相同的体温/饥饿倍率，再乘已选装备倍率，倒地返回0。浏览器使用本地预测选中格，不等 `select` 往返；普通位置更新不增加传送版本或重置运动历史。附近 `players[].move_speed` 给出各玩家当前可用移速供远端有界推算，旧消息缺失该字段时沿用原有基础速度；不发送其他玩家完整背包或物品栏。怪物继续使用原有速度字段，完全不受戒指影响。
+
+高于基础移速的远端玩家，显示纠偏上限为当前移速加基础移速的0.5倍（12格/秒戒指对应最多14格/秒），而非直接把原2.5倍纠偏上限也放大三倍；实际正常行走仍为12格/秒。普通玩家和怪物保持原有纠偏规则，显式传送仍沿用独立版本号。

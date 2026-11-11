@@ -54,7 +54,7 @@ export class WorldRenderer {
     this.animator = new ActorAnimator(animations);
     this.effects = new CombatEffects(effects);
     this.collision = new CollisionMap(catalog);
-    this.movement = new ClientMovement(this.collision, catalog.movement?.player_speed ?? 4);
+    this.movement = new ClientMovement(this.collision, catalog.movement?.player_speed ?? 4, catalog.equipped_items);
     this.motion = new SnapshotMotion(this.collision, catalog.movement);
     this.state = null;
     this.demo = demoWorld();
@@ -192,6 +192,7 @@ export class WorldRenderer {
     this.motion.advance(delta);
     const monsters = state.monsters.map((entity) => this.smooth(entity));
     const worldTime = state.elapsed + (state.paused ? 0 : Math.max(0, Math.min(0.3, performance.now() / 1000 - this.motion.arrival)));
+    this.movement.selected = this.selected;
     this.movement.advance(delta, monsters);
     const players = state.players.map((entity) => this.smooth(entity));
     if (this.state) this.animator.observe({ elapsed: this.motion.time ?? state.elapsed, paused: state.paused, players, monsters });

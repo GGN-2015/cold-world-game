@@ -552,6 +552,23 @@ def equipment():
         save(kind, image)
 
 
+def swiftness_ring():
+    image, drawing = canvas()
+    drawing.ellipse((5, 25, 27, 29), fill=(38, 62, 72, 65))
+    drawing.ellipse((7, 10, 25, 28), fill=PALETTE["outline"])
+    drawing.ellipse((9, 12, 23, 26), fill=PALETTE["gold"])
+    drawing.ellipse((12, 15, 20, 23), fill=PALETTE["outline"])
+    drawing.arc((9, 12, 23, 26), 50, 200, fill="#fff1b8", width=2)
+    drawing.polygon(((16, 3), (22, 8), (16, 14), (10, 8)), fill=PALETTE["outline"])
+    drawing.polygon(((16, 5), (20, 8), (16, 12), (12, 8)), fill="#64d2ce")
+    drawing.line((16, 5, 16, 11), fill="#d4ffed", width=1)
+    drawing.polygon(((4, 8), (9, 8), (11, 12), (7, 11)), fill="#a8e6e0")
+    drawing.polygon(((22, 9), (28, 5), (26, 10), (23, 13)), fill="#a8e6e0")
+    drawing.line((2, 17, 6, 17), fill="#64d2ce", width=1)
+    drawing.line((25, 20, 30, 20), fill="#64d2ce", width=1)
+    save("swiftness_ring", image)
+
+
 def sheriff_badge():
     image, drawing = canvas()
     drawing.ellipse((4, 25, 29, 30), fill=(38, 62, 72, 65))
@@ -1058,6 +1075,7 @@ def main():
     piggy_bank()
     heat_patch()
     sheriff_badge()
+    swiftness_ring()
     vodka()
     defibrillator()
     return_staff()

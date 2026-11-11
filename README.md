@@ -53,6 +53,8 @@ uv run cold-world-game --host 0.0.0.0 --port 5000 --password your-server-passwor
 - [警长徽章](docs/combat.md#警长徽章)放在背包或物品栏即可使所有武器对小怪、快速怪伤害翻倍；[伏特加](docs/survival.md#伏特加与亢奋)长按饮用后30秒体感恒为30°C，两者独立以2%概率出现在新自然箱子里。
 - 背包内点击随身物品即显示[全物品说明卡](docs/inventory.md#物品说明卡)，包括作用与用法；双击、拖动或说明卡按钮仍可快速转移，支持手机与中英切换。
 
+- [迅捷戒指](docs/inventory.md#迅捷戒指)必须放在物品栏并选中，才将当前体温/饥饿下的移速乘3；倒地仍不能移动。新自然箱子独立2%概率，客户端立即响应选中与切换。
+
 ## 项目结构
 
 - `cold_world_game/`：Flask 服务端、规则、SQLite 存档与内置网页。

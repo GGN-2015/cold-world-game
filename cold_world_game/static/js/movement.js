@@ -84,10 +84,18 @@ export class CollisionMap {
   }
 }
 
+export function playerSpeed(player, baseSpeed = 4, equippedItems = {}, selected = player.selected) {
+  if (player.downed || player.temperature < 5) return 0;
+  const item = player.inventory?.[selected];
+  const multiplier = equippedItems[item?.kind]?.speed_multiplier ?? 1;
+  return baseSpeed * (player.temperature < 18 ? 0.5 : 1) * (player.hunger <= 0 ? 0.5 : 1) * multiplier;
+}
+
 export class ClientMovement {
-  constructor(collision, speed = 4) {
+  constructor(collision, speed = 4, equippedItems = {}) {
     this.collision = collision;
     this.speed = speed;
+    this.equippedItems = equippedItems;
     this.reset();
   }
 
@@ -102,6 +110,7 @@ export class ClientMovement {
     this.teleportEpoch = null;
     this.enabled = false;
     this.active = false;
+    this.selected = null;
     this.stale = false;
     this.arrival = 0;
   }
@@ -161,7 +170,7 @@ export class ClientMovement {
       return !this.ghosts.has(monster.id) && !allowsPlayerOverlap(monster, you.id);
     });
     if (this.active && !this.stale && !this.state.paused && !you.downed) {
-      const speed = this.speed * (you.temperature < 18 ? 0.5 : 1) * (you.hunger <= 0 ? 0.5 : 1);
+      const speed = playerSpeed(you, this.speed, this.equippedItems, this.selected ?? you.selected);
       this.position = this.collision.move(previous, this.input.x * speed * delta, this.input.y * speed * delta, colliders);
     }
     this.velocity = delta > 0 ? { x: (this.position.x - previous.x) / delta, y: (this.position.y - previous.y) / delta } : { x: 0, y: 0 };

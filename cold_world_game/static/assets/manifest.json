@@ -247,6 +247,11 @@
       "width": 96,
       "height": 96
     },
+    "swiftness_ring": {
+      "file": "swiftness_ring.png",
+      "width": 96,
+      "height": 96
+    },
     "vodka": {
       "file": "vodka.png",
       "width": 96,

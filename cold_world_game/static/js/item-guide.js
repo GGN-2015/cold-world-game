@@ -5,7 +5,11 @@ export function itemGuide(item, catalog) {
   if (!item) return null;
   const kind = item.kind;
   let category, effect, use;
-  if (catalog.passive_items?.[kind]) {
+  if (catalog.equipped_items?.[kind]) {
+    category = 'equipment';
+    effect = t(`guide.effect.${kind}`, catalog.equipped_items[kind]);
+    use = t('guide.use.equipment');
+  } else if (catalog.passive_items?.[kind]) {
     category = 'passive';
     effect = t(`guide.effect.${kind}`, catalog.passive_items[kind]);
     use = t('guide.use.passive');

@@ -180,7 +180,8 @@ export class SnapshotMotion {
         track.correction.x += previous.x - next.x;
         track.correction.y += previous.y - next.y;
       }
-      track.baseSpeed = entity.fast ? this.speeds.fast_monster_speed : entity.big != null ? this.speeds.monster_speed : this.speeds.player_speed;
+      track.baseSpeed = entity.fast ? this.speeds.fast_monster_speed : entity.big != null ? this.speeds.monster_speed : entity.move_speed ?? this.speeds.player_speed;
+      track.isPlayer = entity.big == null;
       track.frozenUntil = entity.frozen_until ?? 0;
       track.speed = track.baseSpeed * (state.elapsed < track.frozenUntil ? this.speeds.frozen_speed_scale : 1);
     }
@@ -210,7 +211,8 @@ export class SnapshotMotion {
       track.correction.y *= decay;
       const correctionX = desired.x + track.correction.x - track.x;
       const correctionY = desired.y + track.correction.y - track.y;
-      const fraction = Math.min(1, track.speed * 2.5 * delta / (Math.hypot(correctionX, correctionY) || 1));
+      const correctionSpeed = track.isPlayer && track.speed > this.speeds.player_speed ? track.speed + this.speeds.player_speed * 0.5 : track.speed * 2.5;
+      const fraction = Math.min(1, correctionSpeed * delta / (Math.hypot(correctionX, correctionY) || 1));
       const horizontal = correctionX * fraction;
       const vertical = correctionY * fraction;
       const point = this.collision ? this.collision.move(track, horizontal, vertical) : { x: track.x + horizontal, y: track.y + vertical };
