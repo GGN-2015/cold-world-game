@@ -223,8 +223,6 @@ class Actions:
             raise GameError("out_of_range", "Placement must be within 3 units in a generated chunk")
         if self.structure_at(target_x, target_y):
             raise GameError("occupied", "This tile is occupied")
-        if not self.visible(player.x, player.y, target_x, target_y):
-            raise GameError("blocked", "An obstacle blocks this placement")
         if item.kind in ("chest", "campfire"):
             for offset_x, offset_y in DIRECTIONS:
                 neighbor = self.structure_at(target_x + offset_x, target_y + offset_y)

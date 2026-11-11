@@ -58,6 +58,7 @@ export class GameConnection extends EventTarget {
         if (pending) {
           clearTimeout(pending.timer);
           this.pending.delete(message.seq);
+          this.emit('settled', message);
           if (message.type === 'ack') pending.resolve(message.result);
           else pending.reject(message);
         } else if (message.type === 'error') {
@@ -98,6 +99,7 @@ export class GameConnection extends EventTarget {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(sequence);
+        this.emit('settled', { type: 'error', seq: sequence, code: 'timeout' });
         reject({ code: 'timeout' });
         this.socket?.close();
       }, 8000);
@@ -106,13 +108,16 @@ export class GameConnection extends EventTarget {
         clearTimeout(timer);
         this.pending.delete(sequence);
         reject({ code: 'disconnected' });
+      } else {
+        this.emit('command', { type, payload, seq: sequence });
       }
     });
   }
 
   rejectPending() {
-    for (const pending of this.pending.values()) {
+    for (const [sequence, pending] of this.pending) {
       clearTimeout(pending.timer);
+      this.emit('settled', { type: 'error', seq: sequence, code: 'disconnected' });
       pending.reject({ code: 'disconnected' });
     }
     this.pending.clear();

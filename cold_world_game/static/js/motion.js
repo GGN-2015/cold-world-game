@@ -1,4 +1,4 @@
-export class SnapshotMotion {
+class ProjectileMotion {
   constructor(collision = null) {
     this.collision = collision;
     this.reset();
@@ -23,7 +23,7 @@ export class SnapshotMotion {
     if (this.offsets.length > 64) this.offsets.shift();
     const age = state.paused ? 0 : Math.max(0, Math.min(0.3, now - Math.min(...this.offsets) - state.elapsed));
     const active = new Set();
-    for (const entity of [...state.players, ...state.monsters, ...(state.projectiles || [])]) {
+    for (const entity of state.projectiles || []) {
       active.add(entity.id);
       let track = this.tracks.get(entity.id);
       const interval = state.elapsed - (track?.serverTime ?? state.elapsed);
@@ -95,6 +95,121 @@ export class SnapshotMotion {
   }
 
   sample(entity) {
+    const track = this.tracks.get(entity.id);
+    return track ? { x: track.x, y: track.y, velocity_x: track.renderVelocity.x, velocity_y: track.renderVelocity.y } : { x: entity.x, y: entity.y };
+  }
+}
+
+const clamp = (value, lower, upper) => Math.max(lower, Math.min(upper, value));
+
+export class SnapshotMotion {
+  constructor(collision = null) {
+    this.collision = collision;
+    this.projectiles = new ProjectileMotion(collision);
+    this.reset();
+  }
+
+  reset() {
+    this.tracks = new Map();
+    this.projectiles.reset();
+    this.time = null;
+    this.latest = null;
+    this.arrival = null;
+    this.paused = false;
+    this.offsets = [];
+    this.jitter = [];
+    this.delay = 0.12;
+  }
+
+  pointAt(track, time) {
+    const frames = track.frames;
+    const first = frames[0];
+    if (time <= first.time || track.downed) return { x: first.x, y: first.y };
+    for (let index = 1; index < frames.length; index++) {
+      const next = frames[index];
+      if (next.time < time) continue;
+      const previous = frames[index - 1];
+      const fraction = clamp((time - previous.time) / (next.time - previous.time), 0, 1);
+      return { x: previous.x + (next.x - previous.x) * fraction, y: previous.y + (next.y - previous.y) * fraction };
+    }
+    const last = frames.at(-1);
+    const previous = frames.at(-2);
+    const interval = previous ? last.time - previous.time : 0;
+    const velocityX = interval > 0 ? (last.x - previous.x) / interval : last.velocity_x;
+    const velocityY = interval > 0 ? (last.y - previous.y) / interval : last.velocity_y;
+    const age = time - last.time;
+    const extension = Math.min(age, 0.12) + (age > 0.12 ? 0.12 * (1 - Math.exp(-(age - 0.12) / 0.12)) : 0);
+    return { x: last.x + velocityX * extension, y: last.y + velocityY * extension };
+  }
+
+  observe(state, now = performance.now() / 1000) {
+    if (globalThis.document?.hidden) { this.reset(); return true; }
+    if (this.latest != null && state.elapsed < this.latest && !state.paused) return false;
+    const reset = this.latest == null || now - this.arrival > 1 || state.elapsed - this.latest > 1 || Boolean(state.paused) !== this.paused || state.elapsed < this.latest;
+    if (reset) this.reset();
+    if (this.time == null) this.time = state.elapsed - (state.paused ? 0 : this.delay);
+    if (this.latest != null && state.elapsed > this.latest) {
+      this.jitter.push(Math.max(0, now - this.arrival - (state.elapsed - this.latest)));
+      if (this.jitter.length > 40) this.jitter.shift();
+      const ordered = [...this.jitter].sort((first, second) => first - second);
+      const desired = clamp(0.12 + ordered[Math.floor((ordered.length - 1) * 0.95)], 0.12, 0.28);
+      this.delay += (desired - this.delay) * (desired > this.delay ? 0.25 : 0.03);
+    }
+    this.offsets.push(now - state.elapsed);
+    if (this.offsets.length > 64) this.offsets.shift();
+    const active = new Set();
+    for (const entity of [...state.players, ...state.monsters]) {
+      active.add(entity.id);
+      let track = this.tracks.get(entity.id);
+      const frame = { time: state.elapsed, x: entity.x, y: entity.y, velocity_x: entity.velocity_x ?? 0, velocity_y: entity.velocity_y ?? 0 };
+      if (!track || state.paused || Boolean(entity.downed) !== track.downed || Math.hypot(entity.x - track.frames.at(-1).x, entity.y - track.frames.at(-1).y) > 5) {
+        track = { x: entity.x, y: entity.y, frames: [frame], downed: Boolean(entity.downed), correction: { x: 0, y: 0 }, renderVelocity: { x: 0, y: 0 } };
+        this.tracks.set(entity.id, track);
+      } else {
+        const previous = this.pointAt(track, this.time);
+        if (track.frames.at(-1).time === frame.time) track.frames[track.frames.length - 1] = frame;
+        else track.frames.push(frame);
+        while (track.frames.length > 32) track.frames.shift();
+        const next = this.pointAt(track, this.time);
+        track.correction.x += previous.x - next.x;
+        track.correction.y += previous.y - next.y;
+      }
+    }
+    for (const identifier of this.tracks.keys()) if (!active.has(identifier)) this.tracks.delete(identifier);
+    this.projectiles.observe(state, now);
+    this.latest = state.elapsed;
+    this.arrival = now;
+    this.paused = Boolean(state.paused);
+    return reset;
+  }
+
+  advance(seconds, now = performance.now() / 1000) {
+    this.projectiles.advance(seconds, now);
+    if (this.time == null || this.paused) return;
+    const delta = clamp(seconds, 0, 0.1);
+    if (!delta) return;
+    const target = now - Math.min(...this.offsets) - this.delay;
+    const error = target - (this.time + delta);
+    this.time += delta * (Math.abs(error) < 0.015 ? 1 : clamp(1 + error * 0.8, 0.9, 1.05));
+    const decay = Math.exp(-delta / 0.09);
+    for (const track of this.tracks.values()) {
+      if (track.downed) continue;
+      if (now - this.arrival >= 0.5) { track.renderVelocity = { x: 0, y: 0 }; continue; }
+      const desired = this.pointAt(track, this.time);
+      track.correction.x *= decay;
+      track.correction.y *= decay;
+      const horizontal = desired.x + track.correction.x - track.x;
+      const vertical = desired.y + track.correction.y - track.y;
+      const point = this.collision ? this.collision.move(track, horizontal, vertical) : { x: track.x + horizontal, y: track.y + vertical };
+      track.renderVelocity = { x: (point.x - track.x) / delta, y: (point.y - track.y) / delta };
+      track.x = point.x;
+      track.y = point.y;
+      while (track.frames.length > 3 && track.frames[1].time < this.time - 0.2) track.frames.shift();
+    }
+  }
+
+  sample(entity) {
+    if (entity.remaining != null) return this.projectiles.sample(entity);
     const track = this.tracks.get(entity.id);
     return track ? { x: track.x, y: track.y, velocity_x: track.renderVelocity.x, velocity_y: track.renderVelocity.y } : { x: entity.x, y: entity.y };
   }

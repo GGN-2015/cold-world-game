@@ -88,6 +88,8 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
             player_id = candidate_id
             quiet_inputs = message.get("quiet_inputs") is True
             wants_roster = message.get("player_roster") is True
+            processed_sequence = 0
+            state["command_sequence"] = processed_sequence
             welcome = {"type": "welcome", "player_id": player_id, "protocol": 1, "state": state}
             if wants_roster:
                 welcome["roster"] = server.world.player_roster()
@@ -109,13 +111,19 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
                         command = parse_message(raw)
                         sequence = command.get("seq")
                         result = server.world.execute(player_id, command)
+                        if sequence is not None:
+                            processed_sequence = max(processed_sequence, sequence)
                         if sequence is not None or not quiet_inputs or command.get("type") not in ("input", "stop"):
                             send(websocket, {"type": "ack", "seq": sequence, "result": result})
                     except GameError as error:
+                        if sequence is not None:
+                            processed_sequence = max(processed_sequence, sequence)
                         send(websocket, {"type": "error", "seq": sequence, "code": error.code, "message": str(error)})
                 now = time.monotonic()
                 if now >= next_state:
-                    send(websocket, {"type": "state", "state": server.world.snapshot(player_id)})
+                    state = server.world.snapshot(player_id)
+                    state["command_sequence"] = processed_sequence
+                    send(websocket, {"type": "state", "state": state})
                     now = time.monotonic()
                     next_state += (int((now - next_state) / 0.1) + 1) * 0.1
                 if wants_roster and now >= next_roster:
