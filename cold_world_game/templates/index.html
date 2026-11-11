@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/game.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/roster.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 </head>
 <body>
   <main id="app">
@@ -32,6 +33,7 @@
             <button id="inventory-button" class="icon-button glass" data-i18n-title="button.backpackHint" data-i18n-aria-label="button.backpackOpen" title="背包与合成（B，兼容 I）" aria-label="打开背包与合成"><span data-i18n="button.backpack">背包</span> <kbd>B</kbd></button>
             <button id="craft-button" class="icon-button glass" data-i18n="button.craft" data-i18n-title="button.backpackOpen" data-i18n-aria-label="button.craftOpen" title="打开背包与合成" aria-label="打开合成界面">合成</button>
             <button id="help-button" class="icon-button glass" data-i18n-title="button.helpHint" data-i18n-aria-label="button.help" title="操作指南（H）" aria-label="操作指南">?</button>
+            <button id="admin-button" type="button" class="icon-button glass" data-i18n-title="admin.title" data-i18n-aria-label="admin.title" aria-expanded="false" aria-controls="admin-console" hidden>&gt;_</button>
             <button id="leave-button" class="icon-button glass" data-i18n="button.leave" data-i18n-title="button.leaveHint" data-i18n-aria-label="button.leaveHint" title="保存并离开" aria-label="保存并离开">离开</button>
           </div>
         </header>
@@ -41,6 +43,15 @@
           <p id="players-empty" class="roster-empty" data-i18n="players.loading">正在同步旅人状态…</p>
           <p id="players-footer" class="roster-footer"></p>
         </aside>
+        <section id="admin-console" class="admin-console glass" role="dialog" aria-labelledby="admin-title" hidden>
+          <header class="panel-heading"><div><span class="eyebrow">SERVER ADMIN</span><h2 id="admin-title" data-i18n="admin.title">管理员控制台</h2></div><button id="admin-close" type="button" class="close-button" data-i18n-aria-label="admin.close">×</button></header>
+          <p class="panel-description" data-i18n="admin.hint">命令使用英文；玩家 ID 支持中文，含空格时请加英文双引号。输入 help 查看命令。</p>
+          <div id="admin-log" class="admin-log" role="log" aria-live="polite" aria-relevant="additions" data-i18n-aria-label="admin.log"></div>
+          <form id="admin-form" class="admin-form" autocomplete="off">
+            <input id="admin-input" type="text" maxlength="512" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="send" data-i18n-placeholder="admin.placeholder" data-i18n-aria-label="admin.input">
+            <button id="admin-submit" type="submit" class="small-button" data-i18n="admin.submit">执行</button>
+          </form>
+        </section>
         <div id="connection-banner" class="connection-banner" role="status" hidden></div>
         <div id="downed-notice" class="downed-notice glass" hidden><strong data-i18n="downed.title">失温倒地</strong> <span data-i18n="downed.description">怪物不会索敌或攻击倒地的你，游荡也不受你吸引。仍可制作、放置和点燃篝火，取暖至 5°C 后站起。</span></div>
         <div class="position-readout"><span id="coordinate-label">坐标 0, 0</span><span id="fps-label">60 FPS</span><span id="player-label"></span></div>

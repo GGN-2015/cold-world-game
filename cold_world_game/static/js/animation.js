@@ -32,7 +32,7 @@ export class ActorAnimator {
       const hasVelocity = Number.isFinite(entity.velocity_x) && Number.isFinite(entity.velocity_y);
       const directionX = hasVelocity ? entity.velocity_x : horizontal;
       const directionY = hasVelocity ? entity.velocity_y : vertical;
-      motion.moving = timeStep > 0 && !state.paused && !entity.downed && displacement > 0.00001 && displacement <= 5 && Math.hypot(directionX, directionY) > 0.00001;
+      motion.moving = timeStep > 0 && !state.paused && !entity.downed && !entity.sleeping && entity.rising == null && displacement > 0.00001 && displacement <= 5 && Math.hypot(directionX, directionY) > 0.00001;
       if (motion.moving) motion.direction = movementDirection(directionX, directionY, motion.direction);
       else motion.travel = 0;
       motion.x = entity.x;

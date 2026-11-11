@@ -1,7 +1,7 @@
 import math
 import time
 
-from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DROP_DISTANCE, FOODS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, SOLID
+from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FOODS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, MELEE_WEAPONS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS, SOLID
 from .geometry import DIRECTIONS, circle_square, distance, normalized, segment_box, tile
 from .models import GroundItem, Item, Structure
 
@@ -33,6 +33,8 @@ def boolean(value, name):
 class Actions:
     def action(self, player, controls, command):
         kind = command.get("type")
+        if kind == "admin":
+            return self.admin_command(player, command.get("command"))
         if kind == "input":
             move = command.get("move", [controls.move_x, controls.move_y])
             aim = command.get("aim", [controls.aim_x, controls.aim_y])
@@ -77,26 +79,33 @@ class Actions:
         elif kind == "attack":
             pressed = boolean(command.get("pressed"), "pressed")
             shift = boolean(command.get("shift", False), "shift")
+            attack_id = command.get("attack_id")
+            if attack_id is not None and (not isinstance(attack_id, str) or not attack_id or len(attack_id) > 64 or not attack_id.isprintable()):
+                raise GameError("invalid_argument", "attack_id must be a printable token of 1-64 characters")
             controls.last_input = time.monotonic()
             if not pressed:
                 controls.stop_attack()
                 return {"accepted": True}
             if controls.ui:
                 return {"accepted": False}
+            item = player.inventory[player.selected]
             target = self.structure_at(tile(controls.aim_x), tile(controls.aim_y))
-            if target and target.kind in CONTAINERS and (not shift or target.kind in PANEL_DEMOLITION) and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
+            if target and target.kind in CONTAINERS and (item is None or item.kind not in EXPLOSIVE_WEAPONS and item.kind not in REVIVAL_ITEMS) and (not shift or target.kind in PANEL_DEMOLITION) and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
                 self.open_container(player, controls, target.id)
                 return {"opened": target.id}
-            item = player.inventory[player.selected]
-            if player.temperature < 5 and item and item.kind not in FOODS and item.kind not in HEALING_ITEMS and item.kind not in RETURN_ITEMS:
+            if player.temperature < 5 and item and item.kind not in FOODS and item.kind not in HEALING_ITEMS and item.kind not in RETURN_ITEMS and item.kind not in REVIVAL_ITEMS:
                 controls.stop_attack()
                 return {"accepted": False}
+            swing = False
             if not controls.held:
                 controls.pending_shot = True
-                if item and item.kind == "axe":
-                    self.strike_axe(player, controls)
+                if item and item.kind in MELEE_WEAPONS:
+                    controls.attack_id = attack_id
+                    swing = bool(self.strike_melee(player, controls))
             controls.held = True
             controls.shift = shift
+            if attack_id is not None:
+                return {"accepted": True, "swing": swing, "attack_id": attack_id}
         elif kind in ("dismantle_chest", "dismantle_container"):
             pressed = boolean(command.get("pressed"), "pressed")
             controls.last_input = time.monotonic()
@@ -107,9 +116,10 @@ class Actions:
             item = player.inventory[player.selected]
             allowed = ("chest",) if kind == "dismantle_chest" else PANEL_DEMOLITION
             if not controls.ui or controls.container != structure.id or structure.kind not in allowed:
-                raise GameError("invalid_container", "Open this chest or trading machine before dismantling it")
-            if structure.kind == "chest" and any(structure.slots):
-                raise GameError("chest_not_empty", "Empty this chest before dismantling it")
+                raise GameError("invalid_container", "Open this container before dismantling it")
+            if not structure.empty:
+                code = "fire_not_empty" if structure.kind == "campfire" else "chest_not_empty"
+                raise GameError(code, "Remove all stored items before dismantling this container")
             if player.temperature < 5 or item is None or item.kind != "axe" or self.demolition_locked(structure.id):
                 raise GameError("demolition_unavailable", "Dismantling requires an axe, a standing player and no monster dismantling this structure")
             if controls.demolition_container != structure.id:
@@ -227,7 +237,7 @@ class Actions:
             for offset_x, offset_y in DIRECTIONS:
                 neighbor = self.structure_at(target_x + offset_x, target_y + offset_y)
                 if neighbor and neighbor.kind in CONTAINERS:
-                    raise GameError("adjacent_container", "Chests, campfires, vending machines and match dispensers cannot touch in any of eight directions")
+                    raise GameError("adjacent_container", "Chests, campfires and trading machines cannot touch in any of eight directions")
         if any(circle_square(self.players[player_id].x, self.players[player_id].y, target_x, target_y) for player_id in self.online) or any(circle_square(monster.x, monster.y, target_x, target_y) for monster in self.monsters.values()):
             raise GameError("occupied", "An entity overlaps this tile")
         self.touch()
@@ -342,6 +352,8 @@ class Actions:
 
     def set_endpoint(self, endpoint, item, player, controls):
         kind, owner, slot = endpoint
+        if kind in ("chest", "igniter", "fuel"):
+            self.record_structure(owner.id)
         if kind == "inventory":
             self.cancel_selected(player, controls, slot)
             owner.inventory[slot] = item
@@ -392,6 +404,7 @@ class Actions:
         if fire.lit or fire.fuel < 1 or not fire.igniter or not fire.igniter.uses:
             raise GameError("cannot_light", "An unlit fire needs fuel and a usable igniter")
         self.touch()
+        self.record_structure(fire.id)
         fire.igniter.uses -= 1
         if fire.igniter.uses == 0:
             fire.igniter = None

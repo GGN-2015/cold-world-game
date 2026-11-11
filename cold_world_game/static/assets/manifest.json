@@ -112,6 +112,21 @@
       "width": 96,
       "height": 96
     },
+    "monster_small_frozen": {
+      "file": "monster_small_frozen.png",
+      "width": 96,
+      "height": 96
+    },
+    "monster_big_frozen": {
+      "file": "monster_big_frozen.png",
+      "width": 96,
+      "height": 96
+    },
+    "monster_fast_frozen": {
+      "file": "monster_fast_frozen.png",
+      "width": 96,
+      "height": 96
+    },
     "player_motion": {
       "file": "player_motion.png",
       "width": 480,
@@ -136,6 +151,36 @@
       "file": "monster_fast_motion.png",
       "width": 480,
       "height": 384
+    },
+    "monster_small_frozen_motion": {
+      "file": "monster_small_frozen_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "monster_big_frozen_motion": {
+      "file": "monster_big_frozen_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "monster_fast_frozen_motion": {
+      "file": "monster_fast_frozen_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "monster_big_sleep": {
+      "file": "monster_big_sleep.png",
+      "width": 96,
+      "height": 96
+    },
+    "monster_fast_sleep": {
+      "file": "monster_fast_sleep.png",
+      "width": 96,
+      "height": 96
+    },
+    "monster_big_rise": {
+      "file": "monster_big_rise.png",
+      "width": 576,
+      "height": 96
     },
     "axe": {
       "file": "axe.png",
@@ -187,8 +232,18 @@
       "width": 96,
       "height": 96
     },
+    "defibrillator": {
+      "file": "defibrillator.png",
+      "width": 96,
+      "height": 96
+    },
     "return_staff": {
       "file": "return_staff.png",
+      "width": 96,
+      "height": 96
+    },
+    "ice_staff": {
+      "file": "ice_staff.png",
       "width": 96,
       "height": 96
     },
@@ -209,6 +264,26 @@
     },
     "match_machine": {
       "file": "match_machine.png",
+      "width": 96,
+      "height": 96
+    },
+    "gun_machine": {
+      "file": "gun_machine.png",
+      "width": 96,
+      "height": 96
+    },
+    "grenade": {
+      "file": "grenade.png",
+      "width": 96,
+      "height": 96
+    },
+    "flame_staff": {
+      "file": "flame_staff.png",
+      "width": 96,
+      "height": 96
+    },
+    "coin_launcher": {
+      "file": "coin_launcher.png",
       "width": 96,
       "height": 96
     },
@@ -322,6 +397,21 @@
       "width": 576,
       "height": 96
     },
+    "fx_axe_sweep": {
+      "file": "fx_axe_sweep.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_ice_sweep": {
+      "file": "fx_ice_sweep.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_flame_sweep": {
+      "file": "fx_flame_sweep.png",
+      "width": 576,
+      "height": 96
+    },
     "monster_small_death": {
       "file": "monster_small_death.png",
       "width": 576,
@@ -336,6 +426,136 @@
       "file": "monster_fast_death.png",
       "width": 576,
       "height": 96
+    },
+    "fx_explosion": {
+      "file": "fx_explosion.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_burning": {
+      "file": "fx_burning.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_axe_sweep_e": {
+      "file": "fx_axe_sweep_e.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_axe_sweep_se": {
+      "file": "fx_axe_sweep_se.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_axe_sweep_s": {
+      "file": "fx_axe_sweep_s.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_axe_sweep_sw": {
+      "file": "fx_axe_sweep_sw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_axe_sweep_w": {
+      "file": "fx_axe_sweep_w.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_axe_sweep_nw": {
+      "file": "fx_axe_sweep_nw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_axe_sweep_n": {
+      "file": "fx_axe_sweep_n.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_axe_sweep_ne": {
+      "file": "fx_axe_sweep_ne.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_ice_sweep_e": {
+      "file": "fx_ice_sweep_e.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_ice_sweep_se": {
+      "file": "fx_ice_sweep_se.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_ice_sweep_s": {
+      "file": "fx_ice_sweep_s.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_ice_sweep_sw": {
+      "file": "fx_ice_sweep_sw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_ice_sweep_w": {
+      "file": "fx_ice_sweep_w.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_ice_sweep_nw": {
+      "file": "fx_ice_sweep_nw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_ice_sweep_n": {
+      "file": "fx_ice_sweep_n.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_ice_sweep_ne": {
+      "file": "fx_ice_sweep_ne.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_flame_sweep_e": {
+      "file": "fx_flame_sweep_e.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_flame_sweep_se": {
+      "file": "fx_flame_sweep_se.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_flame_sweep_s": {
+      "file": "fx_flame_sweep_s.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_flame_sweep_sw": {
+      "file": "fx_flame_sweep_sw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_flame_sweep_w": {
+      "file": "fx_flame_sweep_w.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_flame_sweep_nw": {
+      "file": "fx_flame_sweep_nw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_flame_sweep_n": {
+      "file": "fx_flame_sweep_n.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_flame_sweep_ne": {
+      "file": "fx_flame_sweep_ne.png",
+      "width": 1152,
+      "height": 192
     }
   },
   "animations": {
@@ -433,9 +653,73 @@
         4
       ],
       "stride": 1.0
+    },
+    "monster_small_frozen": {
+      "asset": "monster_small_frozen_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stride": 1.0
+    },
+    "monster_big_frozen": {
+      "asset": "monster_big_frozen_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stride": 1.35
+    },
+    "monster_fast_frozen": {
+      "asset": "monster_fast_frozen_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stride": 1.0
     }
   },
   "effects": {
+    "monster_big_rise": {
+      "asset": "monster_big_rise",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 1.0
+    },
     "fx_slash": {
       "asset": "fx_slash",
       "frame_width": 96,
@@ -485,6 +769,66 @@
       "frames": 6,
       "duration": 1.0
     },
+    "fx_axe_sweep": {
+      "asset": "fx_axe_sweep",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.3,
+      "directions": [
+        "fx_axe_sweep_e",
+        "fx_axe_sweep_se",
+        "fx_axe_sweep_s",
+        "fx_axe_sweep_sw",
+        "fx_axe_sweep_w",
+        "fx_axe_sweep_nw",
+        "fx_axe_sweep_n",
+        "fx_axe_sweep_ne"
+      ],
+      "direction_frame_width": 192,
+      "direction_frame_height": 192,
+      "radius_ratio": 0.46875
+    },
+    "fx_ice_sweep": {
+      "asset": "fx_ice_sweep",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.3,
+      "directions": [
+        "fx_ice_sweep_e",
+        "fx_ice_sweep_se",
+        "fx_ice_sweep_s",
+        "fx_ice_sweep_sw",
+        "fx_ice_sweep_w",
+        "fx_ice_sweep_nw",
+        "fx_ice_sweep_n",
+        "fx_ice_sweep_ne"
+      ],
+      "direction_frame_width": 192,
+      "direction_frame_height": 192,
+      "radius_ratio": 0.46875
+    },
+    "fx_flame_sweep": {
+      "asset": "fx_flame_sweep",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.3,
+      "directions": [
+        "fx_flame_sweep_e",
+        "fx_flame_sweep_se",
+        "fx_flame_sweep_s",
+        "fx_flame_sweep_sw",
+        "fx_flame_sweep_w",
+        "fx_flame_sweep_nw",
+        "fx_flame_sweep_n",
+        "fx_flame_sweep_ne"
+      ],
+      "direction_frame_width": 192,
+      "direction_frame_height": 192,
+      "radius_ratio": 0.46875
+    },
     "monster_small_death": {
       "asset": "monster_small_death",
       "frame_width": 96,
@@ -505,6 +849,20 @@
       "frame_height": 96,
       "frames": 6,
       "duration": 0.65
+    },
+    "fx_explosion": {
+      "asset": "fx_explosion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.65
+    },
+    "fx_burning": {
+      "asset": "fx_burning",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.5
     }
   }
 }

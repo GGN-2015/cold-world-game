@@ -1,4 +1,4 @@
-const clips = ['handgun', 'shotgun', 'rifle', 'eat', 'place', 'hurt', 'chop', 'break', 'hit', 'axe', 'monster_attack', 'monster_death'];
+const clips = ['handgun', 'shotgun', 'rifle', 'eat', 'place', 'hurt', 'chop', 'break', 'hit', 'axe', 'monster_attack', 'monster_death', 'throw', 'explosion'];
 
 export class GameAudio extends EventTarget {
   constructor() {
@@ -83,13 +83,18 @@ export class GameAudio extends EventTarget {
     const previous = this.sequence;
     this.sequence = state.event_sequence ?? previous;
     if (this.muted || document.hidden || !document.hasFocus() || performance.now() < this.suppressedUntil) return;
+    const sounds = new Map();
     for (const event of state.events || []) {
       if (event.id <= previous || state.elapsed - event.time > 0.6) continue;
       const separation = Math.hypot(event.x - state.you.x, event.y - state.you.y);
       if (separation >= 18) continue;
-      const clip = event.type === 'shot' ? (clips.includes(event.kind) ? event.kind : 'handgun') : event.type === 'melee' ? (event.kind === 'axe' ? 'axe' : 'monster_attack') : event.type === 'death' ? 'monster_death' : event.type === 'heal' ? 'eat' : event.type;
-      this.play(clip, (1 - separation / 18) ** 2, event.kind === 'monster_big' || (event.type === 'shot' && event.kind === 'monster') ? 0.72 : 1);
+      const clip = event.type === 'shot' ? (clips.includes(event.kind) ? event.kind : 'handgun') : event.type === 'melee' ? (['axe', 'ice_staff', 'flame_staff'].includes(event.kind) ? 'axe' : 'monster_attack') : event.type === 'death' ? 'monster_death' : event.type === 'heal' ? 'eat' : event.type;
+      const rate = event.kind === 'monster_big' || (event.type === 'shot' && event.kind === 'monster') ? 0.72 : 1;
+      const key = `${clip}:${rate}:${Math.floor(event.time * 20 + 1e-8)}`;
+      const volume = (1 - separation / 18) ** 2;
+      if (!sounds.has(key) || volume > sounds.get(key).volume) sounds.set(key, { clip, volume, rate });
     }
+    for (const sound of sounds.values()) this.play(sound.clip, sound.volume, sound.rate);
   }
 
   play(name, volume, rate = 1) {
@@ -114,5 +119,6 @@ export class GameAudio extends EventTarget {
       gain.disconnect();
     };
     source.start();
+    return source;
   }
 }

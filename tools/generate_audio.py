@@ -92,11 +92,31 @@ def swing(seconds, generator, monster=False):
     return envelope * (generator.uniform(-1, 1) * 0.38 + math.sin(math.tau * frequency * seconds) * (0.3 if monster else 0.07))
 
 
+def axe_sweep(seconds, generator):
+    first = math.exp(-((seconds - 0.065) / 0.035) ** 2)
+    second = math.exp(-((seconds - 0.18) / 0.045) ** 2) * 0.8
+    envelope = first + second
+    tone = math.sin(math.tau * (1100 * seconds - 800 * seconds * seconds))
+    return envelope * (generator.uniform(-1, 1) * 0.48 + tone * 0.055)
+
+
 def monster_death(seconds, generator):
     envelope = min(1.0, seconds / 0.015) * math.exp(-seconds * 6)
     voice = math.sin(math.tau * (155 * seconds - 85 * seconds * seconds))
     rumble = math.sin(math.tau * 58 * seconds) * 0.3
     return envelope * (voice * 0.4 + rumble + generator.uniform(-1, 1) * 0.17)
+
+
+def explosion(seconds, generator):
+    envelope = min(1.0, seconds / 0.002) * math.exp(-seconds * 7)
+    rumble = math.sin(math.tau * (48 * seconds + 1.8 * (1 - math.exp(-seconds * 35))))
+    crackle = generator.uniform(-1, 1) * math.exp(-seconds * 5)
+    return envelope * (rumble * 0.48 + crackle * 0.42)
+
+
+def throw(seconds, generator):
+    envelope = math.sin(math.pi * min(1, seconds / .22)) ** 2
+    return envelope * (generator.uniform(-1, 1) * .22 + math.sin(math.tau * 380 * seconds) * .04)
 
 
 def main():
@@ -110,10 +130,12 @@ def main():
     export("chop", 0.2, chop)
     export("break", 0.4, wood_break)
     export("hit", 0.25, hit)
-    export("axe", 0.2, swing)
+    export("axe", 0.3, axe_sweep)
     export("monster_attack", 0.3, lambda seconds, generator: swing(seconds, generator, monster=True))
     export("monster_death", 0.65, monster_death)
-    print(f"Exported 12 replaceable WAV sound effects to {DESTINATION}")
+    export("throw", 0.22, throw)
+    export("explosion", 0.65, explosion)
+    print(f"Exported 14 replaceable WAV sound effects to {DESTINATION}")
 
 
 if __name__ == "__main__":

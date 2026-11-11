@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field, is_dataclass
 from uuid import uuid4
 
-from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, FAST_MONSTER_SPEED, GUNS, IGNITERS, INVENTORY_SLOTS, MONSTER_SPEED, RETURN_ITEMS
+from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, FAST_MONSTER_SPEED, GUNS, IGNITERS, INVENTORY_SLOTS, MELEE_WEAPONS, MONSTER_SPEED, RETURN_ITEMS
 
 
 def identifier() -> str:
@@ -17,7 +17,8 @@ class Item:
 
     @classmethod
     def create(cls, kind: str) -> "Item":
-        return cls(kind, ammo=GUNS[kind]["ammo"] if kind in GUNS else None, uses=RETURN_ITEMS[kind]["uses"] if kind in RETURN_ITEMS else IGNITERS.get(kind))
+        settings = RETURN_ITEMS.get(kind) or MELEE_WEAPONS.get(kind, {})
+        return cls(kind, ammo=GUNS[kind]["ammo"] if kind in GUNS else None, uses=settings.get("uses", IGNITERS.get(kind)))
 
 
 @dataclass
@@ -34,6 +35,10 @@ class Structure:
     @property
     def lit(self) -> bool:
         return self.burn_remaining > 0
+
+    @property
+    def empty(self) -> bool:
+        return not any(self.slots) and self.fuel == 0 and self.igniter is None
 
 
 @dataclass
@@ -63,6 +68,7 @@ class Controls:
     aim_target: str | None = None
     held: bool = False
     pending_shot: bool = False
+    attack_id: str | None = None
     shift: bool = False
     target: str | None = None
     progress: float = 0.0
@@ -83,6 +89,7 @@ class Controls:
     def stop_attack(self) -> None:
         self.held = False
         self.pending_shot = False
+        self.attack_id = None
         self.target = None
         self.progress = 0.0
         self.next_demolition_feedback = 0.0
@@ -121,6 +128,10 @@ class Monster:
     next_demolition_feedback: float = 0.0
     overlap_player: str | None = None
     fast: bool = False
+    frozen_until: float = 0.0
+    burning_until: float = 0.0
+    next_burn: float = 0.0
+    burn_owner: str | None = None
 
     @property
     def speed(self):
@@ -147,14 +158,19 @@ class Projectile:
     range_x: float | None = None
     range_y: float | None = None
     range_radius: float | None = None
+    kind: str = "bullet"
+    target_x: float | None = None
+    target_y: float | None = None
+    detonates_at: float | None = None
 
 
 def item_from(data: dict | None) -> Item | None:
     if not data:
         return None
     values = dict(data)
-    if values["kind"] in RETURN_ITEMS and values.get("uses") is None:
-        values["uses"] = RETURN_ITEMS[values["kind"]]["uses"]
+    settings = RETURN_ITEMS.get(values["kind"]) or MELEE_WEAPONS.get(values["kind"], {})
+    if "uses" in settings and values.get("uses") is None:
+        values["uses"] = settings["uses"]
     return Item(**values)
 
 

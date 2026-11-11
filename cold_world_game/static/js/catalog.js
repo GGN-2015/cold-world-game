@@ -1,6 +1,6 @@
 import { hasTranslation, t } from './i18n.js';
 
-export const machines = new Set(['vending_machine', 'match_machine']);
+export const machines = new Set(['vending_machine', 'match_machine', 'gun_machine']);
 export const buildings = new Set(['wall', 'fence', 'floor', 'chest', 'campfire', ...machines]);
 export const containers = new Set(['chest', 'campfire', ...machines]);
 export const itemName = (kind) => hasTranslation(`item.${kind}`) ? t(`item.${kind}`) : kind;
@@ -11,9 +11,13 @@ export const distance = (first, second) => Math.hypot(first.x - second.x, first.
 
 export function itemDetail(item, catalog) {
   if (!item) return t('slot.empty');
+  if (catalog?.melee_weapons?.[item.kind]?.freeze_duration) return t('item.iceStaffDetail', { name: itemName(item.kind), count: item.uses, ...catalog.melee_weapons[item.kind] });
+  if (catalog?.melee_weapons?.[item.kind]?.burn_duration) return t('item.flameStaffDetail', { name: itemName(item.kind), count: item.uses, ...catalog.melee_weapons[item.kind] });
+  if (catalog?.explosive_weapons?.[item.kind]) return t(item.kind === 'coin_launcher' ? 'item.coinLauncherDetail' : 'item.grenadeDetail', { name: itemName(item.kind), ...catalog.explosive_weapons[item.kind] });
   if (item.ammo != null) return t('item.ammo', { name: itemName(item.kind), count: item.ammo });
   if (item.uses != null) return t('item.uses', { name: itemName(item.kind), count: item.uses });
   if (catalog?.healing_items?.[item.kind]) return t('item.healing', { name: itemName(item.kind), ...catalog.healing_items[item.kind] });
+  if (catalog?.revival_items?.[item.kind]) return t('item.revival', { name: itemName(item.kind), ...catalog.revival_items[item.kind] });
   if (catalog?.foods?.[item.kind]) return t('item.food', { name: itemName(item.kind), value: catalog.foods[item.kind] });
   return itemName(item.kind);
 }

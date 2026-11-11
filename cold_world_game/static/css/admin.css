@@ -1,0 +1,43 @@
+.admin-console {
+  position: absolute;
+  z-index: 8;
+  top: 86px;
+  right: 20px;
+  width: min(460px, calc(100% - 32px));
+  max-height: calc(100dvh - 240px);
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  border: 1px solid #d8b66a66;
+  border-radius: 12px;
+  pointer-events: auto;
+}
+.admin-console .panel-heading { flex-shrink: 0; }
+.admin-console .panel-description { margin: 10px 0; }
+.admin-log {
+  min-height: 48px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #0a1b23aa;
+  padding: 10px;
+  border-radius: 6px;
+  font: 12px/1.6 ui-monospace, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  touch-action: pan-y;
+}
+.admin-output { color: #c3e4cb; }
+.admin-error { color: #ffac99; }
+.admin-form { display: flex; gap: 8px; margin-top: 12px; flex-shrink: 0; }
+.admin-form input { min-width: 0; width: 100%; font-size: 16px; }
+.admin-form button { flex-shrink: 0; }
+.mobile-device .admin-console {
+  top: calc(var(--mobile-header-bottom, 112px) + 8px);
+  right: max(8px, env(safe-area-inset-right));
+  width: min(460px, calc(100% - 16px));
+  max-height: calc(var(--mobile-viewport-height, 100dvh) - var(--mobile-header-bottom, 112px) - 24px);
+  padding: 12px;
+}
+.mobile-device .admin-form input, .mobile-device .admin-form button, .mobile-device #admin-close { min-height: 44px; }
+.mobile-device .admin-log { font-size: 13px; }
+.mobile-device #admin-button { min-width: 36px; padding: 0 7px !important; }

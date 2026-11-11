@@ -3,7 +3,7 @@ import math
 import random
 from collections import deque
 
-from .constants import CHUNK_SIZE, CONTAINERS, FIRST_AID_KIT_CHANCE, FOODS, IGNITERS, MATCH_MACHINE_CHANCE, RETURN_STAFF_CHANCE, SOLID, TERRAIN_VERSION, VENDING_MACHINE_CHANCE, WORLD_RADIUS
+from .constants import CHUNK_SIZE, CONTAINERS, DEFIBRILLATOR_CHANCE, FIRST_AID_KIT_CHANCE, FLAME_STAFF_CHANCE, FOODS, GRENADE_CHANCE, GUN_MACHINE_CHANCE, ICE_STAFF_CHANCE, IGNITERS, MATCH_MACHINE_CHANCE, RETURN_STAFF_CHANCE, SOLID, TERRAIN_VERSION, VENDING_MACHINE_CHANCE, WORLD_RADIUS
 from .geometry import chunk
 from .models import Item, Structure
 
@@ -27,11 +27,22 @@ class Terrain:
         return (chunk(x), chunk(y)) in self.chunks
 
     def add_structure(self, structure):
+        if hasattr(self, "record_structure"):
+            self.record_structure(structure.id, checkpoint=True)
+            if structure.id not in self._structure_order:
+                self._structure_order[structure.id] = self._next_structure_order
+                self._next_structure_order += 1
+            self._campfires.pop(structure.id, None)
+            if structure.kind == "campfire":
+                self._campfires[structure.id] = structure
         self._terrain_revision = getattr(self, "_terrain_revision", 0) + 1
         self.structures[structure.id] = structure
         self.tiles[structure.x, structure.y] = structure.id
 
     def remove_structure(self, structure):
+        if hasattr(self, "record_structure"):
+            self.record_structure(structure.id, checkpoint=True)
+            self._campfires.pop(structure.id, None)
         self._terrain_revision = getattr(self, "_terrain_revision", 0) + 1
         self.structures.pop(structure.id, None)
         self.tiles.pop((structure.x, structure.y), None)
@@ -51,6 +62,8 @@ class Terrain:
     def generate_chunk(self, chunk_x, chunk_y):
         if (chunk_x, chunk_y) in self.chunks:
             return
+        if hasattr(self, "touch_terrain"):
+            self.touch_terrain()
         digest = hashlib.blake2b(f"{self.seed}:{chunk_x}:{chunk_y}".encode(), digest_size=16).digest()
         generator = random.Random(int.from_bytes(digest, "big"))
         center_x, center_y = chunk_x * CHUNK_SIZE, chunk_y * CHUNK_SIZE
@@ -59,6 +72,7 @@ class Terrain:
             objects, interior = self.building(generator, center_x, center_y)
             self.populate_vending_machine(objects, interior, chunk_x, chunk_y)
             self.populate_match_machine(objects, interior, chunk_x, chunk_y)
+            self.populate_machine(objects, interior, chunk_x, chunk_y, "gun_machine", "gun_machine:v1", GUN_MACHINE_CHANCE)
             for structure in objects:
                 self.add_structure(structure)
             if (chunk_x, chunk_y) == (0, 0):
@@ -134,12 +148,12 @@ class Terrain:
             if not (interior & reachable) or any(not any((position[0] + offset_x, position[1] + offset_y) in reachable for offset_x, offset_y in ((1, 0), (-1, 0), (0, 1), (0, -1))) for position in chest_positions):
                 continue
             objects = [Structure("wall", tile_x, tile_y) for tile_x, tile_y in sorted(perimeter | pillars)]
-            objects.extend(Structure("chest", tile_x, tile_y, slots=self.loot(generator, self.feature_generator(f"chest_first_aid_kit:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_return_staff:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)))) for tile_x, tile_y in chest_positions)
+            objects.extend(Structure("chest", tile_x, tile_y, slots=self.loot(generator, self.feature_generator(f"chest_first_aid_kit:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_return_staff:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_ice_staff:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_grenade:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_flame_staff:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_defibrillator:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)))) for tile_x, tile_y in chest_positions)
             return objects, sorted(interior)
         raise RuntimeError("Unable to generate a reachable building")
 
     @staticmethod
-    def loot(generator, first_aid_generator=None, return_staff_generator=None):
+    def loot(generator, first_aid_generator=None, return_staff_generator=None, ice_staff_generator=None, grenade_generator=None, flame_staff_generator=None, defibrillator_generator=None):
         items = []
         if generator.random() < 0.5:
             items.extend(Item.create("wood") for count in range(generator.randint(1, 5)))
@@ -153,6 +167,14 @@ class Terrain:
             items.append(Item.create("first_aid_kit"))
         if return_staff_generator is not None and return_staff_generator.random() < RETURN_STAFF_CHANCE:
             items.append(Item.create("return_staff"))
+        if ice_staff_generator is not None and ice_staff_generator.random() < ICE_STAFF_CHANCE:
+            items.append(Item.create("ice_staff"))
+        if grenade_generator is not None and grenade_generator.random() < GRENADE_CHANCE:
+            items.append(Item.create("grenade"))
+        if flame_staff_generator is not None and flame_staff_generator.random() < FLAME_STAFF_CHANCE:
+            items.append(Item.create("flame_staff"))
+        if defibrillator_generator is not None and defibrillator_generator.random() < DEFIBRILLATOR_CHANCE:
+            items.append(Item.create("defibrillator"))
         slots = items + [None] * (30 - len(items))
         generator.shuffle(slots)
         return slots

@@ -1,3 +1,5 @@
+import { StateSync } from './sync.js';
+
 export class GameConnection extends EventTarget {
   constructor() {
     super();
@@ -10,6 +12,7 @@ export class GameConnection extends EventTarget {
     this.manual = true;
     this.everJoined = false;
     this.retryTimer = null;
+    this.sync = new StateSync();
   }
 
   emit(type, detail) {
@@ -33,7 +36,7 @@ export class GameConnection extends EventTarget {
     let joined = false;
     const handshakeTimer = setTimeout(() => socket.close(), 12000);
     socket.addEventListener('open', () => {
-      socket.send(JSON.stringify({ type: 'join', ...this.credentials, quiet_inputs: true, client_movement: true, player_roster: true }));
+      socket.send(JSON.stringify({ type: 'join', ...this.credentials, quiet_inputs: true, client_movement: true, player_roster: true, state_deltas: true }));
     });
     socket.addEventListener('message', (event) => {
       if (socket !== this.socket) return;
@@ -45,12 +48,23 @@ export class GameConnection extends EventTarget {
         this.ready = true;
         this.everJoined = true;
         this.attempt = 0;
+        this.sync.reset(message.state, message.state_revision ?? 0);
         this.emit('welcome', message);
         this.emit('state', message.state);
         if (message.roster) this.emit('roster', message.roster);
         this.emit('status', { phase: 'connected' });
       } else if (message.type === 'state') {
+        this.sync.reset(message.state);
         this.emit('state', message.state);
+      } else if (message.type === 'delta') {
+        let state;
+        try {
+          state = this.sync.apply(message);
+        } catch {
+          socket.close(1002, 'State resync required');
+          return;
+        }
+        this.emit('state', state);
       } else if (message.type === 'roster') {
         this.emit('roster', message);
       } else if (message.type === 'ack' || message.type === 'error') {

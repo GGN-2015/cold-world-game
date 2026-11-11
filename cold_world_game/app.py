@@ -11,6 +11,7 @@ from simple_websocket import ConnectionClosed
 
 from .actions import GameError
 from .server import GameServer, send
+from .sync import state_delta
 
 
 LOGGER = logging.getLogger(__name__)
@@ -44,10 +45,10 @@ def parse_message(raw):
     return message
 
 
-def create_app(password=None, save_path=None, seed=None, start_engine=True, allowed_origins=()):
+def create_app(password=None, save_path=None, seed=None, start_engine=True, allowed_origins=(), admin=None):
     app = Flask(__name__)
     app.config.update(MAX_CONTENT_LENGTH=32768, SOCK_SERVER_OPTIONS={"ping_interval": 25, "max_message_size": 32768})
-    server = GameServer(password=password, save_path=save_path, seed=seed, start_engine=start_engine)
+    server = GameServer(password=password, save_path=save_path, seed=seed, start_engine=start_engine, admin=admin)
     app.extensions["cold_world_game"] = server
     sock = Sock(app)
 
@@ -88,9 +89,14 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
             player_id = candidate_id
             quiet_inputs = message.get("quiet_inputs") is True
             wants_roster = message.get("player_roster") is True
+            wants_deltas = message.get("state_deltas") is True
+            state_revision = 0
             processed_sequence = 0
             state["command_sequence"] = processed_sequence
             welcome = {"type": "welcome", "player_id": player_id, "protocol": 1, "state": state}
+            if wants_deltas:
+                welcome["state_revision"] = state_revision
+            previous_state = state
             if wants_roster:
                 welcome["roster"] = server.world.player_roster()
             send(websocket, welcome)
@@ -123,7 +129,12 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
                 if now >= next_state:
                     state = server.world.snapshot(player_id)
                     state["command_sequence"] = processed_sequence
-                    send(websocket, {"type": "state", "state": state})
+                    if wants_deltas:
+                        send(websocket, state_delta(previous_state, state, state_revision))
+                        state_revision += 1
+                        previous_state = state
+                    else:
+                        send(websocket, {"type": "state", "state": state})
                     now = time.monotonic()
                     next_state += (int((now - next_state) / 0.1) + 1) * 0.1
                 if wants_roster and now >= next_roster:

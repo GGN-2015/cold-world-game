@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from .constants import TICK_RATE
+from .admin import admin_id
 from .storage import Storage
 from .world import World
 
@@ -21,14 +22,15 @@ def database_path(save_path=None):
 
 
 class GameServer:
-    def __init__(self, password=None, save_path=None, seed=None, start_engine=True):
+    def __init__(self, password=None, save_path=None, seed=None, start_engine=True, admin=None):
         if password is not None and (not isinstance(password, str) or not password):
             raise ValueError("Server password must be a non-empty string")
         self.password = password if password is not None else secrets.token_urlsafe(18)
         self.password_generated = password is None
+        admin = admin_id(admin)
         storage = Storage(database_path(save_path))
         try:
-            self.world = World(storage, seed=seed)
+            self.world = World(storage, seed=seed, admin=admin)
         except BaseException:
             storage.close()
             raise

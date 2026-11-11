@@ -6,6 +6,8 @@ import { GameAudio } from './audio.js';
 import { initializeLanguage, t } from './i18n.js';
 import { isMobileDevice, MobileControls } from './mobile.js';
 import { PlayerRoster } from './roster.js';
+import { LocalCombat } from './combat.js';
+import { AdminConsole } from './admin.js';
 
 const byId = (identifier) => document.getElementById(identifier);
 const canvas = byId('world');
@@ -15,6 +17,8 @@ const keys = new Set();
 let renderer;
 let ui;
 let playerRoster;
+let localCombat;
+let adminConsole;
 let state = null;
 let selected = 0;
 let pendingSelected = false;
@@ -106,7 +110,7 @@ function updateMovement() {
   if (!renderer) return;
   const horizontal = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0) + mobileMove.x;
   const vertical = (keys.has('KeyS') ? 1 : 0) - (keys.has('KeyW') ? 1 : 0) + mobileMove.y;
-  const active = Boolean(connection.ready && state && !ui.helpOpen && !document.hidden && (!isMobileDevice || !ui.isOpen()));
+  const active = Boolean(connection.ready && state && !ui.helpOpen && !adminConsole?.expanded && !document.hidden && (!isMobileDevice || !ui.isOpen()));
   renderer.movement.active = active;
   renderer.movement.setInput(active ? horizontal : 0, active ? vertical : 0);
 }
@@ -124,11 +128,13 @@ function input(force = false) {
 
 function leave() {
   stop();
+  localCombat.reset();
   audio.reset();
   connection.disconnect();
   state = null;
   ui.reset();
   playerRoster.reset();
+  adminConsole?.update(null);
   renderer.reset();
   pendingSelected = false;
   byId('game-hud').hidden = true;
@@ -177,6 +183,7 @@ byId('login-form').addEventListener('submit', (event) => {
 connection.addEventListener('welcome', (event) => {
   joining = false;
   state = null;
+  localCombat.reset();
   renderer.reset();
   stop();
   audio.reset(event.detail.state.event_sequence || 0);
@@ -196,9 +203,11 @@ connection.addEventListener('state', (event) => {
     pendingSelected = false;
   }
   renderer.selected = selected;
-  renderer.setState(state);
+  const visualState = localCombat.reconcile(state);
+  renderer.setState(visualState);
+  adminConsole.update(state);
   ui.update(state);
-  audio.consume(state);
+  audio.consume(visualState);
 });
 
 connection.addEventListener('loginerror', (event) => {
@@ -225,6 +234,7 @@ connection.addEventListener('status', (event) => {
   playerRoster?.setConnected(connected);
   renderConnectionStatus();
   if (!connected) {
+    localCombat?.reset();
     audio.stopAll();
     stop();
     if (state) {
@@ -238,6 +248,17 @@ connection.addEventListener('status', (event) => {
   }
 });
 
+function attack(pressed, shift = false) {
+  const fresh = pressed && !attackHeld;
+  attackHeld = pressed;
+  input(true);
+  const attackId = fresh ? localCombat.begin(state, selected, aimPoint()) : null;
+  if (!attackId) { connection.send('attack', { pressed, shift }); return; }
+  connection.command('attack', { pressed, shift, attack_id: attackId }).then((result) => {
+    if (result.swing !== true) localCombat.reject(attackId);
+  }).catch(() => localCombat.reject(attackId));
+}
+
 canvas.addEventListener('pointermove', (event) => {
   if (isMobileDevice) return;
   pointerClient = { x: event.clientX, y: event.clientY };
@@ -247,36 +268,34 @@ window.addEventListener('pointermove', (event) => { if (!isMobileDevice) pointer
 canvas.addEventListener('pointerleave', () => { if (renderer && !isMobileDevice) renderer.pointer.active = false; });
 canvas.addEventListener('pointerdown', (event) => {
   if (isMobileDevice) return;
-  if (!connection.ready || !state || ui.helpOpen) return;
+  if (!connection.ready || !state || ui.helpOpen || adminConsole?.expanded) return;
   event.preventDefault();
   focus();
   renderer.pointer = { ...renderer.screenToWorld(event.clientX, event.clientY), active: true };
   pointerClient = { x: event.clientX, y: event.clientY };
-  input(true);
   if (event.button === 0 && !ui.panel) {
     const item = state.you.inventory[selected];
     const point = { x: tileAt(renderer.pointer.x), y: tileAt(renderer.pointer.y) };
     const container = state.structures.some((entity) => containers.has(entity.kind) && entity.x === point.x && entity.y === point.y);
     if (buildings.has(item?.kind) && (!container || event.shiftKey)) {
+      input(true);
       attackHeld = false;
       connection.send('attack', { pressed: false });
       ui.action('place', point);
     } else {
-      attackHeld = true;
-      connection.send('attack', { pressed: true, shift: event.shiftKey });
+      attack(true, event.shiftKey);
     }
   }
 });
 window.addEventListener('pointerup', (event) => {
   if (isMobileDevice) return;
   if (event.button === 0 && attackHeld) {
-    attackHeld = false;
-    connection.send('attack', { pressed: false });
+    attack(false);
   }
 });
 canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 const scrollSelect = (event) => {
-  if (!connection.ready || ui.helpOpen) return;
+  if (!connection.ready || ui.helpOpen || adminConsole?.expanded) return;
   event.preventDefault();
   if (Math.abs(event.deltaY) < 1) return;
   const now = performance.now();
@@ -298,6 +317,10 @@ canvas.addEventListener('drop', (event) => {
 
 window.addEventListener('keydown', (event) => {
   if (!state || !connection.ready || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (adminConsole?.expanded) {
+    if (event.code === 'Escape') { event.preventDefault(); adminConsole.toggle(false); }
+    return;
+  }
   if (event.target.closest('input,textarea,select,[contenteditable="true"]')) return;
   if (event.code === 'Escape') {
     event.preventDefault();
@@ -369,14 +392,21 @@ async function initialize() {
     const catalog = await response.json();
     if (catalog.protocol !== 1) throw new Error('protocol_mismatch');
     renderer = new WorldRenderer(canvas, assets.images, assets.animations, assets.effects, catalog);
-    ui = new GameUI(connection, catalog, { stop, select, selected: () => selected, leave, focus, closeRoster: () => playerRoster?.collapse(), dropItem: (source) => {
+    localCombat = new LocalCombat(renderer, audio, catalog);
+    ui = new GameUI(connection, catalog, { stop, select, selected: () => selected, leave, focus, adminOpen: () => adminConsole?.expanded, closeAdmin: () => adminConsole?.toggle(false), closeRoster: () => playerRoster?.collapse(), dropItem: (source) => {
       stop(); input();
       ui.transfer(source.endpoint, { kind: 'ground' }, source.item);
     } });
     playerRoster = new PlayerRoster({ stop, open: () => {
+      adminConsole?.toggle(false);
       if (ui.helpOpen) ui.toggleHelp(false);
       else ui.closePanel();
       stop();
+    } });
+    adminConsole = new AdminConsole(connection, { stop, focus, prepare: () => {
+      playerRoster.collapse();
+      if (ui.helpOpen) ui.toggleHelp(false);
+      ui.closePanel(false);
     } });
     mobileControls = new MobileControls(canvas, {
       canPlay: () => Boolean(connection.ready && state && !ui.isOpen() && !playerRoster.expanded && !document.hidden),
@@ -392,7 +422,8 @@ async function initialize() {
         mobileAim = { x: point.x - player.x, y: point.y - player.y };
         input();
       },
-      use: (pressed, shift) => { attackHeld = pressed; input(true); connection.send('attack', { pressed, shift }); },
+      use: attack,
+      useAtPoint: () => Boolean(catalog.explosive_weapons?.[state?.you.inventory[selected]?.kind] || catalog.revival_items?.[state?.you.inventory[selected]?.kind]),
       place: () => { input(true); const point = aimPoint(); ui.action('place', { x: tileAt(point.x), y: tileAt(point.y) }); },
       drop: () => { stop(); input(); ui.action('drop', { slot: selected }); },
     });
@@ -435,6 +466,7 @@ function refreshLanguage() {
   renderConnectionStatus();
   updateSoundButton();
   ui?.updateHint(renderer?.target);
+  adminConsole?.refreshLanguage();
 }
 
 window.addEventListener('cold-world-languagechange', refreshLanguage);

@@ -1,4 +1,6 @@
-const solid = new Set(['tree', 'wall', 'fence', 'chest', 'campfire', 'vending_machine', 'match_machine']);
+import { containers } from './catalog.js';
+
+const solid = new Set(['tree', 'wall', 'fence', ...containers]);
 const allowsPlayerOverlap = (monster, playerId) => playerId != null && !monster.big && monster.overlap_player === playerId;
 
 export class CollisionMap {
@@ -7,13 +9,21 @@ export class CollisionMap {
     this.chunkSize = chunk_size;
     this.tiles = new Set();
     this.bulletTiles = new Set();
+    this.hostileBulletTiles = new Set();
     this.chunks = new Set();
   }
 
   update(state) {
-    this.tiles = new Set(state.structures.filter((entity) => solid.has(entity.kind)).map((entity) => `${entity.x},${entity.y}`));
-    this.bulletTiles = new Set(state.structures.filter((entity) => ['tree', 'chest', 'vending_machine', 'match_machine'].includes(entity.kind)).map((entity) => `${entity.x},${entity.y}`));
-    this.chunks = new Set(state.chunks.map(([horizontal, vertical]) => `${horizontal},${vertical}`));
+    if (this.structures !== state.structures) {
+      this.structures = state.structures;
+      this.tiles = new Set(state.structures.filter((entity) => solid.has(entity.kind)).map((entity) => `${entity.x},${entity.y}`));
+      this.bulletTiles = new Set(state.structures.filter((entity) => entity.kind === 'tree').map((entity) => `${entity.x},${entity.y}`));
+      this.hostileBulletTiles = new Set(state.structures.filter((entity) => entity.kind === 'tree' || containers.has(entity.kind)).map((entity) => `${entity.x},${entity.y}`));
+    }
+    if (this.sourceChunks !== state.chunks) {
+      this.sourceChunks = state.chunks;
+      this.chunks = new Set(state.chunks.map(([horizontal, vertical]) => `${horizontal},${vertical}`));
+    }
   }
 
   canStand(horizontal, vertical, bodies = []) {
@@ -52,9 +62,10 @@ export class CollisionMap {
 
   trace(point, horizontal, vertical) {
     let fraction = 1;
+    const blockers = point.hostile ? this.hostileBulletTiles : this.bulletTiles;
     for (let tileX = Math.floor(Math.min(point.x, point.x + horizontal)) - 1; tileX <= Math.ceil(Math.max(point.x, point.x + horizontal)); tileX++) {
       for (let tileY = Math.floor(Math.min(point.y, point.y + vertical)) - 1; tileY <= Math.ceil(Math.max(point.y, point.y + vertical)); tileY++) {
-        if (!this.bulletTiles.has(`${tileX},${tileY}`)) continue;
+        if (!blockers.has(`${tileX},${tileY}`)) continue;
         let lower = 0, upper = fraction;
         for (const [start, delta, center] of [[point.x, horizontal, tileX], [point.y, vertical, tileY]]) {
           if (Math.abs(delta) < 1e-12) {
@@ -104,7 +115,7 @@ export class ClientMovement {
     if (reset || epoch !== this.epoch) {
       const prior = this.sample();
       this.position = { x: state.you.x, y: state.you.y };
-      this.offset = !reset && prior && Math.hypot(prior.x - state.you.x, prior.y - state.you.y) <= 2
+      this.offset = !reset && prior
         ? { x: prior.x - state.you.x, y: prior.y - state.you.y } : { x: 0, y: 0 };
       this.velocity = { x: 0, y: 0 };
     }
@@ -125,7 +136,11 @@ export class ClientMovement {
         for (let vertical = -3; vertical <= 3; vertical++) candidates.push({ x: Math.floor(this.position.x + 0.5) + horizontal, y: Math.floor(this.position.y + 0.5) + vertical });
       }
       const destination = candidates.filter((point) => this.collision.canStand(point.x, point.y)).sort((first, second) => Math.hypot(first.x - this.position.x, first.y - this.position.y) - Math.hypot(second.x - this.position.x, second.y - this.position.y))[0];
-      if (destination) { this.position = destination; this.offset = { x: 0, y: 0 }; }
+      if (destination) {
+        const prior = this.sample();
+        this.position = destination;
+        this.offset = reset ? { x: 0, y: 0 } : { x: prior.x - destination.x, y: prior.y - destination.y };
+      }
     }
   }
 
@@ -151,8 +166,9 @@ export class ClientMovement {
     }
     this.velocity = delta > 0 ? { x: (this.position.x - previous.x) / delta, y: (this.position.y - previous.y) / delta } : { x: 0, y: 0 };
     const decay = Math.exp(-delta / 0.08);
-    this.offset.x *= decay;
-    this.offset.y *= decay;
+    const correction = Math.min(1 - decay, this.speed * 1.5 * delta / (Math.hypot(this.offset.x, this.offset.y) || 1));
+    this.offset.x *= 1 - correction;
+    this.offset.y *= 1 - correction;
   }
 
   sample() {

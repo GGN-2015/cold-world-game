@@ -55,7 +55,7 @@ export class WorldRenderer {
     this.effects = new CombatEffects(effects);
     this.collision = new CollisionMap(catalog);
     this.movement = new ClientMovement(this.collision, catalog.movement?.player_speed ?? 4);
-    this.motion = new SnapshotMotion(this.collision);
+    this.motion = new SnapshotMotion(this.collision, catalog.movement);
     this.state = null;
     this.demo = demoWorld();
     this.camera = { x: -3, y: 1 };
@@ -85,6 +85,11 @@ export class WorldRenderer {
 
   setState(state) {
     const first = !this.state;
+    if (this.structureSource !== state.structures) {
+      this.structureSource = state.structures;
+      this.floors = state.structures.filter((entity) => entity.kind === 'floor');
+      this.staticEntities = state.structures.filter((entity) => entity.kind !== 'floor').map((entity) => ({ ...entity, category: 'structure' })).sort((first, second) => first.y - second.y);
+    }
     this.state = state;
     this.collision.update(state);
     this.movement.observe(state);
@@ -107,6 +112,9 @@ export class WorldRenderer {
 
   reset() {
     this.state = null;
+    this.structureSource = null;
+    this.floors = null;
+    this.staticEntities = null;
     this.positions.clear();
     this.animator.reset();
     this.effects.reset();
@@ -151,6 +159,10 @@ export class WorldRenderer {
   findTarget() {
     if (!this.state || !this.pointer.active) return null;
     const point = this.pointer;
+    if (this.catalog.revival_items?.[this.state.you.inventory[this.selected]?.kind]) {
+      const player = this.state.players.find((entity) => entity.id !== this.state.you.id && entity.temperature < 5 && distance(this.positions.get(entity.id) || entity, point) <= 0.75);
+      if (player) return { ...player, category: 'player' };
+    }
     const monster = this.state.monsters.find((entity) => distance(this.positions.get(entity.id) || entity, point) < (entity.big ? 0.65 : 0.5));
     if (monster) return { ...monster, category: 'monster' };
     const structure = this.state.structures.find((entity) => entity.x === tileAt(point.x) && entity.y === tileAt(point.y));
@@ -179,6 +191,7 @@ export class WorldRenderer {
     const state = this.state || this.demo;
     this.motion.advance(delta);
     const monsters = state.monsters.map((entity) => this.smooth(entity));
+    const worldTime = state.elapsed + (state.paused ? 0 : Math.max(0, Math.min(0.3, performance.now() / 1000 - this.motion.arrival)));
     this.movement.advance(delta, monsters);
     const players = state.players.map((entity) => this.smooth(entity));
     if (this.state) this.animator.observe({ elapsed: this.motion.time ?? state.elapsed, paused: state.paused, players, monsters });
@@ -199,12 +212,12 @@ export class WorldRenderer {
     const minimumY = Math.floor(this.camera.y - halfHeight - 1);
     this.drawSnow(minimumX, minimumY, halfWidth, halfHeight);
     const visible = (entity) => Math.abs(entity.x - this.camera.x) < halfWidth + 2 && Math.abs(entity.y - this.camera.y) < halfHeight + 3;
-    for (const entity of state.structures) if (entity.kind === 'floor' && visible(entity)) this.sprite('floor', entity.x, entity.y, 1.03);
+    for (const entity of this.floors || state.structures.filter((entity) => entity.kind === 'floor')) if (visible(entity)) this.sprite('floor', entity.x, entity.y, 1.03);
     for (const entity of state.ground) if (visible(entity)) {
       this.sprite(entity.item.kind, entity.x, entity.y + Math.sin(this.elapsed * 3 + entity.x) * 0.045, 0.57);
     }
     const entities = [
-      ...state.structures.filter((entity) => entity.kind !== 'floor').map((entity) => ({ ...entity, category: 'structure' })),
+      ...(this.staticEntities || state.structures.filter((entity) => entity.kind !== 'floor').map((entity) => ({ ...entity, category: 'structure' }))).filter(visible),
       ...players.map((entity) => ({ ...entity, category: 'player' })),
       ...monsters.map((entity) => ({ ...entity, category: 'monster' })),
     ].filter(visible).sort((first, second) => first.y - second.y);
@@ -224,8 +237,19 @@ export class WorldRenderer {
           if (!owned) this.bar(entity.x, entity.y - 0.94, entity.temperature / 36, '#8fcede', 0.7);
         }
       } else {
-        this.actorSprite(entity.big ? 'monster_big' : entity.fast ? 'monster_fast' : 'monster_small', entity, entity.big ? 1.6 : 1.1, entity.big ? 1.9 : 1.25, entity.big ? 0.3 : 0.13);
-        this.bar(entity.x, entity.y - (entity.big ? 1.2 : 0.8), entity.hp / (entity.big ? 50 : 10), '#dc8372', entity.big ? 1 : 0.65);
+        if (entity.sleeping) {
+          const pose = this.effects.pose(entity.id);
+          this.sprite(entity.big ? 'monster_big_sleep' : 'monster_fast_sleep', entity.x + pose.x, entity.y + pose.y, entity.big ? 1.6 : 1.1, entity.big ? 1.9 : 1.25, entity.big ? 0.3 : 0.13);
+        } else if (entity.big && entity.rising != null) {
+          const duration = this.catalog.monster_activity?.rise_seconds ?? 1;
+          const elapsed = state.paused ? 0 : Math.max(0, Math.min(0.3, performance.now() / 1000 - this.motion.arrival));
+          this.effects.frame(this, 'monster_big_rise', entity.x, entity.y - 0.3, 1.6, Math.min(1, entity.rising + elapsed / duration), 0, 1.9);
+        } else {
+          const kind = entity.big ? 'monster_big' : entity.fast ? 'monster_fast' : 'monster_small';
+          this.actorSprite(worldTime < (entity.frozen_until ?? 0) ? `${kind}_frozen` : kind, entity, entity.big ? 1.6 : 1.1, entity.big ? 1.9 : 1.25, entity.big ? 0.3 : 0.13);
+        }
+        if (worldTime < (entity.burning_until ?? 0)) this.effects.frame(this, 'fx_burning', entity.x, entity.y - 0.35, entity.big ? 1.3 : 0.9, worldTime * 2 % 1);
+        this.bar(entity.x, entity.y - (entity.sleeping ? 0.3 : entity.big ? 1.2 : 0.8), entity.hp / (entity.big ? 50 : 10), '#dc8372', entity.big ? 1 : 0.65);
       }
     }
     const hour = state.environment.hour;
@@ -243,13 +267,21 @@ export class WorldRenderer {
       context.fillRect(point.x - radius, point.y - radius, radius * 2, radius * 2);
       this.sprite('spark', fire.x + Math.sin(this.elapsed * 2) * 0.12, fire.y - (this.elapsed * 0.8 % 1) - 0.4, 0.3);
     }
-    this.drawProjectiles(state.projectiles.map((projectile) => ({ ...projectile, ...this.motion.sample(projectile) })));
+    this.drawProjectiles(state.projectiles.filter((projectile) => !this.catalog.explosive_weapons?.[projectile.kind]).map((projectile) => ({ ...projectile, ...this.motion.sample(projectile) })));
+    for (const projectile of state.projectiles) {
+      if (!this.catalog.explosive_weapons?.[projectile.kind]) continue;
+      const phase = Math.max(0, Math.min(1, (worldTime - projectile.spawned_at) / (projectile.detonates_at - projectile.spawned_at)));
+      const horizontal = projectile.origin_x + (projectile.target_x - projectile.origin_x) * phase;
+      const vertical = projectile.origin_y + (projectile.target_y - projectile.origin_y) * phase - 4 * phase * (1 - phase);
+      this.sprite('grenade', horizontal, vertical, 0.5);
+    }
     this.effects.draw(this);
     if (this.state && this.pointer.active && !this.panelOpen) this.drawPointer();
     if (this.state?.interaction.progress > 0) {
       const target = state.structures.find((structure) => `structure:${structure.id}` === state.interaction.target);
       const returning = state.interaction.target?.startsWith('return:');
-      const duration = returning ? this.catalog.return_items?.return_staff.duration ?? 1.5 : ['wall', 'chest', 'vending_machine', 'match_machine'].includes(target?.kind) ? 1.5 : 0.5;
+      const reviving = state.interaction.target?.startsWith('revive:');
+      const duration = returning ? this.catalog.return_items?.return_staff.duration ?? 1.5 : reviving ? this.catalog.revival_items?.defibrillator.duration ?? 1.5 : target?.kind === 'wall' || containers.has(target?.kind) ? 1.5 : 0.5;
       if (returning) this.effects.frame(this, 'fx_teleport', local.x, local.y - 0.4, 2.6, (this.elapsed * 0.7) % 1);
       this.bar(local.x, local.y + 0.7, Math.min(1, state.interaction.progress / duration), returning ? '#ac9afa' : '#efbb78', 0.9);
     }

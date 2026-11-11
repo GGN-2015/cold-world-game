@@ -14,6 +14,7 @@ def parser():
     arguments.add_argument("--host", default="127.0.0.1", help="Bind address (use 0.0.0.0 for LAN access)")
     arguments.add_argument("--port", type=int, default=5000, help="HTTP/WebSocket port (default: 5000)")
     arguments.add_argument("--password", help="Shared server password; generated randomly when omitted")
+    arguments.add_argument("--admin", help="Exact player ID allowed to use the administrator console; disabled when omitted")
     arguments.add_argument("--save-path", help="Save directory or .sqlite3/.sqlite/.db file; default: ~/.cold-world-game")
     arguments.add_argument("--seed", type=int, help="World seed for a new save only")
     arguments.add_argument("--allowed-origin", action="append", default=[], help="Additional browser Origin allowed to connect; repeatable")
@@ -30,7 +31,7 @@ def main(argv=None):
         arguments.error("--password must not be empty")
     logging.basicConfig(level=options.log_level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     try:
-        app = create_app(password=options.password, save_path=options.save_path, seed=options.seed, allowed_origins=options.allowed_origin)
+        app = create_app(password=options.password, save_path=options.save_path, seed=options.seed, allowed_origins=options.allowed_origin, admin=options.admin)
     except Timeout:
         arguments.exit(1, "This save is already open in another server process.\n")
     except (OSError, ValueError) as error:
@@ -57,6 +58,8 @@ def main(argv=None):
         print(f"Save: {runtime.world.storage.path}", flush=True)
         label = "Random server password" if runtime.password_generated else "Server password"
         print(f"{label}: {runtime.password}", flush=True)
+        if runtime.world.admin is not None:
+            print(f"Administrator player ID: {runtime.world.admin}", flush=True)
         print("Press Ctrl+C to save and stop.", flush=True)
         http_thread.start()
         serving = True

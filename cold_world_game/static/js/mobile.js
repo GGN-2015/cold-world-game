@@ -19,7 +19,21 @@ export class MobileControls {
       const button = document.getElementById(identifier);
       button.onclick = () => { if (controls.canPlay()) action(); };
     }
-    this.bindPointer(canvas, (event) => controls.aimPoint(event.clientX, event.clientY), () => {});
+    let canvasPressed = false;
+    this.bindPointer(canvas, (event) => {
+      controls.aimPoint(event.clientX, event.clientY);
+      if (!canvasPressed && !this.holdOwner && controls.useAtPoint?.()) {
+        this.holdOwner = canvas;
+        canvasPressed = true;
+        controls.use(true, false);
+      }
+    }, () => {
+      if (canvasPressed) {
+        this.holdOwner = null;
+        canvasPressed = false;
+        controls.use(false, false);
+      }
+    });
     this.root.addEventListener('contextmenu', (event) => event.preventDefault());
     const resize = () => this.resize();
     window.addEventListener('resize', resize);

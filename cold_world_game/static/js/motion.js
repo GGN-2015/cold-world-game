@@ -24,6 +24,7 @@ class ProjectileMotion {
     const age = state.paused ? 0 : Math.max(0, Math.min(0.3, now - Math.min(...this.offsets) - state.elapsed));
     const active = new Set();
     for (const entity of state.projectiles || []) {
+      if (entity.kind && entity.kind !== 'bullet') continue;
       active.add(entity.id);
       let track = this.tracks.get(entity.id);
       const interval = state.elapsed - (track?.serverTime ?? state.elapsed);
@@ -46,6 +47,7 @@ class ProjectileMotion {
         track.correction = { x: projected.x - track.x, y: projected.y - track.y };
       }
       track.velocity = velocity;
+      track.hostile = Boolean(entity.hostile);
       track.renderVelocity = state.paused || entity.downed ? { x: 0, y: 0 } : velocity;
       track.serverX = entity.x;
       track.serverY = entity.y;
@@ -103,8 +105,9 @@ class ProjectileMotion {
 const clamp = (value, lower, upper) => Math.max(lower, Math.min(upper, value));
 
 export class SnapshotMotion {
-  constructor(collision = null) {
+  constructor(collision = null, movement = {}) {
     this.collision = collision;
+    this.speeds = { player_speed: 4, monster_speed: 1.2, fast_monster_speed: 4.8, frozen_speed_scale: 0.5, ...movement };
     this.projectiles = new ProjectileMotion(collision);
     this.reset();
   }
@@ -137,9 +140,10 @@ export class SnapshotMotion {
     const interval = previous ? last.time - previous.time : 0;
     const velocityX = interval > 0 ? (last.x - previous.x) / interval : last.velocity_x;
     const velocityY = interval > 0 ? (last.y - previous.y) / interval : last.velocity_y;
+    const fraction = Math.min(1, track.speed / (Math.hypot(velocityX, velocityY) || 1));
     const age = time - last.time;
     const extension = Math.min(age, 0.3) + (age > 0.3 ? 0.12 * (1 - Math.exp(-(age - 0.3) / 0.12)) : 0);
-    return { x: last.x + velocityX * extension, y: last.y + velocityY * extension };
+    return { x: last.x + velocityX * extension * fraction, y: last.y + velocityY * extension * fraction };
   }
 
   observe(state, now = performance.now() / 1000) {
@@ -162,8 +166,10 @@ export class SnapshotMotion {
       active.add(entity.id);
       let track = this.tracks.get(entity.id);
       const frame = { time: state.elapsed, x: entity.x, y: entity.y, velocity_x: entity.velocity_x ?? 0, velocity_y: entity.velocity_y ?? 0 };
-      if (!track || state.paused || Boolean(entity.downed) !== track.downed || (entity.teleport_epoch ?? 0) !== track.teleportEpoch || Math.hypot(entity.x - track.frames.at(-1).x, entity.y - track.frames.at(-1).y) > 5) {
-        track = { x: entity.x, y: entity.y, frames: [frame], downed: Boolean(entity.downed), teleportEpoch: entity.teleport_epoch ?? 0, correction: { x: 0, y: 0 }, renderVelocity: { x: 0, y: 0 } };
+      const immobilized = Boolean(entity.downed || entity.sleeping || entity.rising != null);
+      const legacyJump = track && entity.teleport_epoch == null && entity.big == null && Math.hypot(entity.x - track.frames.at(-1).x, entity.y - track.frames.at(-1).y) > 5;
+      if (!track || state.paused || entity.sleeping || entity.rising != null || immobilized !== track.downed || (entity.teleport_epoch ?? 0) !== track.teleportEpoch || legacyJump) {
+        track = { x: entity.x, y: entity.y, frames: [frame], downed: immobilized, teleportEpoch: entity.teleport_epoch ?? 0, correction: { x: 0, y: 0 }, renderVelocity: { x: 0, y: 0 } };
         this.tracks.set(entity.id, track);
       } else {
         const previous = this.pointAt(track, this.time);
@@ -174,6 +180,9 @@ export class SnapshotMotion {
         track.correction.x += previous.x - next.x;
         track.correction.y += previous.y - next.y;
       }
+      track.baseSpeed = entity.fast ? this.speeds.fast_monster_speed : entity.big != null ? this.speeds.monster_speed : this.speeds.player_speed;
+      track.frozenUntil = entity.frozen_until ?? 0;
+      track.speed = track.baseSpeed * (state.elapsed < track.frozenUntil ? this.speeds.frozen_speed_scale : 1);
     }
     for (const identifier of this.tracks.keys()) if (!active.has(identifier)) this.tracks.delete(identifier);
     this.projectiles.observe(state, now);
@@ -195,11 +204,15 @@ export class SnapshotMotion {
     for (const track of this.tracks.values()) {
       if (track.downed) continue;
       if (now - this.arrival >= 0.5) { track.renderVelocity = { x: 0, y: 0 }; continue; }
+      track.speed = track.baseSpeed * (this.time < track.frozenUntil ? this.speeds.frozen_speed_scale : 1);
       const desired = this.pointAt(track, this.time);
       track.correction.x *= decay;
       track.correction.y *= decay;
-      const horizontal = desired.x + track.correction.x - track.x;
-      const vertical = desired.y + track.correction.y - track.y;
+      const correctionX = desired.x + track.correction.x - track.x;
+      const correctionY = desired.y + track.correction.y - track.y;
+      const fraction = Math.min(1, track.speed * 2.5 * delta / (Math.hypot(correctionX, correctionY) || 1));
+      const horizontal = correctionX * fraction;
+      const vertical = correctionY * fraction;
       const point = this.collision ? this.collision.move(track, horizontal, vertical) : { x: track.x + horizontal, y: track.y + vertical };
       track.renderVelocity = { x: (point.x - track.x) / delta, y: (point.y - track.y) / delta };
       track.x = point.x;

@@ -1,4 +1,11 @@
-const lifetimes = { shot: 0.15, melee: 0.28, chop: 0.28, break: 0.5, hit: 0.3, hurt: 0.3, death: 0.65, heal: 0.9, teleport_out: 1, teleport_in: 1 };
+const lifetimes = { shot: 0.15, melee: 0.28, chop: 0.28, break: 0.5, hit: 0.3, hurt: 0.3, death: 0.65, heal: 0.9, teleport_out: 1, teleport_in: 1, explosion: 0.65 };
+const neutralPose = Object.freeze({ x: 0, y: 0, reacting: false, direction: null });
+const sweepEffects = { axe: 'fx_axe_sweep', ice_staff: 'fx_ice_sweep', flame_staff: 'fx_flame_sweep' };
+
+function poseFor(poses, identifier) {
+  if (!poses.has(identifier)) poses.set(identifier, { ...neutralPose });
+  return poses.get(identifier);
+}
 
 function heading(event) {
   const horizontal = event.direction?.[0] ?? (event.target_x ?? event.x + 1) - event.x;
@@ -16,48 +23,73 @@ export class CombatEffects {
   reset(sequence = null) {
     this.sequence = sequence;
     this.active = [];
+    this.poses = null;
   }
 
-  clear() { this.active = []; }
+  clear() { this.active = []; this.poses = null; }
+
+  append(event) {
+    const duration = event.type === 'melee' && sweepEffects[event.kind] ? this.definitions[sweepEffects[event.kind]]?.duration || lifetimes.melee : event.type.startsWith('teleport_') ? this.definitions.fx_teleport?.duration || lifetimes[event.type] : event.type === 'heal' ? this.definitions.fx_heal?.duration || lifetimes.heal : event.type === 'death' ? this.definitions[event.kind === 'monster_big' ? 'monster_big_death' : event.kind === 'monster_fast' ? 'monster_fast_death' : 'monster_small_death']?.duration || lifetimes.death : lifetimes[event.type];
+    const direction = heading(event);
+    this.active.push({ event, age: 0, duration, direction, directionIndex: (Math.round(direction.angle / (Math.PI / 4)) + 8) % 8 });
+    this.poses = null;
+  }
+
+  predict(event) { this.append(event); }
+
+  cancelPrediction(identifier) {
+    this.active = this.active.filter((effect) => !effect.event.predicted || effect.event.attack_id !== identifier);
+    this.poses = null;
+  }
 
   observe(state) {
+    this.poses = null;
     const previous = this.sequence;
     this.sequence = Math.max(previous ?? 0, state.event_sequence || 0);
     if (previous == null || state.paused || globalThis.document?.hidden) { this.clear(); return; }
     for (const event of state.events || []) {
       if (event.id <= previous || !lifetimes[event.type] || state.elapsed - event.time > 0.6) continue;
       if (event.type === 'death') this.active = this.active.filter((effect) => effect.event.actor !== event.actor || !['shot', 'melee', 'chop'].includes(effect.event.type));
-      const duration = event.type.startsWith('teleport_') ? this.definitions.fx_teleport?.duration || lifetimes[event.type] : event.type === 'heal' ? this.definitions.fx_heal?.duration || lifetimes.heal : event.type === 'death' ? this.definitions[event.kind === 'monster_big' ? 'monster_big_death' : event.kind === 'monster_fast' ? 'monster_fast_death' : 'monster_small_death']?.duration || lifetimes.death : lifetimes[event.type];
-      this.active.push({ event, age: 0, duration });
+      this.append(event);
     }
-    if (this.active.length > 96) this.active.splice(0, this.active.length - 96);
+    if (this.active.length > 96) {
+      let excess = this.active.length - 96;
+      this.active = this.active.filter((effect) => {
+        if (excess > 0 && effect.event.type === 'hit') { excess--; return false; }
+        return true;
+      });
+      if (excess > 0) this.active.splice(0, excess);
+    }
   }
 
   advance(seconds) {
+    this.poses = null;
     for (const effect of this.active) effect.age += seconds;
     this.active = this.active.filter((effect) => effect.age < effect.duration);
   }
 
   pose(identifier) {
-    const pose = { x: 0, y: 0, reacting: false, direction: null };
-    for (const effect of this.active) {
-      const { event, age, duration } = effect;
-      const phase = age / duration;
-      if (['hit', 'hurt'].includes(event.type) && (event.target || event.actor) === identifier) {
-        pose.x += Math.sin(phase * Math.PI * 6) * 0.055 * (1 - phase);
-        pose.reacting = true;
-      } else if (event.type === 'chop' && event.target === identifier) {
-        pose.x += Math.sin(phase * Math.PI * 5) * 0.045 * (1 - phase);
+    if (!this.poses) {
+      this.poses = new Map();
+      for (const { event, age, duration, direction } of this.active) {
+        const phase = age / duration;
+        if (event.type === 'hit' || event.type === 'hurt') {
+          const pose = poseFor(this.poses, event.target || event.actor);
+          pose.x += Math.sin(phase * Math.PI * 6) * 0.055 * (1 - phase);
+          pose.reacting = true;
+        } else if (event.type === 'chop') {
+          poseFor(this.poses, event.target).x += Math.sin(phase * Math.PI * 5) * 0.045 * (1 - phase);
+        }
+        if (!['shot', 'melee', 'chop'].includes(event.type)) continue;
+        const pose = poseFor(this.poses, event.actor);
+        const displacement = Math.sin(phase * Math.PI) * (event.type === 'shot' ? -0.06 : 0.16);
+        pose.x += direction.x * displacement;
+        pose.y += direction.y * displacement;
+        pose.direction = Math.abs(direction.x) > Math.abs(direction.y) ? (direction.x < 0 ? 'left' : 'right') : (direction.y < 0 ? 'up' : 'down');
+        pose.reacting = event.type !== 'shot' || pose.reacting;
       }
-      if (event.actor !== identifier || !['shot', 'melee', 'chop'].includes(event.type)) continue;
-      const direction = heading(event);
-      const displacement = Math.sin(phase * Math.PI) * (event.type === 'shot' ? -0.06 : 0.16);
-      pose.x += direction.x * displacement;
-      pose.y += direction.y * displacement;
-      pose.direction = Math.abs(direction.x) > Math.abs(direction.y) ? (direction.x < 0 ? 'left' : 'right') : (direction.y < 0 ? 'up' : 'down');
-      pose.reacting = event.type !== 'shot' || pose.reacting;
     }
-    return pose;
+    return this.poses.get(identifier) || neutralPose;
   }
 
   frame(renderer, name, horizontal, vertical, size, phase, angle = 0, height = size, flipped = false) {
@@ -70,6 +102,10 @@ export class CombatEffects {
     const column = Math.min(frames - 1, Math.floor(Math.max(0, phase) * frames));
     const point = renderer.screenPoint(horizontal, vertical);
     const context = renderer.context;
+    if (!angle && !flipped) {
+      context.drawImage(image, column * width, 0, width, frameHeight, point.x - size * renderer.scale / 2, point.y - height * renderer.scale / 2, size * renderer.scale, height * renderer.scale);
+      return;
+    }
     context.save();
     context.translate(point.x, point.y);
     context.rotate(angle);
@@ -80,19 +116,21 @@ export class CombatEffects {
 
   draw(renderer) {
     let injury = 0;
-    for (const { event, age, duration } of this.active) {
+    for (const effect of this.active) {
+      const { event, age, duration, direction } = effect;
       const phase = age / duration;
-      const direction = heading(event);
       const actor = renderer.positions.get(event.actor) || event;
       if (event.type === 'shot') {
         this.frame(renderer, 'fx_muzzle', actor.x, actor.y, 0.85, phase, direction.angle);
       } else if (event.type === 'melee' || event.type === 'chop') {
         const monster = event.kind.startsWith('monster');
-        this.frame(renderer, monster ? 'fx_claw' : 'fx_slash', actor.x, actor.y - 0.28, monster ? 1.8 : 2.1, phase, direction.angle);
-        if (!monster) {
-          const axe = renderer.images.get('axe');
+        const sweeping = event.type === 'melee' && Boolean(sweepEffects[event.kind]);
+        const baked = sweeping && this.directionalAxe(renderer, effect, phase);
+        if (!baked) this.frame(renderer, sweeping ? sweepEffects[event.kind] : monster ? 'fx_claw' : 'fx_slash', sweeping ? event.x : actor.x, sweeping ? event.y : actor.y - 0.28, sweeping ? (event.range ?? renderer.catalog?.axe?.range ?? 3) * 32 / 15 : monster ? 1.8 : 2.1, phase, direction.angle);
+        if (!monster && !baked) {
+          const axe = renderer.images.get(sweepEffects[event.kind] ? event.kind : 'axe');
           if (axe) {
-            const swing = direction.angle - 1 + phase * 2;
+            const swing = direction.angle - (sweeping ? Math.PI / 2 : 1) + phase * (sweeping ? Math.PI : 2);
             const point = renderer.screenPoint(actor.x + Math.cos(swing) * 0.55, actor.y - 0.28 + Math.sin(swing) * 0.55);
             const context = renderer.context;
             context.save();
@@ -111,6 +149,8 @@ export class CombatEffects {
         if (event.type === 'hurt' && event.actor === renderer.state?.you.id) injury = Math.max(injury, 1 - phase);
       } else if (event.type === 'heal') {
         this.frame(renderer, 'fx_heal', actor.x, actor.y - 0.45, 2.4, phase);
+      } else if (event.type === 'explosion') {
+        this.frame(renderer, 'fx_explosion', event.x, event.y, (event.radius ?? 3) * 2, phase);
       } else if (event.type.startsWith('teleport_')) {
         this.frame(renderer, 'fx_teleport', event.x, event.y - 0.4, 3, event.type === 'teleport_out' ? 1 - phase : phase);
       } else if (event.type === 'death') {
@@ -119,7 +159,7 @@ export class CombatEffects {
         const horizontal = event.x + (event.knockback?.[0] || 0) * travel;
         const vertical = event.y + (event.knockback?.[1] || 0) * travel;
         this.frame(renderer, big ? 'monster_big_death' : event.kind === 'monster_fast' ? 'monster_fast_death' : 'monster_small_death', horizontal, vertical - (big ? 0.3 : 0.13), big ? 1.6 : 1.1, phase, 0, big ? 1.9 : 1.25, direction.x < 0);
-        this.frame(renderer, 'fx_debris', horizontal, vertical, big ? 1.4 : 1, phase);
+        if (this.active.length <= 32) this.frame(renderer, 'fx_debris', horizontal, vertical, big ? 1.4 : 1, phase);
       }
     }
     if (injury > 0) {
@@ -130,5 +170,18 @@ export class CombatEffects {
       context.strokeRect(0, 0, renderer.width, renderer.height);
       context.restore();
     }
+  }
+
+  directionalAxe(renderer, effect, phase) {
+    const definition = this.definitions[sweepEffects[effect.event.kind]];
+    const image = renderer.images.get(definition?.directions?.[effect.directionIndex]);
+    if (!image) return false;
+    const width = definition.direction_frame_width;
+    const height = definition.direction_frame_height;
+    const column = Math.min(definition.frames - 1, Math.floor(Math.max(0, phase) * definition.frames));
+    const point = renderer.screenPoint(effect.event.x, effect.event.y);
+    const size = (effect.event.range ?? renderer.catalog?.axe?.range ?? 3) / definition.radius_ratio * renderer.scale;
+    renderer.context.drawImage(image, column * width, 0, width, height, point.x - size / 2, point.y - size / 2, size, size);
+    return true;
   }
 }

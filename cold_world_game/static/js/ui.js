@@ -82,7 +82,7 @@ export class GameUI {
     });
   }
 
-  isOpen() { return Boolean(this.panel || this.helpOpen); }
+  isOpen() { return Boolean(this.panel || this.helpOpen || this.controls.adminOpen?.()); }
 
   toast(text, success = false) {
     const node = element('div', `toast${success ? ' success' : ''}`);
@@ -113,6 +113,7 @@ export class GameUI {
 
   togglePanel(kind) {
     if (!this.connection.ready) return;
+    this.controls.closeAdmin?.();
     this.controls.closeRoster?.();
     if (this.panel === kind) return this.closePanel();
     this.controls.stop();
@@ -141,6 +142,7 @@ export class GameUI {
 
   toggleHelp(open = !this.helpOpen) {
     if (!this.state) return;
+    if (open) this.controls.closeAdmin?.();
     if (open) this.controls.closeRoster?.();
     this.closePanel(false);
     this.helpOpen = open;
@@ -219,17 +221,29 @@ export class GameUI {
     const hint = byId('context-hint');
     if (!this.state || this.isOpen()) { hint.hidden = true; return; }
     const equipped = this.state.you.inventory[this.controls.selected()];
+    const melee = this.catalog.melee_weapons?.[equipped?.kind] || (equipped?.kind === 'axe' ? this.catalog.axe : null);
     let text = '';
-    if (this.catalog.return_items?.[equipped?.kind] && !(target?.category === 'structure' && containers.has(target.kind) && distance(this.state.you, target) <= 2)) {
+    if (this.catalog.revival_items?.[equipped?.kind]) {
+      text = t(target?.category === 'player' ? 'hint.reviveTarget' : 'hint.defibrillator', { name: target?.id || '', ...this.catalog.revival_items[equipped.kind] });
+    } else if (this.catalog.explosive_weapons?.[equipped?.kind]) {
+      text = t(equipped.kind === 'coin_launcher' ? 'hint.coinLauncher' : 'hint.grenade', { ...this.catalog.explosive_weapons[equipped.kind], money: this.state.you.money ?? 0 });
+    } else if (this.catalog.return_items?.[equipped?.kind] && !(target?.category === 'structure' && containers.has(target.kind) && distance(this.state.you, target) <= 2)) {
       text = t('hint.returnStaff', { duration: this.catalog.return_items[equipped.kind].duration, uses: equipped.uses });
     } else if (target?.category === 'structure') {
       const near = distance(this.state.you, target) <= (containers.has(target.kind) ? 2 : 3);
-      if (containers.has(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${equipped?.kind === 'axe' && distance(this.state.you, target) <= 3 ? t(target.kind === 'chest' ? 'hint.chestDismantle' : machines.has(target.kind) ? 'hint.vendingDismantle' : 'hint.dismantle') : ''}`;
+      if (containers.has(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${equipped?.kind === 'axe' && distance(this.state.you, target) <= 3 ? t(target.kind === 'chest' ? 'hint.chestDismantle' : machines.has(target.kind) ? 'hint.vendingDismantle' : 'hint.fireDismantle') : ''}`;
       else if (equipped?.kind === 'axe') text = `${itemName(target.kind)} · ${t(target.monster_demolition ? 'hint.busy' : near ? 'hint.gather' : 'hint.nearer')}`;
     } else if (target) {
-      text = `${t(target.big ? 'hint.bigMonster' : 'hint.smallMonster')} · ${target.hp} HP`;
-      if (equipped?.kind === 'axe') text += distance(this.state.you, target) <= this.catalog.axe.range ? t('hint.attack') : t('hint.axeRange', { range: this.catalog.axe.range });
-    }
+      text = `${t(target.big ? 'hint.bigMonster' : target.fast ? 'hint.fastMonster' : 'hint.smallMonster')} · ${target.hp} HP`;
+      if (target.sleeping) text += t('hint.sleeping');
+      else if (target.rising != null) text += t('hint.rising');
+      else if (this.state.elapsed < (target.frozen_until ?? 0)) text += t('hint.frozen');
+      if (this.state.elapsed < (target.burning_until ?? 0)) text += t('hint.burning');
+      if (melee) {
+        const attackHint = equipped.kind === 'flame_staff' ? 'hint.flameAttack' : equipped.kind === 'ice_staff' ? target.sleeping || target.rising != null ? 'hint.iceRestAttack' : 'hint.iceAttack' : 'hint.attack';
+        text += distance(this.state.you, target) <= melee.range ? t(attackHint) : t(equipped.kind === 'flame_staff' ? 'hint.flameRange' : equipped.kind === 'ice_staff' ? 'hint.iceRange' : 'hint.axeRange', { range: melee.range });
+      }
+    } else if (melee) text = t(equipped.kind === 'flame_staff' ? isMobileDevice ? 'hint.flameSweepTouch' : 'hint.flameSweep' : equipped.kind === 'ice_staff' ? isMobileDevice ? 'hint.iceSweepTouch' : 'hint.iceSweep' : isMobileDevice ? 'hint.axeSweepTouch' : 'hint.axeSweep', { range: melee.range });
     hint.textContent = text;
     hint.hidden = !text;
   }
@@ -239,7 +253,6 @@ export class GameUI {
     const container = this.state.container;
     const signature = JSON.stringify([this.panel, this.state.you.inventory, this.state.you.backpack, this.state.you.money, this.controls.selected(), container ? { ...container, burn_remaining: Math.ceil(container.burn_remaining || 0) } : null, this.busy, this.touchTransfer, this.touchSelection]);
     if (signature === this.panelSignature) return;
-    this.cancelDemolition();
     this.panelSignature = signature;
     const body = byId('panel-body');
     byId('side-panel').hidden = false;
@@ -249,6 +262,7 @@ export class GameUI {
     byId('panel-kicker').textContent = t(this.panel === 'container' ? 'panel.shelter' : 'panel.kit');
     const key = JSON.stringify([this.panel, container?.id, container?.kind, getLanguage()]);
     if (this.storageView?.key !== key || !body.firstChild) {
+      this.cancelDemolition();
       this.demolitionButton = null;
       const layout = element('div', 'storage-layout');
       const bag = element('section', 'storage-column backpack-section');
@@ -261,18 +275,18 @@ export class GameUI {
         this.storageView.chestCount = element('div', 'container-meta');
         this.storageView.chestGrid = element('div', 'chest-grid');
         detail.append(this.storageView.chestCount, this.storageView.chestGrid);
-        this.renderContainerDemolition(detail, container);
       } else {
         this.storageView.content = element('div');
         detail.append(this.storageView.content);
       }
+      if (this.panel === 'container') this.renderContainerDemolition(detail, container);
       this.storageView.warning = element('p', 'panel-warning', t('panel.monsterWarning'));
       detail.append(this.storageView.warning);
     }
     const view = this.storageView;
     view.backpack.count.textContent = t('bag.slots', { count: this.state.you.backpack.filter(Boolean).length });
     view.backpack.money.textContent = t('money.balance', { count: this.state.you.money ?? 0 });
-    view.backpack.hint.textContent = t(machines.has(container?.kind) ? 'vending.backpackHint' : 'bag.transferHint');
+    view.backpack.hint.textContent = t(container?.kind === 'gun_machine' ? 'gun.backpackHint' : machines.has(container?.kind) ? 'vending.backpackHint' : 'bag.transferHint');
     this.updateSlots(view.backpack.grid, this.state.you.backpack, (slot) => ({ kind: 'backpack', slot }));
     if (this.panel !== 'container') {
       byId('panel-title').textContent = t('panel.inventoryTitle');
@@ -281,16 +295,14 @@ export class GameUI {
       this.renderCraft(view.content);
     } else if (container) {
       byId('panel-title').textContent = itemName(container.kind);
-      byId('panel-description').textContent = t(machines.has(container.kind) ? 'vending.description' : 'panel.containerDescription');
+      byId('panel-description').textContent = t(container.kind === 'gun_machine' ? 'gun.description' : machines.has(container.kind) ? 'vending.description' : 'panel.containerDescription');
       if (container.kind === 'chest') {
         view.chestCount.textContent = t('panel.chestSlots', { count: container.slots.filter(Boolean).length });
         this.updateSlots(view.chestGrid, container.slots, (slot) => ({ kind: 'chest', id: container.id, slot }));
       } else {
-        this.demolitionButton = null;
         view.content.replaceChildren();
         if (machines.has(container.kind)) {
           this.renderVending(view.content, container);
-          this.renderContainerDemolition(view.content, container);
         } else this.renderFire(view.content, container);
       }
     }
@@ -311,7 +323,7 @@ export class GameUI {
   }
 
   renderContainerDemolition(body, container) {
-    const kind = container.kind === 'chest' ? 'chest' : container.kind === 'match_machine' ? 'match' : 'vending';
+    const kind = container.kind === 'chest' ? 'chest' : container.kind === 'campfire' ? 'fire' : container.kind === 'match_machine' ? 'match' : container.kind === 'gun_machine' ? 'gun' : 'vending';
     const label = `${kind}.dismantle`;
     const button = element('button', 'chest-demolition', t(label));
     button.type = 'button';
@@ -325,7 +337,8 @@ export class GameUI {
       event.stopPropagation();
       if (button.disabled || this.demolitionHold || (pointer != null && event.button !== 0)) return;
       this.controls.stop();
-      const hold = { button, pointer, container: container.id, label, epoch: this.state.movement?.epoch };
+      const slot = this.controls.selected();
+      const hold = { button, pointer, container: container.id, label, epoch: this.state.movement?.epoch, slot, item: this.state.you.inventory[slot]?.id };
       this.demolitionHold = hold;
       button.classList.add('holding');
       button.setAttribute('aria-pressed', 'true');
@@ -358,14 +371,15 @@ export class GameUI {
   updateDemolitionButton() {
     const button = this.demolitionButton;
     const container = this.state?.container;
-    if (!button || !(container?.kind === 'chest' || machines.has(container?.kind)) || this.panel !== 'container') return;
+    if (!button || !containers.has(container?.kind) || this.panel !== 'container') return;
     const item = this.state.you.inventory[this.controls.selected()];
     const locked = this.state.structures.some((structure) => structure.id === container.id && structure.monster_demolition);
-    const empty = container.kind !== 'chest' || !container.slots.some(Boolean);
+    const empty = !(container.slots || []).some(Boolean) && !(container.fuel > 0) && !container.igniter;
     button.disabled = this.busy || !empty || locked || item?.kind !== 'axe' || this.state.you.downed;
-    const kind = container.kind === 'chest' ? 'chest' : container.kind === 'match_machine' ? 'match' : 'vending';
-    byId(button.getAttribute('aria-describedby')).textContent = t(!empty ? 'chest.emptyFirst' : locked ? 'panel.monsterWarning' : `${kind}.dismantleHint`);
-    if (button.disabled || (this.demolitionHold && this.demolitionHold.epoch !== this.state.movement?.epoch)) this.cancelDemolition();
+    const kind = container.kind === 'chest' ? 'chest' : container.kind === 'campfire' ? 'fire' : container.kind === 'match_machine' ? 'match' : container.kind === 'gun_machine' ? 'gun' : 'vending';
+    byId(button.getAttribute('aria-describedby')).textContent = t(!empty ? `${kind}.emptyFirst` : locked ? 'panel.monsterWarning' : `${kind}.dismantleHint`);
+    const hold = this.demolitionHold;
+    if (button.disabled || (hold && (hold.epoch !== this.state.movement?.epoch || hold.slot !== this.controls.selected() || hold.item !== item?.id))) this.cancelDemolition();
     if (this.demolitionHold) {
       const progress = this.state.interaction.target === `structure:${container.id}` ? this.state.interaction.progress : 0;
       const percent = Math.min(100, Math.floor(progress / 1.5 * 100));
@@ -577,7 +591,7 @@ export class GameUI {
       card.onclick = () => this.action('trade', { id: container.id, offer: identifier }, () => t('vending.success', { count: offer.count, name: itemName(offer.output) }));
       list.append(card);
     }
-    body.append(list, element('p', 'bag-description', t('vending.capacity', { item: itemName(container.kind === 'match_machine' ? 'matches' : 'cola') })));
+    body.append(list, element('p', 'bag-description', t(container.kind === 'gun_machine' ? 'gun.capacity' : 'vending.capacity', { item: itemName(container.kind === 'match_machine' ? 'matches' : 'cola') })));
   }
 
   renderFire(body, container) {
