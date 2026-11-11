@@ -227,11 +227,13 @@ export class GameUI {
       text = t(target?.category === 'player' ? 'hint.reviveTarget' : 'hint.defibrillator', { name: target?.id || '', ...this.catalog.revival_items[equipped.kind] });
     } else if (this.catalog.explosive_weapons?.[equipped?.kind]) {
       text = t(equipped.kind === 'coin_launcher' ? 'hint.coinLauncher' : 'hint.grenade', { ...this.catalog.explosive_weapons[equipped.kind], money: this.state.you.money ?? 0 });
+    } else if (this.catalog.healing_items?.[equipped?.kind] && !(target?.category === 'structure' && containers.has(target.kind) && distance(this.state.you, target) <= 2)) {
+      text = itemDetail(equipped, this.catalog);
     } else if (this.catalog.return_items?.[equipped?.kind] && !(target?.category === 'structure' && containers.has(target.kind) && distance(this.state.you, target) <= 2)) {
       text = t('hint.returnStaff', { duration: this.catalog.return_items[equipped.kind].duration, uses: equipped.uses });
     } else if (target?.category === 'structure') {
       const near = distance(this.state.you, target) <= (containers.has(target.kind) ? 2 : 3);
-      if (containers.has(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${equipped?.kind === 'axe' && distance(this.state.you, target) <= 3 ? t(target.kind === 'chest' ? 'hint.chestDismantle' : machines.has(target.kind) ? 'hint.vendingDismantle' : 'hint.fireDismantle') : ''}`;
+      if (containers.has(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${equipped?.kind === 'axe' && distance(this.state.you, target) <= 3 ? t(target.kind === 'piggy_bank' ? 'hint.bankDismantle' : target.kind === 'chest' ? 'hint.chestDismantle' : machines.has(target.kind) ? 'hint.vendingDismantle' : 'hint.fireDismantle') : ''}`;
       else if (equipped?.kind === 'axe') text = `${itemName(target.kind)} · ${t(target.monster_demolition ? 'hint.busy' : near ? 'hint.gather' : 'hint.nearer')}`;
     } else if (target) {
       text = `${t(target.big ? 'hint.bigMonster' : target.fast ? 'hint.fastMonster' : 'hint.smallMonster')} · ${target.hp} HP`;
@@ -275,6 +277,8 @@ export class GameUI {
         this.storageView.chestCount = element('div', 'container-meta');
         this.storageView.chestGrid = element('div', 'chest-grid');
         detail.append(this.storageView.chestCount, this.storageView.chestGrid);
+      } else if (this.panel === 'container' && container.kind === 'piggy_bank') {
+        this.storageView.bank = this.renderBank(detail, container);
       } else {
         this.storageView.content = element('div');
         detail.append(this.storageView.content);
@@ -286,7 +290,7 @@ export class GameUI {
     const view = this.storageView;
     view.backpack.count.textContent = t('bag.slots', { count: this.state.you.backpack.filter(Boolean).length });
     view.backpack.money.textContent = t('money.balance', { count: this.state.you.money ?? 0 });
-    view.backpack.hint.textContent = t(container?.kind === 'gun_machine' ? 'gun.backpackHint' : machines.has(container?.kind) ? 'vending.backpackHint' : 'bag.transferHint');
+    view.backpack.hint.textContent = t(container?.kind === 'piggy_bank' ? 'bank.sharedHint' : container?.kind === 'gun_machine' ? 'gun.backpackHint' : machines.has(container?.kind) ? 'vending.backpackHint' : 'bag.transferHint');
     this.updateSlots(view.backpack.grid, this.state.you.backpack, (slot) => ({ kind: 'backpack', slot }));
     if (this.panel !== 'container') {
       byId('panel-title').textContent = t('panel.inventoryTitle');
@@ -295,10 +299,12 @@ export class GameUI {
       this.renderCraft(view.content);
     } else if (container) {
       byId('panel-title').textContent = itemName(container.kind);
-      byId('panel-description').textContent = t(container.kind === 'gun_machine' ? 'gun.description' : machines.has(container.kind) ? 'vending.description' : 'panel.containerDescription');
+      byId('panel-description').textContent = t(container.kind === 'piggy_bank' ? 'bank.description' : container.kind === 'gun_machine' ? 'gun.description' : machines.has(container.kind) ? 'vending.description' : 'panel.containerDescription');
       if (container.kind === 'chest') {
         view.chestCount.textContent = t('panel.chestSlots', { count: container.slots.filter(Boolean).length });
         this.updateSlots(view.chestGrid, container.slots, (slot) => ({ kind: 'chest', id: container.id, slot }));
+      } else if (container.kind === 'piggy_bank') {
+        this.updateBank(view.bank, container);
       } else {
         view.content.replaceChildren();
         if (machines.has(container.kind)) {
@@ -323,7 +329,7 @@ export class GameUI {
   }
 
   renderContainerDemolition(body, container) {
-    const kind = container.kind === 'chest' ? 'chest' : container.kind === 'campfire' ? 'fire' : container.kind === 'match_machine' ? 'match' : container.kind === 'gun_machine' ? 'gun' : 'vending';
+    const kind = container.kind === 'piggy_bank' ? 'bank' : container.kind === 'chest' ? 'chest' : container.kind === 'campfire' ? 'fire' : container.kind === 'match_machine' ? 'match' : container.kind === 'gun_machine' ? 'gun' : 'vending';
     const label = `${kind}.dismantle`;
     const button = element('button', 'chest-demolition', t(label));
     button.type = 'button';
@@ -374,9 +380,9 @@ export class GameUI {
     if (!button || !containers.has(container?.kind) || this.panel !== 'container') return;
     const item = this.state.you.inventory[this.controls.selected()];
     const locked = this.state.structures.some((structure) => structure.id === container.id && structure.monster_demolition);
-    const empty = !(container.slots || []).some(Boolean) && !(container.fuel > 0) && !container.igniter;
+    const empty = !(container.slots || []).some(Boolean) && !(container.fuel > 0) && !container.igniter && !(container.balance > 0);
     button.disabled = this.busy || !empty || locked || item?.kind !== 'axe' || this.state.you.downed;
-    const kind = container.kind === 'chest' ? 'chest' : container.kind === 'campfire' ? 'fire' : container.kind === 'match_machine' ? 'match' : container.kind === 'gun_machine' ? 'gun' : 'vending';
+    const kind = container.kind === 'piggy_bank' ? 'bank' : container.kind === 'chest' ? 'chest' : container.kind === 'campfire' ? 'fire' : container.kind === 'match_machine' ? 'match' : container.kind === 'gun_machine' ? 'gun' : 'vending';
     byId(button.getAttribute('aria-describedby')).textContent = t(!empty ? `${kind}.emptyFirst` : locked ? 'panel.monsterWarning' : `${kind}.dismantleHint`);
     const hold = this.demolitionHold;
     if (button.disabled || (hold && (hold.epoch !== this.state.movement?.epoch || hold.slot !== this.controls.selected() || hold.item !== item?.id))) this.cancelDemolition();
@@ -386,6 +392,60 @@ export class GameUI {
       button.style.setProperty('--demolition-progress', `${percent}%`);
       button.textContent = t('chest.dismantling', { percent });
     }
+  }
+
+  renderBank(body, container) {
+    const card = element('div', 'bank-card');
+    const icon = element('img', 'bank-icon');
+    icon.src = assetUrl('piggy_bank');
+    icon.alt = '';
+    const balance = element('div', 'bank-balance');
+    balance.id = 'bank-balance';
+    balance.setAttribute('aria-live', 'polite');
+    const wallet = element('div', 'container-meta');
+    wallet.id = 'bank-wallet';
+    const label = element('label', 'bank-amount-label', t('bank.amount'));
+    const amount = element('input', 'bank-amount');
+    amount.id = 'bank-amount';
+    amount.type = 'number';
+    amount.inputMode = 'numeric';
+    amount.min = '1';
+    amount.max = String(this.catalog.currency?.max_coins ?? Number.MAX_SAFE_INTEGER);
+    amount.step = '1';
+    amount.value = '1';
+    label.htmlFor = amount.id;
+    const buttons = element('div', 'bank-actions');
+    const deposit = element('button', '', t('bank.deposit'));
+    const withdraw = element('button', '', t('bank.withdraw'));
+    deposit.id = 'bank-deposit';
+    withdraw.id = 'bank-withdraw';
+    const status = element('p', 'bank-status');
+    status.setAttribute('role', 'status');
+    const view = { balance, wallet, amount, deposit, withdraw, status };
+    amount.addEventListener('input', () => this.updateBank(view, this.state.container));
+    for (const [button, operation] of [[deposit, 'deposit'], [withdraw, 'withdraw']]) {
+      button.type = 'button';
+      button.onclick = () => this.action('bank', { id: container.id, operation, amount: Number(amount.value) });
+    }
+    buttons.append(deposit, withdraw);
+    card.append(icon, balance, wallet, label, amount, buttons, status, element('p', 'bag-description', t('bank.sharedHint')));
+    body.append(card);
+    return view;
+  }
+
+  updateBank(view, container) {
+    if (!container || container.kind !== 'piggy_bank') return;
+    const balance = container.balance ?? 0;
+    const money = this.state.you.money ?? 0;
+    const amount = Number(view.amount.value);
+    const maximum = this.catalog.currency?.max_coins ?? Number.MAX_SAFE_INTEGER;
+    const valid = Number.isSafeInteger(amount) && amount > 0 && amount <= maximum;
+    view.balance.textContent = t('bank.balance', { count: balance });
+    view.wallet.textContent = t('money.balance', { count: money });
+    view.amount.setAttribute('aria-invalid', String(!valid));
+    view.deposit.disabled = this.busy || !valid || amount > money || balance > maximum - amount;
+    view.withdraw.disabled = this.busy || !valid || amount > balance || money > maximum - amount;
+    view.status.textContent = this.busy ? t('bank.pending') : !valid ? t('bank.invalidAmount') : '';
   }
 
   renderBackpack(body) {

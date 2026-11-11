@@ -172,7 +172,8 @@ class Combat:
             if player.temperature < 5:
                 controls.movement_epoch += 1
             player.temperature = settings["temperature"]
-            player.hunger = max(player.hunger, settings["hunger"])
+            if "hunger" in settings:
+                player.hunger = max(player.hunger, settings["hunger"])
             player.inventory[player.selected] = None
             self.emit_event("heal", player.id, item.kind, player.x, player.y)
             controls.stop_attack()

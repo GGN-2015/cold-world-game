@@ -1,7 +1,7 @@
 import math
 import time
 
-from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FOODS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, MELEE_WEAPONS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS, SOLID
+from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FOODS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, MAX_COINS, MELEE_WEAPONS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS, SOLID
 from .geometry import DIRECTIONS, circle_square, distance, normalized, segment_box, tile
 from .models import GroundItem, Item, Structure
 
@@ -118,7 +118,7 @@ class Actions:
             if not controls.ui or controls.container != structure.id or structure.kind not in allowed:
                 raise GameError("invalid_container", "Open this container before dismantling it")
             if not structure.empty:
-                code = "fire_not_empty" if structure.kind == "campfire" else "chest_not_empty"
+                code = "bank_not_empty" if structure.kind == "piggy_bank" else "fire_not_empty" if structure.kind == "campfire" else "chest_not_empty"
                 raise GameError(code, "Remove all stored items before dismantling this container")
             if player.temperature < 5 or item is None or item.kind != "axe" or self.demolition_locked(structure.id):
                 raise GameError("demolition_unavailable", "Dismantling requires an axe, a standing player and no monster dismantling this structure")
@@ -145,6 +145,8 @@ class Actions:
             return self.craft(player, controls, command.get("recipe"))
         elif kind == "trade":
             return self.trade(player, controls, command)
+        elif kind == "bank":
+            return self.bank(player, controls, command)
         elif kind == "place":
             return self.place(player, controls, command)
         elif kind == "drop":
@@ -190,6 +192,32 @@ class Actions:
         if not isinstance(offer_id, str) or offer_id not in offers:
             raise GameError("invalid_offer", "Unknown offer for this trading machine")
         return self.consume_and_produce(player, controls, offers[offer_id])
+
+    def bank(self, player, controls, command):
+        structure = self.access_container(player, command.get("id"))
+        if structure.kind != "piggy_bank":
+            raise GameError("invalid_container", "This building is not a piggy bank")
+        if not controls.ui or controls.container != structure.id:
+            raise GameError("container_closed", "Open the piggy bank before transferring coins")
+        operation = command.get("operation")
+        if operation not in ("deposit", "withdraw"):
+            raise GameError("invalid_argument", "operation must be deposit or withdraw")
+        amount = integer(command.get("amount"), "amount", 1, MAX_COINS)
+        if operation == "deposit":
+            if player.money < amount:
+                raise GameError("insufficient_money", "Not enough money to deposit")
+            if structure.balance > MAX_COINS - amount:
+                raise GameError("balance_limit", "The piggy bank balance would exceed the coin limit")
+        else:
+            if structure.balance < amount:
+                raise GameError("insufficient_bank_balance", "Not enough coins in the piggy bank")
+            if player.money > MAX_COINS - amount:
+                raise GameError("balance_limit", "The player balance would exceed the coin limit")
+        self.record_structure(structure.id, checkpoint=True)
+        change = amount if operation == "deposit" else -amount
+        structure.balance += change
+        player.money -= change
+        return {"balance": structure.balance, "money": player.money, "amount": amount, "operation": operation}
 
     def consume_and_produce(self, player, controls, recipe):
         storages = (player.backpack, player.inventory)
@@ -237,7 +265,7 @@ class Actions:
             for offset_x, offset_y in DIRECTIONS:
                 neighbor = self.structure_at(target_x + offset_x, target_y + offset_y)
                 if neighbor and neighbor.kind in CONTAINERS:
-                    raise GameError("adjacent_container", "Chests, campfires and trading machines cannot touch in any of eight directions")
+                    raise GameError("adjacent_container", "Chests, campfires, piggy banks and trading machines cannot touch in any of eight directions")
         if any(circle_square(self.players[player_id].x, self.players[player_id].y, target_x, target_y) for player_id in self.online) or any(circle_square(monster.x, monster.y, target_x, target_y) for monster in self.monsters.values()):
             raise GameError("occupied", "An entity overlaps this tile")
         self.touch()

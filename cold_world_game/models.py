@@ -31,6 +31,7 @@ class Structure:
     fuel: int = 0
     igniter: Item | None = None
     burn_remaining: float = 0.0
+    balance: int = 0
 
     @property
     def lit(self) -> bool:
@@ -38,7 +39,7 @@ class Structure:
 
     @property
     def empty(self) -> bool:
-        return not any(self.slots) and self.fuel == 0 and self.igniter is None
+        return not any(self.slots) and self.fuel == 0 and self.igniter is None and self.balance == 0
 
 
 @dataclass

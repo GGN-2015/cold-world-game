@@ -56,7 +56,7 @@
 
 `machine_offers` 按机器种类返回固定项目：`vending_machine` 与原 `vending_offers` 一致，`match_machine` 提供相同的 `sell_wood`、`buy_wood`，以及 `buy_matches`（1 硬币换 1 盒 `matches`，`uses: 1`）。保留 `vending_offers` 供旧客户端读取，不能将一个机器的专属项目用于另一种机器。`match_machine` 是可采集和重新放置的一格建筑，不是制作配方，也没有容器储物格。
 
-`terrain` 提供 `version:8` 与售货机、火柴机、枪械机、急救包、回城/寒冰/烈焰法杖及手榴弹各自的 0.02 概率，`unexplored_uses_latest:true`。三种机器分别按每个建筑区块独立判定，包括出生房屋，不重刷旧区域；机器随机流分别为 `vending_machine:v1`、`match_machine:v1`、`gun_machine:v1`。间距检查不消耗箱内物品的随机数，三种机器可共存；新生成的机器必须与箱子、篝火及其他机器保持八邻域间距，并保留交互与出生通路，没有合法位置时不强行生成。
+`terrain` 提供 `version:10` 与售货机、火柴机、枪械机、急救包、回城/寒冰/烈焰法杖、手榴弹、除颤器及暖宝宝贴各自的 0.02 概率，另含小猪存钱罐的 0.05 概率，`unexplored_uses_latest:true`。三种机器分别按每个建筑区块独立判定，包括出生房屋，不重刷旧区域；机器随机流分别为 `vending_machine:v1`、`match_machine:v1`、`gun_machine:v1`。间距检查不消耗箱内物品的随机数，三种机器可共存；新生成的机器必须与箱子、篝火及其他机器保持八邻域间距，并保留交互与出生通路，没有合法位置时不强行生成。
 
 ## 瞬时动作反馈
 
@@ -303,3 +303,10 @@ SQLite 存档格式为第 3 版：`world` 的版本记录为 3，顶层世界字
 无在线玩家时模拟完全暂停，所有世界计时器停留；单个玩家离线只冻结该玩家。正常关闭保存世界，重新启动不补算关闭期间的时间。每次启动若未指定 `--password` 就生成新口令，客户端缓存的旧随机口令届时应提示用户更新。
 
 嵌入 Python 应用时调用 `cold_world_game.create_app(...)`；关闭时调用 `app.extensions["cold_world_game"].close()` 释放模拟线程和存档锁。不要对每次 HTTP 请求关闭运行时。工厂的 `start_engine=False` 可用于确定性调试，此时通过 `runtime.world.tick(seconds)` 手动推进。
+
+## 共享存钱罐与暖宝宝贴
+
+- `bank` 命令：`{"type":"bank","id":"容器ID","operation":"deposit","amount":5}`，`operation` 也可为 `withdraw`。必须已打开 2 格内无遮挡的 `piggy_bank`，`amount` 为 1 至 `catalog.currency.max_coins` 的 JSON 整数，不接受浮点数、布尔或负值。响应包含 `operation`、`amount`、最新 `balance` 和玩家 `money`。
+- 打开的 `container.balance` 是所有玩家共享且持久保存的整数余额，缺失默认 0。附近建筑列表不发送余额或内容物，只向实际打开容器的客户端按现有差分同步；双方钱包和共享余额在同一次 SQLite 事务提交。命令串行检查最新余额，不依赖客户端显示值。
+- 存款不足报 `insufficient_money`，取款不足报 `insufficient_bank_balance`，超过整数上限报 `balance_limit`；非空拆除报 `bank_not_empty`。断开、离开距离、关闭窗口等访问限制与箱子一致。持有斧头时通过 `dismantle_container` 长按拆除，不允许把普通物品拖进存钱罐。
+- `catalog.terrain.piggy_bank_chance = 0.05`，`chest_heat_patch_chance = 0.02`，当前地形版本 10；`healing_items.heat_patch = {"duration":0.5,"temperature":36.0}`，无 `hunger` 字段即表示不改变饥饿。使用沿用 `attack` 按下/释放协议；成功后发送 `type: heal, kind: heat_patch` 事件，客户端以小画幅播放已有医疗 PNG。

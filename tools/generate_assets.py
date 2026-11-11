@@ -552,6 +552,45 @@ def equipment():
         save(kind, image)
 
 
+def piggy_bank():
+    image, drawing = canvas()
+    drawing.ellipse((2, 25, 29, 30), fill=(38, 62, 72, 65))
+    drawing.rounded_rectangle((3, 11, 26, 26), radius=6, fill=PALETTE["outline"])
+    drawing.rounded_rectangle((5, 12, 25, 24), radius=5, fill="#d98492")
+    drawing.ellipse((7, 12, 23, 20), fill="#f3b0ad")
+    drawing.rectangle((8, 23, 12, 28), fill=PALETTE["outline"])
+    drawing.rectangle((20, 23, 24, 28), fill=PALETTE["outline"])
+    drawing.rectangle((9, 24, 11, 26), fill="#d98492")
+    drawing.rectangle((21, 24, 23, 26), fill="#d98492")
+    drawing.polygon(((19, 13), (21, 7), (26, 12)), fill=PALETTE["outline"])
+    drawing.polygon(((21, 12), (22, 10), (24, 12)), fill="#ef9fa5")
+    drawing.rounded_rectangle((23, 16, 30, 22), radius=2, fill=PALETTE["outline"])
+    drawing.rectangle((24, 17, 29, 20), fill="#f3b0ad")
+    drawing.point((26, 18), fill="#a75170")
+    drawing.point((28, 18), fill="#a75170")
+    drawing.rectangle((20, 14, 21, 15), fill=PALETTE["outline"])
+    drawing.arc((0, 12, 7, 19), 70, 335, fill="#d98492", width=2)
+    drawing.line((10, 12, 17, 12), fill=PALETTE["outline"], width=2)
+    drawing.ellipse((10, 2, 17, 9), fill=PALETTE["outline"])
+    drawing.ellipse((11, 3, 16, 8), fill=PALETTE["gold"])
+    drawing.line((13, 4, 13, 7), fill="#fff1b8")
+    save("piggy_bank", image)
+
+
+def heat_patch():
+    image, drawing = canvas()
+    drawing.ellipse((5, 26, 28, 30), fill=(38, 62, 72, 55))
+    drawing.polygon(((5, 9), (23, 6), (28, 26), (9, 29)), fill=PALETTE["outline"])
+    drawing.polygon(((7, 10), (22, 8), (26, 25), (10, 27)), fill="#f4e6bb")
+    drawing.line((8, 12, 23, 10), fill="#d7a778", width=2)
+    drawing.line((11, 25, 24, 23), fill="#d7a778", width=1)
+    drawing.polygon(((12, 16), (14, 14), (17, 15), (19, 13), (22, 15), (21, 19), (18, 23), (14, 21)), fill="#d7784c")
+    drawing.line((15, 16, 16, 17), fill="#ffd09a", width=2)
+    for horizontal, vertical in ((9, 3), (15, 1), (21, 0)):
+        drawing.line((horizontal, vertical + 4, horizontal - 1, vertical + 2, horizontal, vertical), fill="#edaa9d", width=1)
+    save("heat_patch", image)
+
+
 def first_aid_kit():
     image, drawing = canvas()
     drawing.ellipse((4, 25, 28, 30), fill=(38, 62, 72, 65))
@@ -979,6 +1018,8 @@ def main():
     monster_resting()
     equipment()
     first_aid_kit()
+    piggy_bank()
+    heat_patch()
     defibrillator()
     return_staff()
     ice_staff()

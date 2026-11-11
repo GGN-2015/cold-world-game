@@ -16,7 +16,10 @@ BACKPACK_SLOTS = 30
 DROP_DISTANCE = 2.0
 PICKUP_RADIUS = 0.75
 WORLD_RADIUS = 120
-TERRAIN_VERSION = 9
+TERRAIN_VERSION = 10
+PIGGY_BANK_CHANCE = 0.05
+HEAT_PATCH_CHANCE = 0.02
+MAX_COINS = 2 ** 53 - 1
 VENDING_MACHINE_CHANCE = 0.02
 MATCH_MACHINE_CHANCE = VENDING_MACHINE_CHANCE
 FIRST_AID_KIT_CHANCE = 0.02
@@ -49,7 +52,7 @@ FOODS = {
     "cola": 2,
 }
 READY_TO_EAT_FOODS = frozenset({"cola", "oreos", "compressed_biscuits"})
-HEALING_ITEMS = {"first_aid_kit": {"duration": 0.5, "temperature": 36.0, "hunger": 10.0}}
+HEALING_ITEMS = {"first_aid_kit": {"duration": 0.5, "temperature": 36.0, "hunger": 10.0}, "heat_patch": {"duration": 0.5, "temperature": 36.0}}
 REVIVAL_ITEMS = {"defibrillator": {"duration": 1.5, "range": 2.0, "temperature": 36.0, "hunger": 10.0}}
 RETURN_ITEMS = {"return_staff": {"duration": 1.5, "uses": 20}}
 IGNITERS = {"lighter": 20, "gasoline": 5, "diesel": 5, "kerosene": 5, "matches": 1}
@@ -68,14 +71,14 @@ GUNS = {
     "rifle": {"ammo": 1000, "interval": 0.15, "speed": 28, "range": PROJECTILE_RANGE, "damage": 5},
 }
 TRADING_MACHINES = frozenset({"vending_machine", "match_machine", "gun_machine"})
-PANEL_DEMOLITION = TRADING_MACHINES | {"chest", "campfire"}
-BUILDINGS = frozenset({"fence", "wall", "floor", "chest", "campfire"}) | TRADING_MACHINES
-CONTAINERS = frozenset({"chest", "campfire"}) | TRADING_MACHINES
-SOLID = frozenset({"tree", "wall", "fence", "chest", "campfire"}) | TRADING_MACHINES
+PANEL_DEMOLITION = TRADING_MACHINES | {"chest", "campfire", "piggy_bank"}
+BUILDINGS = frozenset({"fence", "wall", "floor", "chest", "campfire", "piggy_bank"}) | TRADING_MACHINES
+CONTAINERS = frozenset({"chest", "campfire", "piggy_bank"}) | TRADING_MACHINES
+SOLID = frozenset({"tree", "wall", "fence"}) | CONTAINERS
 OPAQUE = frozenset({"tree", "wall"})
 BULLET_BLOCKERS = frozenset({"tree"})
 MONSTER_BULLET_BLOCKERS = BULLET_BLOCKERS | CONTAINERS
-DEMOLITION = {"tree": 0.5, "fence": 0.5, "wall": 1.5, "floor": 0.5, "chest": 1.5, "campfire": 1.5, "vending_machine": 1.5, "match_machine": 1.5, "gun_machine": 1.5}
+DEMOLITION = {"tree": 0.5, "fence": 0.5, "wall": 1.5, "floor": 0.5, "chest": 1.5, "campfire": 1.5, "piggy_bank": 1.5, "vending_machine": 1.5, "match_machine": 1.5, "gun_machine": 1.5}
 MONSTER_DEMOLITION = {"fence": 1.0, "wall": 3.0}
 RECIPES = {
     "fence": {"inputs": {"wood": 1}, "output": "fence", "count": 2},

@@ -232,6 +232,16 @@
       "width": 96,
       "height": 96
     },
+    "piggy_bank": {
+      "file": "piggy_bank.png",
+      "width": 96,
+      "height": 96
+    },
+    "heat_patch": {
+      "file": "heat_patch.png",
+      "width": 96,
+      "height": 96
+    },
     "defibrillator": {
       "file": "defibrillator.png",
       "width": 96,

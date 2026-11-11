@@ -148,7 +148,7 @@ export class CombatEffects {
         this.frame(renderer, 'fx_impact', target.x, target.y - 0.4, 1.35, phase, direction.angle);
         if (event.type === 'hurt' && event.actor === renderer.state?.you.id) injury = Math.max(injury, 1 - phase);
       } else if (event.type === 'heal') {
-        this.frame(renderer, 'fx_heal', actor.x, actor.y - 0.45, 2.4, phase);
+        this.frame(renderer, 'fx_heal', actor.x, actor.y - 0.45, event.kind === 'heat_patch' ? 1.4 : 2.4, phase);
       } else if (event.type === 'explosion') {
         this.frame(renderer, 'fx_explosion', event.x, event.y, (event.radius ?? 3) * 2, phase);
       } else if (event.type.startsWith('teleport_')) {

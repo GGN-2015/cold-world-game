@@ -1,0 +1,41 @@
+.bank-card {
+  padding: 16px;
+  border: 1px solid #d5ac7640;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #edaa9d12, #eebd6b0a);
+}
+.bank-icon { width: 76px; height: 76px; image-rendering: pixelated; }
+.bank-balance { margin: 4px 0 8px; color: #eebd6b; font-size: 19px; font-weight: 700; overflow-wrap: anywhere; }
+.bank-amount-label { display: block; margin-top: 18px; margin-bottom: 8px; }
+.bank-amount {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #8aaebc80;
+  border-radius: 8px;
+  background: #152c32;
+  color: #eff4e5;
+  font: inherit;
+  font-size: 16px;
+}
+.bank-amount:focus-visible { outline: 2px solid #eebd6b; outline-offset: 2px; }
+.bank-amount[aria-invalid="true"] { border-color: #edaa9d; }
+.bank-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.bank-actions button {
+  flex: 1 1 120px;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid #eebd6b80;
+  border-radius: 8px;
+  background: #eebd6b20;
+  color: #f2d69f;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.bank-actions button:hover:not(:disabled) { background: #eebd6b38; border-color: #eebd6b; }
+.bank-actions button:focus-visible { outline: 2px solid #eebd6b; outline-offset: 2px; }
+.bank-actions button:disabled { opacity: 0.45; cursor: not-allowed; }
+.bank-status { min-height: 1.5em; margin: 8px 0; color: #e9cd9a; }

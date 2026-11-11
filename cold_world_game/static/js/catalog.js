@@ -1,8 +1,8 @@
 import { hasTranslation, t } from './i18n.js';
 
 export const machines = new Set(['vending_machine', 'match_machine', 'gun_machine']);
-export const buildings = new Set(['wall', 'fence', 'floor', 'chest', 'campfire', ...machines]);
-export const containers = new Set(['chest', 'campfire', ...machines]);
+export const buildings = new Set(['wall', 'fence', 'floor', 'chest', 'campfire', 'piggy_bank', ...machines]);
+export const containers = new Set(['chest', 'campfire', 'piggy_bank', ...machines]);
 export const itemName = (kind) => hasTranslation(`item.${kind}`) ? t(`item.${kind}`) : kind;
 export const seasonName = (season) => hasTranslation(`season.${season}`) ? t(`season.${season}`) : season;
 export const assetUrl = (kind) => `/static/assets/${kind}.png`;
@@ -16,7 +16,7 @@ export function itemDetail(item, catalog) {
   if (catalog?.explosive_weapons?.[item.kind]) return t(item.kind === 'coin_launcher' ? 'item.coinLauncherDetail' : 'item.grenadeDetail', { name: itemName(item.kind), ...catalog.explosive_weapons[item.kind] });
   if (item.ammo != null) return t('item.ammo', { name: itemName(item.kind), count: item.ammo });
   if (item.uses != null) return t('item.uses', { name: itemName(item.kind), count: item.uses });
-  if (catalog?.healing_items?.[item.kind]) return t('item.healing', { name: itemName(item.kind), ...catalog.healing_items[item.kind] });
+  if (catalog?.healing_items?.[item.kind]) return t(item.kind === 'heat_patch' ? 'item.warming' : 'item.healing', { name: itemName(item.kind), ...catalog.healing_items[item.kind] });
   if (catalog?.revival_items?.[item.kind]) return t('item.revival', { name: itemName(item.kind), ...catalog.revival_items[item.kind] });
   if (catalog?.foods?.[item.kind]) return t('item.food', { name: itemName(item.kind), value: catalog.foods[item.kind] });
   return itemName(item.kind);

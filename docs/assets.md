@@ -4,7 +4,7 @@
 
 ## 可直接替换的贴图
 
-全部 111 张贴图位于 `cold_world_game/static/assets/`，包含 63 张静态贴图、8 张四向角色动画图集、12 张基础动作特效图集、24 张方向挥斧/挥杖图集、3 张怪物死亡图集和 1 张大怪起立图集，是已经导出的真实 PNG 文件，不依赖外部图床或在线图像服务。当前美术使用手工编排的像素图样和统一色板生成，无第三方素材依赖。
+全部 113 张贴图位于 `cold_world_game/static/assets/`，包含 65 张静态贴图、8 张四向角色动画图集、12 张基础动作特效图集、24 张方向挥斧/挥杖图集、3 张怪物死亡图集和 1 张大怪起立图集，是已经导出的真实 PNG 文件，不依赖外部图床或在线图像服务。当前美术使用手工编排的像素图样和统一色板生成，无第三方素材依赖。
 
 静态图片为 96 × 96 像素，四向动画图集为 480 × 384 像素，动作特效与死亡图集为 576 × 96 像素，每帧仍为 96 × 96。原始图样按每帧 32 × 32 像素编排，再最近邻放大 3 倍。除雪地外使用透明 RGBA 背景；画面通过 Canvas 2D 绘制，关闭平滑插值。世界中的大小和落脚位置由渲染器决定，而不是图片像素尺寸。
 
@@ -15,6 +15,7 @@
 | 篝火 | `campfire.png`（未点燃）、`campfire_lit.png`（燃烧） |
 | 售货机与兑换物品 | `vending_machine.png`、`coin.png`、`cola.png`，均为独立 96 × 96 透明 PNG；硬币图用于地面掉落、金钱状态栏和兑换图标，不占玩家物品格 |
 | 自助火柴机 | `match_machine.png`，独立 96 × 96 透明 PNG，由 `match_machine` 绘图函数生成；黄铜色机壳与火柴盒展示窗区别于红色售货机，出售的火柴沿用 `matches.png` |
+| 共享储蓄与保暖 | `piggy_bank.png` 为粉色陶瓷小猪、投币口与金币；`heat_patch.png` 为暖色爱心贴袋，均为独立 96 × 96 透明 PNG，由 `piggy_bank` 与 `heat_patch` 绘图函数生成。暖贴恢复复用 `fx_heal.png`，以较小的 1.4 格画幅播放，不新增运行时粒子计算 |
 | 除颤器 | `defibrillator.png`，独立 96 × 96 透明 PNG，手持电极与心电图显示屏，由 `defibrillator` 生成；救援成功复用 `fx_heal.png` 医疗光圈与加号 |
 | 自动枪械机与新武器 | `gun_machine.png` 为军绿机壳与武器展示窗；`grenade.png`、`coin_launcher.png`、`flame_staff.png` 均为独立 96 × 96 RGBA 图标，由 `arsenal_equipment` 生成 |
 | 火焰与爆炸 | `fx_flame_sweep.png` 及八张 `fx_flame_sweep_e/se/s/sw/w/nw/n/ne.png` 暖色挥杖图集；`fx_burning.png` 是全部灼烧怪物共享的小火苗，`fx_explosion.png` 是手榴弹与榴弹炮共用爆炸动画，均为六帧独立 PNG |
