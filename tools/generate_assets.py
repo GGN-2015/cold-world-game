@@ -552,6 +552,43 @@ def equipment():
         save(kind, image)
 
 
+def sheriff_badge():
+    image, drawing = canvas()
+    drawing.ellipse((4, 25, 29, 30), fill=(38, 62, 72, 65))
+    drawing.rounded_rectangle((7, 6, 25, 27), radius=4, fill=PALETTE["outline"])
+    drawing.rounded_rectangle((9, 7, 23, 25), radius=3, fill=PALETTE["wood_dark"])
+    points = []
+    for index in range(12):
+        angle = -math.pi / 2 + index * math.pi / 6
+        radius = 13 if index % 2 == 0 else 6
+        points.append((round(16 + math.cos(angle) * radius), round(16 + math.sin(angle) * radius)))
+    drawing.polygon(points, fill=PALETTE["outline"])
+    points = [(round(16 + (horizontal - 16) * .82), round(16 + (vertical - 16) * .82)) for horizontal, vertical in points]
+    drawing.polygon(points, fill=PALETTE["gold"])
+    drawing.line((16, 6, 13, 12, 7, 12), fill="#fff1b8", width=1)
+    drawing.ellipse((11, 11, 21, 21), fill=PALETTE["wood_dark"])
+    drawing.ellipse((12, 12, 20, 20), fill="#d99b48")
+    drawing.ellipse((14, 14, 18, 18), fill="#f9df8b")
+    drawing.point((15, 14), fill=PALETTE["light"])
+    save("sheriff_badge", image)
+
+
+def vodka():
+    image, drawing = canvas()
+    drawing.ellipse((8, 26, 25, 30), fill=(38, 62, 72, 65))
+    drawing.rounded_rectangle((12, 1, 20, 10), radius=1, fill=PALETTE["outline"])
+    drawing.rectangle((13, 2, 19, 5), fill="#ad4e55")
+    drawing.rectangle((14, 6, 18, 10), fill="#b6e5e5")
+    drawing.polygon(((13, 9), (19, 9), (24, 14), (24, 27), (8, 27), (8, 14)), fill=PALETTE["outline"])
+    drawing.polygon(((14, 10), (18, 10), (22, 15), (22, 25), (10, 25), (10, 15)), fill="#92c2cb")
+    drawing.rectangle((11, 16, 21, 23), fill="#f5e7ca")
+    drawing.rectangle((11, 16, 21, 17), fill="#ad4e55")
+    drawing.line((14, 19, 16, 22, 18, 19), fill="#ad4e55", width=1)
+    drawing.line((11, 14, 11, 24), fill="#e1ffff", width=1)
+    drawing.line((13, 12, 14, 11), fill="#e1ffff", width=1)
+    save("vodka", image)
+
+
 def piggy_bank():
     image, drawing = canvas()
     drawing.ellipse((2, 25, 29, 30), fill=(38, 62, 72, 65))
@@ -1020,6 +1057,8 @@ def main():
     first_aid_kit()
     piggy_bank()
     heat_patch()
+    sheriff_badge()
+    vodka()
     defibrillator()
     return_staff()
     ice_staff()

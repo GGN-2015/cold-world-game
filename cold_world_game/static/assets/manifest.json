@@ -242,6 +242,16 @@
       "width": 96,
       "height": 96
     },
+    "sheriff_badge": {
+      "file": "sheriff_badge.png",
+      "width": 96,
+      "height": 96
+    },
+    "vodka": {
+      "file": "vodka.png",
+      "width": 96,
+      "height": 96
+    },
     "defibrillator": {
       "file": "defibrillator.png",
       "width": 96,

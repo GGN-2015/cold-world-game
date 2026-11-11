@@ -1,7 +1,7 @@
 import math
 import time
 
-from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FOODS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, MAX_COINS, MELEE_WEAPONS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS, SOLID
+from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DRINKS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FOODS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, MAX_COINS, MELEE_WEAPONS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS, SOLID
 from .geometry import DIRECTIONS, circle_square, distance, normalized, segment_box, tile
 from .models import GroundItem, Item, Structure
 
@@ -93,7 +93,7 @@ class Actions:
             if target and target.kind in CONTAINERS and (item is None or item.kind not in EXPLOSIVE_WEAPONS and item.kind not in REVIVAL_ITEMS) and (not shift or target.kind in PANEL_DEMOLITION) and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
                 self.open_container(player, controls, target.id)
                 return {"opened": target.id}
-            if player.temperature < 5 and item and item.kind not in FOODS and item.kind not in HEALING_ITEMS and item.kind not in RETURN_ITEMS and item.kind not in REVIVAL_ITEMS:
+            if player.temperature < 5 and item and item.kind not in FOODS and item.kind not in HEALING_ITEMS and item.kind not in RETURN_ITEMS and item.kind not in REVIVAL_ITEMS and item.kind not in DRINKS:
                 controls.stop_attack()
                 return {"accepted": False}
             swing = False

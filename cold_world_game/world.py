@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from .actions import Actions, GameError
 from .admin import Administration, admin_id
 from .combat import Combat
-from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BULLET_BLOCKERS, BURN_SECONDS, CHUNK_SIZE, DAY_SECONDS, DEFAULT_VIEWPORT, DEFIBRILLATOR_CHANCE, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FAST_MONSTER_SPEED, FIRST_AID_KIT_CHANCE, FLAME_STAFF_CHANCE, FOODS, GRENADE_CHANCE, GUN_MACHINE_CHANCE, HEAT_PATCH_CHANCE, GUNS, HEALING_ITEMS, ICE_STAFF, ICE_STAFF_CHANCE, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, MACHINE_OFFERS, MAX_COINS, MATCH_MACHINE_CHANCE, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_SPEED, NIGHT_MONSTER_HOURS, OPAQUE, PICKUP_RADIUS, PIGGY_BANK_CHANCE, PLAYER_SPEED, RECIPES, REVIVAL_ITEMS, RETURN_ITEMS, RETURN_STAFF_CHANCE, SEASON_DAYS, SEASON_OFFSETS, SEASONS, SOLID, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS
+from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BULLET_BLOCKERS, BURN_SECONDS, CHUNK_SIZE, DAY_SECONDS, DEFAULT_VIEWPORT, DEFIBRILLATOR_CHANCE, DRINKS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FAST_MONSTER_SPEED, FIRST_AID_KIT_CHANCE, FLAME_STAFF_CHANCE, FOODS, GRENADE_CHANCE, GUNS, GUN_MACHINE_CHANCE, HEALING_ITEMS, HEAT_PATCH_CHANCE, ICE_STAFF, ICE_STAFF_CHANCE, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, MACHINE_OFFERS, MATCH_MACHINE_CHANCE, MAX_COINS, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_SPEED, NIGHT_MONSTER_HOURS, OPAQUE, PASSIVE_ITEMS, PICKUP_RADIUS, PIGGY_BANK_CHANCE, PLAYER_SPEED, READY_TO_EAT_FOODS, RECIPES, RETURN_ITEMS, RETURN_STAFF_CHANCE, REVIVAL_ITEMS, SEASONS, SEASON_DAYS, SEASON_OFFSETS, SHERIFF_BADGE_CHANCE, SOLID, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS, VODKA_CHANCE
 from .geometry import chunk, circle_square, distance, segment_box, tile
 from .models import Controls, GroundItem, Item, Monster, Player, Projectile, encode, item_from, player_from, structure_from
 from .monsters import Monsters
@@ -439,6 +439,11 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
         return {"year": day // (SEASON_DAYS * len(SEASONS)) + 1, "season": SEASONS[season], "day": day % SEASON_DAYS + 1, "hour": hour, "ambient_temperature": spring + SEASON_OFFSETS[season]}
 
     def temperature_at(self, player):
+        if player.excitement_remaining > 0:
+            return DRINKS["vodka"]["felt_temperature"]
+        return self.actual_temperature_at(player)
+
+    def actual_temperature_at(self, player):
         nearest = min((abs(tile(player.x) - fire.x) + abs(tile(player.y) - fire.y) for fire in self._campfires.values() if fire.lit), default=math.inf)
         return next((temperature for radius, temperature in ((3, 30), (6, 20), (9, 10)) if 1 <= nearest <= radius), self.environment()["ambient_temperature"])
 
@@ -459,15 +464,20 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
 
     def update_player(self, player, controls, seconds):
         previous_temperature = player.temperature
-        ambient = self.temperature_at(player)
-        rate = 10 if ambient >= 20 else 0 if ambient >= 10 else -1 if ambient >= 0 else -2 if ambient >= -10 else -5 if ambient >= -20 else -10
-        player.temperature = max(0.0, min(36.0, player.temperature + rate * seconds / 60))
+        excited_seconds = min(seconds, player.excitement_remaining)
+        if excited_seconds > 0:
+            player.temperature = min(36.0, player.temperature + 10 * excited_seconds / 60)
+            player.excitement_remaining = max(0.0, player.excitement_remaining - seconds)
+        if seconds > excited_seconds:
+            ambient = self.actual_temperature_at(player)
+            rate = 10 if ambient >= 20 else 0 if ambient >= 10 else -1 if ambient >= 0 else -2 if ambient >= -10 else -5 if ambient >= -20 else -10
+            player.temperature = max(0.0, min(36.0, player.temperature + rate * (seconds - excited_seconds) / 60))
         player.hunger = max(0.0, player.hunger - seconds / 60)
         if (previous_temperature < 5) != (player.temperature < 5):
             controls.movement_epoch += 1
         if player.temperature < 5:
             item = player.inventory[player.selected]
-            if item is None or item.kind not in HEALING_ITEMS and item.kind not in RETURN_ITEMS:
+            if item is None or item.kind not in HEALING_ITEMS and item.kind not in RETURN_ITEMS and item.kind not in DRINKS:
                 controls.stop_attack()
             controls.ghost_monsters.update(monster.id for monster in self.monsters.values() if distance(player, monster) < BODY_RADIUS * 2)
         elif previous_temperature < 5:
@@ -535,7 +545,7 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
 
     @staticmethod
     def catalog():
-        return {"tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "vending_offers": VENDING_OFFERS, "machine_offers": MACHINE_OFFERS, "currency": {"item": "coin", "player_field": "money", "uses_slots": False, "shared_bank": "piggy_bank", "bank_balance_field": "balance", "max_coins": MAX_COINS}, "monster_coin_drops": MONSTER_COIN_DROPS, "monster_spawning": {"night_start": NIGHT_MONSTER_HOURS[0], "night_end": NIGHT_MONSTER_HOURS[1], **MONSTER_SPAWN_CHANCES}, "monster_activity": {"rest_start": MONSTER_REST_HOURS[0], "rest_end": MONSTER_REST_HOURS[1], "rise_seconds": MONSTER_RISE_SECONDS}, "terrain": {"version": TERRAIN_VERSION, "vending_machine_chance": VENDING_MACHINE_CHANCE, "match_machine_chance": MATCH_MACHINE_CHANCE, "chest_first_aid_kit_chance": FIRST_AID_KIT_CHANCE, "chest_return_staff_chance": RETURN_STAFF_CHANCE, "chest_ice_staff_chance": ICE_STAFF_CHANCE, "gun_machine_chance": GUN_MACHINE_CHANCE, "chest_grenade_chance": GRENADE_CHANCE, "chest_flame_staff_chance": FLAME_STAFF_CHANCE, "chest_defibrillator_chance": DEFIBRILLATOR_CHANCE, "piggy_bank_chance": PIGGY_BANK_CHANCE, "chest_heat_patch_chance": HEAT_PATCH_CHANCE, "unexplored_uses_latest": True}, "axe": AXE, "melee_weapons": MELEE_WEAPONS, "explosive_weapons": EXPLOSIVE_WEAPONS, "guns": GUNS, "projectiles": {"piercing": True, "range": "viewport_half_diagonal", "default_viewport": list(DEFAULT_VIEWPORT), "blockers": sorted(BULLET_BLOCKERS), "monster_blockers": sorted(MONSTER_BULLET_BLOCKERS)}, "healing_items": HEALING_ITEMS, "revival_items": REVIVAL_ITEMS, "return_items": RETURN_ITEMS, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED, "fast_monster_speed": FAST_MONSTER_SPEED, "frozen_speed_scale": ICE_STAFF["speed_scale"]}, "knockback": KNOCKBACK, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "protocol": 1}
+        return {"tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "vending_offers": VENDING_OFFERS, "machine_offers": MACHINE_OFFERS, "currency": {"item": "coin", "player_field": "money", "uses_slots": False, "shared_bank": "piggy_bank", "bank_balance_field": "balance", "max_coins": MAX_COINS}, "monster_coin_drops": MONSTER_COIN_DROPS, "monster_spawning": {"night_start": NIGHT_MONSTER_HOURS[0], "night_end": NIGHT_MONSTER_HOURS[1], **MONSTER_SPAWN_CHANCES}, "monster_activity": {"rest_start": MONSTER_REST_HOURS[0], "rest_end": MONSTER_REST_HOURS[1], "rise_seconds": MONSTER_RISE_SECONDS}, "terrain": {"version": TERRAIN_VERSION, "vending_machine_chance": VENDING_MACHINE_CHANCE, "match_machine_chance": MATCH_MACHINE_CHANCE, "chest_first_aid_kit_chance": FIRST_AID_KIT_CHANCE, "chest_return_staff_chance": RETURN_STAFF_CHANCE, "chest_ice_staff_chance": ICE_STAFF_CHANCE, "gun_machine_chance": GUN_MACHINE_CHANCE, "chest_grenade_chance": GRENADE_CHANCE, "chest_flame_staff_chance": FLAME_STAFF_CHANCE, "chest_defibrillator_chance": DEFIBRILLATOR_CHANCE, "piggy_bank_chance": PIGGY_BANK_CHANCE, "chest_heat_patch_chance": HEAT_PATCH_CHANCE, "chest_sheriff_badge_chance": SHERIFF_BADGE_CHANCE, "chest_vodka_chance": VODKA_CHANCE, "unexplored_uses_latest": True}, "axe": AXE, "melee_weapons": MELEE_WEAPONS, "explosive_weapons": EXPLOSIVE_WEAPONS, "guns": GUNS, "projectiles": {"piercing": True, "range": "viewport_half_diagonal", "default_viewport": list(DEFAULT_VIEWPORT), "blockers": sorted(BULLET_BLOCKERS), "monster_blockers": sorted(MONSTER_BULLET_BLOCKERS)}, "drinks": DRINKS, "passive_items": PASSIVE_ITEMS, "ready_to_eat_foods": sorted(READY_TO_EAT_FOODS), "healing_items": HEALING_ITEMS, "revival_items": REVIVAL_ITEMS, "return_items": RETURN_ITEMS, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED, "fast_monster_speed": FAST_MONSTER_SPEED, "frozen_speed_scale": ICE_STAFF["speed_scale"]}, "knockback": KNOCKBACK, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "protocol": 1}
 
     def close(self):
         with self.lock:

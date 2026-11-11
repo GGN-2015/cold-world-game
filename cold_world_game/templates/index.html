@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/roster.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/bank.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/items.css') }}">
 </head>
 <body>
   <main id="app">
@@ -55,7 +56,7 @@
         </section>
         <div id="connection-banner" class="connection-banner" role="status" hidden></div>
         <div id="downed-notice" class="downed-notice glass" hidden><strong data-i18n="downed.title">失温倒地</strong> <span data-i18n="downed.description">怪物不会索敌或攻击倒地的你，游荡也不受你吸引。仍可制作、放置和点燃篝火，取暖至 5°C 后站起。</span></div>
-        <div class="position-readout"><span id="coordinate-label">坐标 0, 0</span><span id="fps-label">60 FPS</span><span id="player-label"></span></div>
+        <div class="position-readout"><span id="coordinate-label">坐标 0, 0</span><span id="fps-label">60 FPS</span><span id="player-label"></span><span id="excitement-label" class="excitement-status" hidden></span></div>
         <div id="context-hint" class="context-hint glass" hidden></div>
         <section id="side-panel" class="side-panel glass" role="dialog" aria-modal="false" data-i18n-aria-label="panel.label" aria-label="物品操作面板" hidden>
           <header class="panel-heading"><div><span id="panel-kicker" class="eyebrow">SURVIVAL KIT</span><h2 id="panel-title">制作</h2></div><button id="panel-close" class="close-button" data-i18n-aria-label="panel.close" aria-label="关闭面板">×</button></header>
@@ -119,7 +120,7 @@
           <article><h3 data-i18n="help.movementTitle">走进雪原</h3><p data-i18n-html="help.movement"></p></article>
           <article><h3 data-i18n="help.buildingTitle">收集与建造</h3><p data-i18n-html="help.building"></p></article>
           <article><h3 data-i18n="help.fireTitle">点一堆火</h3><p data-i18n-html="help.fire"></p></article>
-          <article><h3 data-i18n="help.foodTitle">好好吃饭</h3><p data-i18n-html="help.food"></p><p data-i18n="help.heatPatch"></p></article>
+          <article><h3 data-i18n="help.foodTitle">好好吃饭</h3><p data-i18n-html="help.food"></p><p data-i18n="help.heatPatch"></p><p data-i18n="help.newSupplies"></p></article>
           <article><h3 data-i18n="help.storageTitle">背包与容器</h3><p data-i18n-html="help.storage"></p><p data-i18n="help.piggy"></p></article>
           <article><h3 data-i18n="help.returnTitle">带上归途</h3><p data-i18n-html="help.return"></p></article>
           <article><h3 data-i18n="help.combatTitle">留心身后</h3><p data-i18n-html="help.combat"></p><p data-i18n-html="help.monsters"></p></article>

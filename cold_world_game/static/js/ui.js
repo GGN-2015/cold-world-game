@@ -2,6 +2,7 @@ import { assetUrl, containers, distance, errorText, itemDetail, itemName, machin
 import { getLanguage, t } from './i18n.js';
 import { isMobileDevice } from './mobile.js';
 import { StoragePrediction } from './storage.js';
+import { itemGuide } from './item-guide.js';
 
 const element = (tag, className = '', text = '') => {
   const node = document.createElement(tag);
@@ -29,6 +30,8 @@ export class GameUI {
     this.demolitionHold = null;
     this.demolitionButton = null;
     this.storageView = null;
+    this.inspectedId = null;
+    this.guideHotbarKey = null;
     this.transfers = new StoragePrediction(catalog);
     connection.addEventListener('command', ({ detail }) => {
       if (detail.type === 'transfer' && this.transfers.enqueue(detail.seq, detail.payload)) this.update(this.state);
@@ -120,6 +123,7 @@ export class GameUI {
     this.helpOpen = false;
     byId('help-overlay').hidden = true;
     this.panel = kind;
+    this.inspectedId = this.state?.you.inventory[this.controls.selected()]?.id ?? null;
     this.connection.send('ui', { open: true });
     this.refreshPanel();
   }
@@ -155,6 +159,8 @@ export class GameUI {
   reset() {
     this.cancelDemolition();
     this.transfers.reset();
+    this.inspectedId = null;
+    this.guideHotbarKey = null;
     this.storageView = null;
     this.state = null;
     this.panel = null;
@@ -178,6 +184,9 @@ export class GameUI {
     const totalMinutes = Math.floor(state.environment.hour * 60) % 1440;
     byId('clock-label').textContent = `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
     byId('ambient-label').textContent = t('world.ambient', { temperature: you.ambient_temperature.toFixed(0) });
+    const excitement = byId('excitement-label');
+    excitement.hidden = !(you.excitement_remaining > 0);
+    excitement.textContent = you.excitement_remaining > 0 ? t('status.excited', { seconds: Math.ceil(you.excitement_remaining) }) : '';
     byId('temperature-label').textContent = `${you.temperature.toFixed(1)}°C`;
     byId('temperature-fill').style.width = `${Math.max(0, you.temperature / 36 * 100)}%`;
     const displayHunger = you.hunger > 10 && you.hunger.toFixed(1) === '10.0' ? '>10' : you.hunger.toFixed(1);
@@ -190,6 +199,11 @@ export class GameUI {
     byId('player-label').textContent = you.id;
     byId('downed-notice').hidden = !you.downed;
     const selected = this.controls.selected();
+    const guideHotbarKey = `${selected}:${you.inventory[selected]?.id || ''}`;
+    if (this.guideHotbarKey !== guideHotbarKey) {
+      this.guideHotbarKey = guideHotbarKey;
+      this.inspectedId = you.inventory[selected]?.id ?? null;
+    }
     byId('equipped-label').textContent = itemDetail(you.inventory[selected], this.catalog);
     if (this.touchSelection) {
       const source = this.touchSelection;
@@ -198,7 +212,7 @@ export class GameUI {
         : state.container?.id === endpoint.id ? (endpoint.kind === 'igniter' ? state.container.igniter : state.container.slots?.[endpoint.slot]) : null;
       if (current?.id !== source.item.id) this.touchSelection = null;
     }
-    const hotbarSignature = JSON.stringify([you.inventory, selected, this.touchTransfer, this.touchSelection]);
+    const hotbarSignature = JSON.stringify([you.inventory, selected, this.touchTransfer, this.touchSelection, this.panel ? this.inspectedId : null]);
     if (hotbarSignature !== this.hotbarSignature && !this.dragSource) {
       this.hotbarSignature = hotbarSignature;
       this.updateSlots(byId('hotbar'), you.inventory, (slot) => ({ kind: 'inventory', slot }), true);
@@ -227,6 +241,8 @@ export class GameUI {
       text = t(target?.category === 'player' ? 'hint.reviveTarget' : 'hint.defibrillator', { name: target?.id || '', ...this.catalog.revival_items[equipped.kind] });
     } else if (this.catalog.explosive_weapons?.[equipped?.kind]) {
       text = t(equipped.kind === 'coin_launcher' ? 'hint.coinLauncher' : 'hint.grenade', { ...this.catalog.explosive_weapons[equipped.kind], money: this.state.you.money ?? 0 });
+    } else if (this.catalog.drinks?.[equipped?.kind] && !(target?.category === 'structure' && containers.has(target.kind) && distance(this.state.you, target) <= 2)) {
+      text = t('hint.drink', this.catalog.drinks[equipped.kind]);
     } else if (this.catalog.healing_items?.[equipped?.kind] && !(target?.category === 'structure' && containers.has(target.kind) && distance(this.state.you, target) <= 2)) {
       text = itemDetail(equipped, this.catalog);
     } else if (this.catalog.return_items?.[equipped?.kind] && !(target?.category === 'structure' && containers.has(target.kind) && distance(this.state.you, target) <= 2)) {
@@ -253,7 +269,7 @@ export class GameUI {
   refreshPanel() {
     if (!this.state || !this.panel || this.dragSource) return;
     const container = this.state.container;
-    const signature = JSON.stringify([this.panel, this.state.you.inventory, this.state.you.backpack, this.state.you.money, this.controls.selected(), container ? { ...container, burn_remaining: Math.ceil(container.burn_remaining || 0) } : null, this.busy, this.touchTransfer, this.touchSelection]);
+    const signature = JSON.stringify([this.panel, this.state.you.inventory, this.state.you.backpack, this.state.you.money, this.controls.selected(), container ? { ...container, burn_remaining: Math.ceil(container.burn_remaining || 0) } : null, this.busy, this.touchTransfer, this.touchSelection, this.inspectedId]);
     if (signature === this.panelSignature) return;
     this.panelSignature = signature;
     const body = byId('panel-body');
@@ -273,6 +289,7 @@ export class GameUI {
       layout.append(bag, detail);
       body.replaceChildren(layout);
       detail.append(element('h3', 'storage-heading', this.panel === 'container' ? itemName(container.kind) : t('button.craft')));
+      this.storageView.guide = this.renderItemGuide(detail);
       if (this.panel === 'container' && container.kind === 'chest') {
         this.storageView.chestCount = element('div', 'container-meta');
         this.storageView.chestGrid = element('div', 'chest-grid');
@@ -288,6 +305,7 @@ export class GameUI {
       detail.append(this.storageView.warning);
     }
     const view = this.storageView;
+    this.updateItemGuide(view.guide);
     view.backpack.count.textContent = t('bag.slots', { count: this.state.you.backpack.filter(Boolean).length });
     view.backpack.money.textContent = t('money.balance', { count: this.state.you.money ?? 0 });
     view.backpack.hint.textContent = t(container?.kind === 'piggy_bank' ? 'bank.sharedHint' : container?.kind === 'gun_machine' ? 'gun.backpackHint' : machines.has(container?.kind) ? 'vending.backpackHint' : 'bag.transferHint');
@@ -314,6 +332,69 @@ export class GameUI {
     }
     view.warning.hidden = this.panel !== 'container' || !this.state.structures.some((entry) => entry.id === container?.id && entry.monster_demolition);
     this.updateDemolitionButton();
+  }
+
+  inspectItem(item, scroll = true) {
+    if (!this.panel) return;
+    this.inspectedId = item?.id ?? null;
+    this.panelSignature = '';
+    this.hotbarSignature = '';
+    this.update(this.state);
+    if (scroll && item && isMobileDevice && !this.touchTransfer) this.storageView?.guide.card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  renderItemGuide(body) {
+    const card = element('aside', 'item-guide');
+    card.id = 'item-guide';
+    card.hidden = true;
+    card.setAttribute('aria-live', 'polite');
+    const header = element('div', 'item-guide-heading');
+    const icon = element('img');
+    icon.alt = '';
+    const heading = element('div');
+    const category = element('span', 'eyebrow');
+    const title = element('h4');
+    title.id = 'item-guide-title';
+    card.setAttribute('aria-labelledby', title.id);
+    heading.append(category, title);
+    header.append(icon, heading);
+    const effect = element('p', 'item-guide-effect');
+    const use = element('p', 'item-guide-use');
+    const detail = element('p', 'item-guide-detail');
+    const move = element('button', 'small-button item-guide-move');
+    move.type = 'button';
+    move.onclick = () => {
+      const entry = this.playerItems().find(entry => entry.item?.id === this.inspectedId);
+      if (entry) this.movePersonalItem(entry.endpoint, entry.item);
+    };
+    card.append(header, effect, use, detail, move);
+    body.append(card);
+    return { card, icon, category, title, effect, use, detail, move };
+  }
+
+  updateItemGuide(view) {
+    const entry = this.playerItems().find(entry => entry.item?.id === this.inspectedId);
+    view.card.hidden = !entry;
+    if (!entry) return;
+    const guide = itemGuide(entry.item, this.catalog);
+    view.card.dataset.itemId = entry.item.id;
+    view.icon.src = assetUrl(entry.item.kind);
+    view.category.textContent = guide.category;
+    view.title.textContent = itemName(entry.item.kind);
+    view.effect.textContent = guide.effect;
+    view.use.textContent = guide.use;
+    view.detail.textContent = guide.detail;
+    const destination = entry.endpoint.kind === 'backpack' ? 'inventory' : 'backpack';
+    view.move.textContent = t(destination === 'inventory' ? 'guide.toHotbar' : 'guide.toBackpack');
+    view.move.disabled = this.busy || !this.state.you[destination].some(item => !item);
+  }
+
+  movePersonalItem(endpoint, item) {
+    if (this.busy) return;
+    const destination = endpoint.kind === 'backpack' ? 'inventory' : 'backpack';
+    const slot = this.state.you[destination].findIndex(entry => !entry);
+    if (slot < 0) return this.toast(() => t(destination === 'inventory' ? 'storage.hotbarFull' : 'storage.backpackFull'));
+    return this.transfer(endpoint, { kind: destination, slot }, item);
   }
 
   cancelDemolition() {
@@ -495,8 +576,17 @@ export class GameUI {
       node.type = 'button';
       if (hotbar) node.append(element('span', 'slot-key', String((endpoint.slot + 1) % 10)));
       node.addEventListener('pointerdown', (event) => { event.stopPropagation(); this.controls.stop(); });
+      node.addEventListener('focus', () => {
+        const { item, endpoint } = node.slotState;
+        if (['inventory', 'backpack'].includes(endpoint.kind)) this.inspectItem(item, false);
+      });
+      node.addEventListener('dblclick', (event) => {
+        const { item, endpoint } = node.slotState;
+        if (!isMobileDevice && this.panel && item && !event.shiftKey && ['inventory', 'backpack'].includes(endpoint.kind)) this.movePersonalItem(endpoint, item);
+      });
       node.onclick = (event) => {
         const { item, endpoint } = node.slotState;
+        if (['inventory', 'backpack'].includes(endpoint.kind)) this.inspectItem(item);
         if (this.busy) return;
         if (item?.kind === 'coin') return this.quickTake(endpoint, item);
         if (isMobileDevice && this.touchTransfer && this.panel) return this.touchTransferTo(endpoint, item);
@@ -508,11 +598,7 @@ export class GameUI {
           }
         } else if (endpoint.kind === 'backpack' && item) {
           if (event.shiftKey && this.state.container) this.quickDeposit(endpoint, item);
-          else {
-            const slot = this.state.you.inventory.findIndex((entry) => !entry);
-            if (slot < 0) return this.toast(() => t('storage.hotbarFull'));
-            this.transfer(endpoint, { kind: 'inventory', slot }, item);
-          }
+          else if (event.shiftKey) this.movePersonalItem(endpoint, item);
         } else if (item) this.quickTake(endpoint, item);
       };
       node.addEventListener('dragstart', (event) => {
@@ -540,10 +626,11 @@ export class GameUI {
     }
     node.slotState = { item, endpoint };
     const selected = endpoint.kind === 'inventory' && endpoint.slot === this.controls.selected();
-    const signature = JSON.stringify([item, endpoint, selected, this.touchSelection?.item.id, getLanguage()]);
+    const inspected = Boolean(this.panel && item && item.id === this.inspectedId);
+    const signature = JSON.stringify([item, endpoint, selected, this.touchSelection?.item.id, inspected, getLanguage()]);
     if (node.slotSignature === signature) return node;
     node.slotSignature = signature;
-    node.className = `item-slot${item ? '' : ' empty'}${selected ? ' selected' : ''}${item && this.touchSelection?.item.id === item.id ? ' touch-selected' : ''}`;
+    node.className = `item-slot${item ? '' : ' empty'}${selected ? ' selected' : ''}${inspected ? ' inspected' : ''}${item && this.touchSelection?.item.id === item.id ? ' touch-selected' : ''}`;
     node.title = itemDetail(item, this.catalog);
     node.setAttribute('aria-label', t('slot.label', { area: t(`slot.${['inventory', 'backpack'].includes(endpoint.kind) ? endpoint.kind : 'container'}`), slot: endpoint.slot == null ? '' : endpoint.slot + 1, item: itemDetail(item, this.catalog) }));
     node.dataset.kind = endpoint.kind;

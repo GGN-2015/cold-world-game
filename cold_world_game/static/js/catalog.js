@@ -11,6 +11,8 @@ export const distance = (first, second) => Math.hypot(first.x - second.x, first.
 
 export function itemDetail(item, catalog) {
   if (!item) return t('slot.empty');
+  if (catalog?.passive_items?.[item.kind]) return t('item.passive', { name: itemName(item.kind), ...catalog.passive_items[item.kind] });
+  if (catalog?.drinks?.[item.kind]) return t('item.drink', { name: itemName(item.kind), ...catalog.drinks[item.kind] });
   if (catalog?.melee_weapons?.[item.kind]?.freeze_duration) return t('item.iceStaffDetail', { name: itemName(item.kind), count: item.uses, ...catalog.melee_weapons[item.kind] });
   if (catalog?.melee_weapons?.[item.kind]?.burn_duration) return t('item.flameStaffDetail', { name: itemName(item.kind), count: item.uses, ...catalog.melee_weapons[item.kind] });
   if (catalog?.explosive_weapons?.[item.kind]) return t(item.kind === 'coin_launcher' ? 'item.coinLauncherDetail' : 'item.grenadeDetail', { name: itemName(item.kind), ...catalog.explosive_weapons[item.kind] });

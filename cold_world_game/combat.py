@@ -1,6 +1,6 @@
 import math
 
-from .constants import BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, EXPLOSIVE_WEAPONS, FLAME_STAFF, FOODS, GUNS, HEALING_ITEMS, KNOCKBACK, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, PANEL_DEMOLITION, PROJECTILE_RANGE, READY_TO_EAT_FOODS, RETURN_ITEMS, REVIVAL_ITEMS
+from .constants import BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, DRINKS, EXPLOSIVE_WEAPONS, FLAME_STAFF, FOODS, GUNS, HEALING_ITEMS, KNOCKBACK, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, PANEL_DEMOLITION, PASSIVE_ITEMS, PROJECTILE_RANGE, READY_TO_EAT_FOODS, RETURN_ITEMS, REVIVAL_ITEMS
 from .geometry import distance, normalized, segment_box, segment_circle, tile
 from .models import Item, Projectile, identifier
 
@@ -26,6 +26,9 @@ class Combat:
             return
         if item.kind in HEALING_ITEMS:
             self.use_healing_item(player, controls, item, seconds)
+            return
+        if item.kind in DRINKS:
+            self.use_drink(player, controls, item, seconds)
             return
         if item.kind in RETURN_ITEMS:
             self.use_return_item(player, controls, item, seconds)
@@ -90,6 +93,17 @@ class Combat:
             self.emit_event("eat", player.id, item.kind, player.x, player.y)
             player.inventory[player.selected] = None
             controls.stop_attack()
+
+    def use_drink(self, player, controls, item, seconds):
+        settings = DRINKS[item.kind]
+        self.progress(controls, f"drink:{item.id}", seconds)
+        if controls.progress + 1e-9 < settings["duration"]:
+            return
+        self.touch()
+        player.excitement_remaining = settings["effect_duration"]
+        player.inventory[player.selected] = None
+        self.emit_event("eat", player.id, item.kind, player.x, player.y)
+        controls.stop_attack()
 
     def use_explosive(self, player, controls, item, seconds):
         settings = EXPLOSIVE_WEAPONS[item.kind]
@@ -332,6 +346,9 @@ class Combat:
         self.touch()
         impact_x, impact_y = monster.x, monster.y
         displacement = [0.0, 0.0]
+        attacker = self.players.get(actor)
+        if not monster.big and attacker and any(item and item.kind == "sheriff_badge" for storage in (attacker.inventory, attacker.backpack) for item in storage):
+            amount *= PASSIVE_ITEMS["sheriff_badge"]["damage_multiplier"]
         monster.hp -= amount
         impacts = self.shot_impacts.setdefault(shot, set()) if shot else None
         if impacts is None or monster.id not in impacts:

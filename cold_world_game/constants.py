@@ -16,7 +16,9 @@ BACKPACK_SLOTS = 30
 DROP_DISTANCE = 2.0
 PICKUP_RADIUS = 0.75
 WORLD_RADIUS = 120
-TERRAIN_VERSION = 10
+TERRAIN_VERSION = 11
+SHERIFF_BADGE_CHANCE = 0.02
+VODKA_CHANCE = 0.02
 PIGGY_BANK_CHANCE = 0.05
 HEAT_PATCH_CHANCE = 0.02
 MAX_COINS = 2 ** 53 - 1
@@ -52,6 +54,8 @@ FOODS = {
     "cola": 2,
 }
 READY_TO_EAT_FOODS = frozenset({"cola", "oreos", "compressed_biscuits"})
+DRINKS = {"vodka": {"duration": 0.5, "effect_duration": 30.0, "felt_temperature": 30.0}}
+PASSIVE_ITEMS = {"sheriff_badge": {"damage_multiplier": 2, "monster_kinds": ["small", "fast"], "stackable": False}}
 HEALING_ITEMS = {"first_aid_kit": {"duration": 0.5, "temperature": 36.0, "hunger": 10.0}, "heat_patch": {"duration": 0.5, "temperature": 36.0}}
 REVIVAL_ITEMS = {"defibrillator": {"duration": 1.5, "range": 2.0, "temperature": 36.0, "hunger": 10.0}}
 RETURN_ITEMS = {"return_staff": {"duration": 1.5, "uses": 20}}
@@ -106,4 +110,4 @@ GUN_OFFERS = {
     "buy_coin_launcher": {"inputs": {"coin": 10}, "output": "coin_launcher", "count": 1},
 }
 MACHINE_OFFERS = {"vending_machine": VENDING_OFFERS, "match_machine": MATCH_OFFERS, "gun_machine": GUN_OFFERS}
-ITEM_KINDS = frozenset({"wood", "coin"}) | BUILDINGS | FOODS.keys() | HEALING_ITEMS.keys() | REVIVAL_ITEMS.keys() | RETURN_ITEMS.keys() | IGNITERS.keys() | GUNS.keys() | MELEE_WEAPONS.keys() | EXPLOSIVE_WEAPONS.keys()
+ITEM_KINDS = frozenset({"wood", "coin"}) | BUILDINGS | FOODS.keys() | DRINKS.keys() | PASSIVE_ITEMS.keys() | HEALING_ITEMS.keys() | REVIVAL_ITEMS.keys() | RETURN_ITEMS.keys() | IGNITERS.keys() | GUNS.keys() | MELEE_WEAPONS.keys() | EXPLOSIVE_WEAPONS.keys()

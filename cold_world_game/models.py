@@ -58,6 +58,7 @@ class Player:
     offline_since: float | None = None
     money: int = 0
     last_login_at: float | None = None
+    excitement_remaining: float = 0.0
 
 
 @dataclass

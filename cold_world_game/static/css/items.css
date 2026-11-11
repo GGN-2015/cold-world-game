@@ -1,0 +1,19 @@
+.item-guide {
+  margin: 0 0 18px;
+  padding: 15px;
+  border: 1px solid #eebd6b60;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #eebd6b16, #9ee0b409);
+  overflow-wrap: anywhere;
+}
+.item-guide[hidden], .excitement-status[hidden] { display: none; }
+.item-guide-heading { display: flex; align-items: center; gap: 12px; }
+.item-guide-heading img { width: 56px; height: 56px; image-rendering: pixelated; }
+.item-guide-heading h4 { margin: 6px 0 0; font-size: 18px; color: #f2d69f; }
+.item-guide p { margin: 12px 0 0; font-size: 13px; line-height: 1.65; }
+.item-guide-use { color: #b9d6dd; }
+.item-guide-detail { color: #9fbdc0; font-size: 12px !important; }
+.item-guide-move { margin-top: 14px; min-height: 44px; width: 100%; touch-action: manipulation; }
+.item-slot.inspected { box-shadow: inset 0 0 0 2px #9ee0b4; }
+.excitement-status { color: #f2d69f; background: #69452cdd; padding: 3px 8px; border: 1px solid #eebd6b70; border-radius: 8px; }
+.mobile-device .item-guide p { font-size: 14px; }
