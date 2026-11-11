@@ -13,6 +13,7 @@ export function itemDetail(item, catalog) {
   if (!item) return t('slot.empty');
   if (item.ammo != null) return t('item.ammo', { name: itemName(item.kind), count: item.ammo });
   if (item.uses != null) return t('item.uses', { name: itemName(item.kind), count: item.uses });
+  if (catalog?.healing_items?.[item.kind]) return t('item.healing', { name: itemName(item.kind), ...catalog.healing_items[item.kind] });
   if (catalog?.foods?.[item.kind]) return t('item.food', { name: itemName(item.kind), value: catalog.foods[item.kind] });
   return itemName(item.kind);
 }

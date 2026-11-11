@@ -1,5 +1,6 @@
 import heapq
 import math
+import time
 from collections import deque
 from functools import lru_cache
 
@@ -10,6 +11,7 @@ from .models import Monster, Projectile
 
 PATH_STEPS = tuple((offset_x, offset_y, math.hypot(offset_x, offset_y)) for offset_x, offset_y in DIRECTIONS)
 PATH_PLANS_PER_TICK = 8
+PATH_TIME_BUDGET = 0.008
 
 
 class Monsters:
@@ -57,13 +59,15 @@ class Monsters:
         self.monsters[monster.id] = monster
 
     def update_monsters(self, seconds):
+        deadline = time.perf_counter() + PATH_TIME_BUDGET
+        self.advance_paths(deadline)
         standing_players = {player_id: self.players[player_id] for player_id in self.online if self.players[player_id].temperature >= 5}
         identifiers = list(self.monsters)
         cursor = getattr(self, "_path_cursor", None)
         if cursor in self.monsters:
             pivot = identifiers.index(cursor) + 1
             identifiers = identifiers[pivot:] + identifiers[:pivot]
-        due = [identifier for identifier in identifiers if self.monsters[identifier].next_plan <= self.elapsed and (self.monsters[identifier].target in standing_players or any(distance(self.monsters[identifier], player) <= 32 for player in standing_players.values()))]
+        due = [identifier for identifier in identifiers if identifier not in self._path_jobs and self.monsters[identifier].next_plan <= self.elapsed and (self.monsters[identifier].target in standing_players or any(distance(self.monsters[identifier], player) <= 32 for player in standing_players.values()))]
         planning = set(due[:PATH_PLANS_PER_TICK])
         if planning:
             self._path_cursor = due[min(len(due), PATH_PLANS_PER_TICK) - 1]
@@ -126,12 +130,37 @@ class Monsters:
                 self.emit_event("shot", monster.id, "monster", monster.x, monster.y, direction=[direction_x, direction_y])
                 monster.next_attack = self.elapsed + 2
             if self.elapsed >= monster.next_plan and monster.id in planning:
-                path, reached = self.find_path(monster, allow_demolition=False)
-                if monster.big and not reached:
-                    path, reached = self.find_path(monster, allow_demolition=True)
-                monster.path = path
-                monster.next_plan = self.elapsed + 0.5
+                revision = getattr(self, "_terrain_revision", 0), len(self.chunks)
+                self._path_jobs[monster.id] = monster, monster.target, (tile(monster.x), tile(monster.y)), revision, self.search_monster_path(monster)
+                self._path_queue.append(monster.id)
+                self.advance_paths(deadline)
             self.follow_path(monster, seconds)
+
+    def search_monster_path(self, monster):
+        path, reached = yield from self.search_path(monster, False)
+        if monster.big and not reached:
+            path, reached = yield from self.search_path(monster, True)
+        return path
+
+    def advance_paths(self, deadline):
+        while self._path_queue and time.perf_counter() < deadline:
+            identifier = self._path_queue.popleft()
+            job = self._path_jobs.get(identifier)
+            if job is None:
+                continue
+            monster, target_id, start, revision, search = job
+            target = self.players.get(target_id)
+            if self.monsters.get(identifier) is not monster or monster.demolition is not None or monster.target != target_id or target_id not in self.online or target is None or target.temperature < 5 or start != (tile(monster.x), tile(monster.y)) or revision != (getattr(self, "_terrain_revision", 0), len(self.chunks)):
+                self._path_jobs.pop(identifier, None)
+                continue
+            try:
+                next(search)
+            except StopIteration as completed:
+                monster.path = completed.value
+                monster.next_plan = self.elapsed + 0.5
+                self._path_jobs.pop(identifier, None)
+            else:
+                self._path_queue.append(identifier)
 
     def demolish(self, monster, structure, seconds):
         if monster.demolition != structure.id:
@@ -193,6 +222,14 @@ class Monsters:
                 return
 
     def find_path(self, monster, allow_demolition):
+        search = self.search_path(monster, allow_demolition)
+        while True:
+            try:
+                next(search)
+            except StopIteration as completed:
+                return completed.value
+
+    def search_path(self, monster, allow_demolition):
         start = tile(monster.x), tile(monster.y)
         goal_x, goal_y = monster.seen_x, monster.seen_y
         occupied = set()
@@ -260,7 +297,11 @@ class Monsters:
         fallback = False
         if not allow_demolition:
             region, frontier = set(goals), deque(goals)
+            examined = 0
             while frontier and len(region) <= 256 and start not in region:
+                examined += 1
+                if examined % 32 == 0:
+                    yield
                 current = frontier.popleft()
                 for neighbor, cost in neighbors(current):
                     if neighbor not in region:
@@ -269,9 +310,13 @@ class Monsters:
             if not frontier and start not in region:
                 fallback = True
                 candidates = []
+                examined = 0
                 for radius in range(1, 49):
                     for offset_x in range(-radius, radius + 1):
                         for offset_y in range(-radius, radius + 1):
+                            examined += 1
+                            if examined % 128 == 0:
+                                yield
                             if max(abs(offset_x), abs(offset_y)) != radius:
                                 continue
                             point = tile(goal_x) + offset_x, tile(goal_y) + offset_y
@@ -297,6 +342,8 @@ class Monsters:
         visited = set()
         reached = False
         while pending and len(visited) < 4096:
+            if len(visited) % 32 == 0:
+                yield
             estimate, order, current = heapq.heappop(pending)
             if current in visited:
                 continue

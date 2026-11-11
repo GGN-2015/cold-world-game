@@ -50,6 +50,7 @@ export class WorldRenderer {
     this.canvas = canvas;
     this.context = canvas.getContext('2d', { alpha: false });
     this.images = images;
+    this.catalog = catalog;
     this.animator = new ActorAnimator(animations);
     this.effects = new CombatEffects(effects);
     this.collision = new CollisionMap(catalog);
@@ -163,7 +164,7 @@ export class WorldRenderer {
     if (distance(this.movement.enabled ? this.movement.position : state.you, tile) > 3) return false;
     if (!state.chunks.some(([horizontal, vertical]) => Math.abs(tile.x - horizontal * 15) <= 7 && Math.abs(tile.y - vertical * 15) <= 7)) return false;
     if (state.structures.some((entity) => entity.x === tile.x && entity.y === tile.y)) return false;
-    if (['chest', 'campfire'].includes(item.kind) && state.structures.some((entity) => ['chest', 'campfire'].includes(entity.kind) && Math.max(Math.abs(entity.x - tile.x), Math.abs(entity.y - tile.y)) <= 1)) return false;
+    if (containers.has(item.kind) && state.structures.some((entity) => containers.has(entity.kind) && Math.max(Math.abs(entity.x - tile.x), Math.abs(entity.y - tile.y)) <= 1)) return false;
     return ![...state.players, ...state.monsters].some((entity) => {
       const point = entity.id === state.you.id && this.movement.enabled ? this.movement.position : this.positions.get(entity.id) || entity;
       return Math.hypot(Math.max(Math.abs(point.x - tile.x) - 0.5, 0), Math.max(Math.abs(point.y - tile.y) - 0.5, 0)) < 0.35;
@@ -247,7 +248,10 @@ export class WorldRenderer {
     if (this.state && this.pointer.active && !this.panelOpen) this.drawPointer();
     if (this.state?.interaction.progress > 0) {
       const target = state.structures.find((structure) => `structure:${structure.id}` === state.interaction.target);
-      this.bar(local.x, local.y + 0.7, Math.min(1, state.interaction.progress / (['wall', 'chest', 'vending_machine', 'match_machine'].includes(target?.kind) ? 1.5 : 0.5)), '#efbb78', 0.9);
+      const returning = state.interaction.target?.startsWith('return:');
+      const duration = returning ? this.catalog.return_items?.return_staff.duration ?? 1.5 : ['wall', 'chest', 'vending_machine', 'match_machine'].includes(target?.kind) ? 1.5 : 0.5;
+      if (returning) this.effects.frame(this, 'fx_teleport', local.x, local.y - 0.4, 2.6, (this.elapsed * 0.7) % 1);
+      this.bar(local.x, local.y + 0.7, Math.min(1, state.interaction.progress / duration), returning ? '#ac9afa' : '#efbb78', 0.9);
     }
     context.fillStyle = 'rgba(255,255,255,.55)';
     for (let index = 0; index < 65; index++) {

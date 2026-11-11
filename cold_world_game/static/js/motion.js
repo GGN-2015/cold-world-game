@@ -138,7 +138,7 @@ export class SnapshotMotion {
     const velocityX = interval > 0 ? (last.x - previous.x) / interval : last.velocity_x;
     const velocityY = interval > 0 ? (last.y - previous.y) / interval : last.velocity_y;
     const age = time - last.time;
-    const extension = Math.min(age, 0.12) + (age > 0.12 ? 0.12 * (1 - Math.exp(-(age - 0.12) / 0.12)) : 0);
+    const extension = Math.min(age, 0.3) + (age > 0.3 ? 0.12 * (1 - Math.exp(-(age - 0.3) / 0.12)) : 0);
     return { x: last.x + velocityX * extension, y: last.y + velocityY * extension };
   }
 
@@ -162,8 +162,8 @@ export class SnapshotMotion {
       active.add(entity.id);
       let track = this.tracks.get(entity.id);
       const frame = { time: state.elapsed, x: entity.x, y: entity.y, velocity_x: entity.velocity_x ?? 0, velocity_y: entity.velocity_y ?? 0 };
-      if (!track || state.paused || Boolean(entity.downed) !== track.downed || Math.hypot(entity.x - track.frames.at(-1).x, entity.y - track.frames.at(-1).y) > 5) {
-        track = { x: entity.x, y: entity.y, frames: [frame], downed: Boolean(entity.downed), correction: { x: 0, y: 0 }, renderVelocity: { x: 0, y: 0 } };
+      if (!track || state.paused || Boolean(entity.downed) !== track.downed || (entity.teleport_epoch ?? 0) !== track.teleportEpoch || Math.hypot(entity.x - track.frames.at(-1).x, entity.y - track.frames.at(-1).y) > 5) {
+        track = { x: entity.x, y: entity.y, frames: [frame], downed: Boolean(entity.downed), teleportEpoch: entity.teleport_epoch ?? 0, correction: { x: 0, y: 0 }, renderVelocity: { x: 0, y: 0 } };
         this.tracks.set(entity.id, track);
       } else {
         const previous = this.pointAt(track, this.time);

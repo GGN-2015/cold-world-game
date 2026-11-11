@@ -1,4 +1,4 @@
-const lifetimes = { shot: 0.15, melee: 0.28, chop: 0.28, break: 0.5, hit: 0.3, hurt: 0.3, death: 0.65 };
+const lifetimes = { shot: 0.15, melee: 0.28, chop: 0.28, break: 0.5, hit: 0.3, hurt: 0.3, death: 0.65, heal: 0.9, teleport_out: 1, teleport_in: 1 };
 
 function heading(event) {
   const horizontal = event.direction?.[0] ?? (event.target_x ?? event.x + 1) - event.x;
@@ -27,7 +27,8 @@ export class CombatEffects {
     for (const event of state.events || []) {
       if (event.id <= previous || !lifetimes[event.type] || state.elapsed - event.time > 0.6) continue;
       if (event.type === 'death') this.active = this.active.filter((effect) => effect.event.actor !== event.actor || !['shot', 'melee', 'chop'].includes(effect.event.type));
-      this.active.push({ event, age: 0, duration: event.type === 'death' ? this.definitions[event.kind === 'monster_big' ? 'monster_big_death' : event.kind === 'monster_fast' ? 'monster_fast_death' : 'monster_small_death']?.duration || lifetimes.death : lifetimes[event.type] });
+      const duration = event.type.startsWith('teleport_') ? this.definitions.fx_teleport?.duration || lifetimes[event.type] : event.type === 'heal' ? this.definitions.fx_heal?.duration || lifetimes.heal : event.type === 'death' ? this.definitions[event.kind === 'monster_big' ? 'monster_big_death' : event.kind === 'monster_fast' ? 'monster_fast_death' : 'monster_small_death']?.duration || lifetimes.death : lifetimes[event.type];
+      this.active.push({ event, age: 0, duration });
     }
     if (this.active.length > 96) this.active.splice(0, this.active.length - 96);
   }
@@ -108,6 +109,10 @@ export class CombatEffects {
         const target = renderer.positions.get(event.target || event.actor) || event;
         this.frame(renderer, 'fx_impact', target.x, target.y - 0.4, 1.35, phase, direction.angle);
         if (event.type === 'hurt' && event.actor === renderer.state?.you.id) injury = Math.max(injury, 1 - phase);
+      } else if (event.type === 'heal') {
+        this.frame(renderer, 'fx_heal', actor.x, actor.y - 0.45, 2.4, phase);
+      } else if (event.type.startsWith('teleport_')) {
+        this.frame(renderer, 'fx_teleport', event.x, event.y - 0.4, 3, event.type === 'teleport_out' ? 1 - phase : phase);
       } else if (event.type === 'death') {
         const big = event.kind === 'monster_big';
         const travel = Math.min(1, phase * 2);

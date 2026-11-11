@@ -217,14 +217,16 @@ export class GameUI {
 
   updateHint(target) {
     const hint = byId('context-hint');
-    if (!this.state || this.isOpen() || !target) { hint.hidden = true; return; }
+    if (!this.state || this.isOpen()) { hint.hidden = true; return; }
     const equipped = this.state.you.inventory[this.controls.selected()];
     let text = '';
-    if (target.category === 'structure') {
+    if (this.catalog.return_items?.[equipped?.kind] && !(target?.category === 'structure' && containers.has(target.kind) && distance(this.state.you, target) <= 2)) {
+      text = t('hint.returnStaff', { duration: this.catalog.return_items[equipped.kind].duration, uses: equipped.uses });
+    } else if (target?.category === 'structure') {
       const near = distance(this.state.you, target) <= (containers.has(target.kind) ? 2 : 3);
       if (containers.has(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${equipped?.kind === 'axe' && distance(this.state.you, target) <= 3 ? t(target.kind === 'chest' ? 'hint.chestDismantle' : machines.has(target.kind) ? 'hint.vendingDismantle' : 'hint.dismantle') : ''}`;
       else if (equipped?.kind === 'axe') text = `${itemName(target.kind)} · ${t(target.monster_demolition ? 'hint.busy' : near ? 'hint.gather' : 'hint.nearer')}`;
-    } else {
+    } else if (target) {
       text = `${t(target.big ? 'hint.bigMonster' : 'hint.smallMonster')} · ${target.hp} HP`;
       if (equipped?.kind === 'axe') text += distance(this.state.you, target) <= this.catalog.axe.range ? t('hint.attack') : t('hint.axeRange', { range: this.catalog.axe.range });
     }

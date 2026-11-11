@@ -1,6 +1,6 @@
 import math
 
-from .constants import AXE, BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, FOODS, GUNS, KNOCKBACK, MONSTER_COIN_DROPS, PANEL_DEMOLITION, PROJECTILE_RANGE, READY_TO_EAT_FOODS, TRADING_MACHINES
+from .constants import AXE, BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, FOODS, GUNS, HEALING_ITEMS, KNOCKBACK, MONSTER_COIN_DROPS, PANEL_DEMOLITION, PROJECTILE_RANGE, READY_TO_EAT_FOODS, RETURN_ITEMS, TRADING_MACHINES
 from .geometry import distance, normalized, segment_box, segment_circle, tile
 from .models import Item, Projectile, identifier
 
@@ -20,6 +20,12 @@ class Combat:
             return
         if controls.ui:
             controls.stop_attack()
+            return
+        if item.kind in HEALING_ITEMS:
+            self.use_healing_item(player, controls, item, seconds)
+            return
+        if item.kind in RETURN_ITEMS:
+            self.use_return_item(player, controls, item, seconds)
             return
         if item.kind in FOODS:
             self.eat(player, controls, item, seconds)
@@ -77,6 +83,48 @@ class Combat:
             player.inventory[player.selected] = None
             controls.stop_attack()
 
+    def use_healing_item(self, player, controls, item, seconds):
+        settings = HEALING_ITEMS[item.kind]
+        self.progress(controls, f"heal:{item.id}", seconds)
+        if controls.progress + 1e-9 >= settings["duration"]:
+            self.touch()
+            if player.temperature < 5:
+                controls.movement_epoch += 1
+            player.temperature = settings["temperature"]
+            player.hunger = max(player.hunger, settings["hunger"])
+            player.inventory[player.selected] = None
+            self.emit_event("heal", player.id, item.kind, player.x, player.y)
+            controls.stop_attack()
+
+    def use_return_item(self, player, controls, item, seconds):
+        if not item.uses or item.uses < 0:
+            controls.stop_attack()
+            return
+        self.progress(controls, f"return:{item.id}", seconds)
+        if controls.progress + 1e-9 < RETURN_ITEMS[item.kind]["duration"]:
+            return
+        self.touch()
+        departure_x, departure_y = player.x, player.y
+        player.x, player.y = self.return_destination()
+        self.ensure_terrain(player.x, player.y)
+        item.uses -= 1
+        if item.uses == 0:
+            player.inventory[player.selected] = None
+        controls.movement_epoch += 1
+        controls.teleport_epoch += 1
+        controls.move_x = controls.move_y = controls.velocity_x = controls.velocity_y = 0.0
+        controls.ghost_monsters.clear()
+        controls.aim_target = None
+        controls.aim_x, controls.aim_y = player.x + 1, player.y
+        controls.container = None
+        controls.ui = False
+        controls.stop_attack()
+        for monster in self.monsters.values():
+            if monster.target == player.id:
+                self.clear_target(monster)
+        self.emit_event("teleport_out", player.id, item.kind, departure_x, departure_y)
+        self.emit_event("teleport_in", player.id, item.kind, player.x, player.y)
+
     @staticmethod
     def progress(controls, target, seconds):
         if controls.target != target:
@@ -131,8 +179,8 @@ class Combat:
             self.touch()
             if structure.kind == "tree":
                 materials = [Item.create("wood") for count in range(self.random.randint(1, 3))]
-            elif structure.kind == "fence":
-                materials = [Item.create("fence")]
+            elif structure.kind in {"fence", "chest"}:
+                materials = [Item.create(structure.kind)]
             elif structure.kind in TRADING_MACHINES:
                 materials = [Item.create(structure.kind)]
             elif structure.kind == "campfire":

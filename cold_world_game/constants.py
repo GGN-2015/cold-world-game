@@ -14,9 +14,11 @@ BACKPACK_SLOTS = 30
 DROP_DISTANCE = 2.0
 PICKUP_RADIUS = 0.75
 WORLD_RADIUS = 120
-TERRAIN_VERSION = 3
+TERRAIN_VERSION = 6
 VENDING_MACHINE_CHANCE = 0.02
 MATCH_MACHINE_CHANCE = VENDING_MACHINE_CHANCE
+FIRST_AID_KIT_CHANCE = 0.02
+RETURN_STAFF_CHANCE = 0.02
 MONSTER_LIMIT = 70
 MONSTER_COIN_DROPS = {"small": ((1, 0.1), (0, 0.9)), "big": ((1, 0.6), (2, 0.2), (0, 0.2))}
 DAY_SECONDS = 1440
@@ -40,6 +42,8 @@ FOODS = {
     "cola": 2,
 }
 READY_TO_EAT_FOODS = frozenset({"cola", "oreos", "compressed_biscuits"})
+HEALING_ITEMS = {"first_aid_kit": {"duration": 0.5, "temperature": 36.0, "hunger": 10.0}}
+RETURN_ITEMS = {"return_staff": {"duration": 1.5, "uses": 20}}
 IGNITERS = {"lighter": 20, "gasoline": 5, "diesel": 5, "kerosene": 5, "matches": 1}
 AXE = {"range": 3, "interval": 0.5, "damage": 4}
 KNOCKBACK = {"axe": 0.7, "bullet": 0.4, "monster_melee": 0.65, "monster_big_melee": 1.0, "monster_bullet": 0.9, "player_bullet": 0.3, "big_monster_scale": 0.6}
@@ -76,4 +80,4 @@ MATCH_OFFERS = {
     "buy_matches": {"inputs": {"coin": 1}, "output": "matches", "count": 1},
 }
 MACHINE_OFFERS = {"vending_machine": VENDING_OFFERS, "match_machine": MATCH_OFFERS}
-ITEM_KINDS = frozenset({"wood", "axe", "coin"}) | BUILDINGS | FOODS.keys() | IGNITERS.keys() | GUNS.keys()
+ITEM_KINDS = frozenset({"wood", "axe", "coin"}) | BUILDINGS | FOODS.keys() | HEALING_ITEMS.keys() | RETURN_ITEMS.keys() | IGNITERS.keys() | GUNS.keys()

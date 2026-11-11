@@ -87,7 +87,7 @@ export class GameAudio extends EventTarget {
       if (event.id <= previous || state.elapsed - event.time > 0.6) continue;
       const separation = Math.hypot(event.x - state.you.x, event.y - state.you.y);
       if (separation >= 18) continue;
-      const clip = event.type === 'shot' ? (clips.includes(event.kind) ? event.kind : 'handgun') : event.type === 'melee' ? (event.kind === 'axe' ? 'axe' : 'monster_attack') : event.type === 'death' ? 'monster_death' : event.type;
+      const clip = event.type === 'shot' ? (clips.includes(event.kind) ? event.kind : 'handgun') : event.type === 'melee' ? (event.kind === 'axe' ? 'axe' : 'monster_attack') : event.type === 'death' ? 'monster_death' : event.type === 'heal' ? 'eat' : event.type;
       this.play(clip, (1 - separation / 18) ** 2, event.kind === 'monster_big' || (event.type === 'shot' && event.kind === 'monster') ? 0.72 : 1);
     }
   }

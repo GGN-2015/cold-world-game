@@ -1,7 +1,7 @@
 import math
 import time
 
-from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DROP_DISTANCE, FOODS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, SOLID
+from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DROP_DISTANCE, FOODS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, SOLID
 from .geometry import DIRECTIONS, circle_square, distance, normalized, segment_box, tile
 from .models import GroundItem, Item, Structure
 
@@ -88,7 +88,7 @@ class Actions:
                 self.open_container(player, controls, target.id)
                 return {"opened": target.id}
             item = player.inventory[player.selected]
-            if player.temperature < 5 and item and item.kind not in FOODS:
+            if player.temperature < 5 and item and item.kind not in FOODS and item.kind not in HEALING_ITEMS and item.kind not in RETURN_ITEMS:
                 controls.stop_attack()
                 return {"accepted": False}
             if not controls.held:
@@ -223,11 +223,11 @@ class Actions:
             raise GameError("out_of_range", "Placement must be within 3 units in a generated chunk")
         if self.structure_at(target_x, target_y):
             raise GameError("occupied", "This tile is occupied")
-        if item.kind in ("chest", "campfire"):
+        if item.kind in CONTAINERS:
             for offset_x, offset_y in DIRECTIONS:
                 neighbor = self.structure_at(target_x + offset_x, target_y + offset_y)
-                if neighbor and neighbor.kind in ("chest", "campfire"):
-                    raise GameError("adjacent_container", "Chests and campfires cannot touch in any of eight directions")
+                if neighbor and neighbor.kind in CONTAINERS:
+                    raise GameError("adjacent_container", "Chests, campfires, vending machines and match dispensers cannot touch in any of eight directions")
         if any(circle_square(self.players[player_id].x, self.players[player_id].y, target_x, target_y) for player_id in self.online) or any(circle_square(monster.x, monster.y, target_x, target_y) for monster in self.monsters.values()):
             raise GameError("occupied", "An entity overlaps this tile")
         self.touch()

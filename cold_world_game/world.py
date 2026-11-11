@@ -1,4 +1,5 @@
 import copy
+import heapq
 import math
 import random
 import secrets
@@ -9,7 +10,7 @@ from contextlib import contextmanager
 
 from .actions import Actions, GameError
 from .combat import Combat
-from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BULLET_BLOCKERS, BURN_SECONDS, CHUNK_SIZE, DAY_SECONDS, DEFAULT_VIEWPORT, DROP_DISTANCE, FAST_MONSTER_SPEED, FOODS, GUNS, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, MACHINE_OFFERS, MATCH_MACHINE_CHANCE, MONSTER_COIN_DROPS, MONSTER_SPAWN_CHANCES, MONSTER_SPEED, NIGHT_MONSTER_HOURS, OPAQUE, PICKUP_RADIUS, PLAYER_SPEED, RECIPES, SEASON_DAYS, SEASON_OFFSETS, SEASONS, SOLID, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS
+from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BULLET_BLOCKERS, BURN_SECONDS, CHUNK_SIZE, DAY_SECONDS, DEFAULT_VIEWPORT, DROP_DISTANCE, FAST_MONSTER_SPEED, FIRST_AID_KIT_CHANCE, FOODS, GUNS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, MACHINE_OFFERS, MATCH_MACHINE_CHANCE, MONSTER_COIN_DROPS, MONSTER_SPAWN_CHANCES, MONSTER_SPEED, NIGHT_MONSTER_HOURS, OPAQUE, PICKUP_RADIUS, PLAYER_SPEED, RECIPES, RETURN_ITEMS, RETURN_STAFF_CHANCE, SEASON_DAYS, SEASON_OFFSETS, SEASONS, SOLID, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS
 from .geometry import circle_square, distance, segment_box, tile
 from .models import Controls, GroundItem, Item, Monster, Player, Projectile, encode, item_from, player_from, structure_from
 from .monsters import Monsters
@@ -33,6 +34,8 @@ class World(Actions, Combat, Monsters, Terrain):
         self.event_sequence = 0
         self._pending_events = []
         self._path_cursor = None
+        self._path_jobs = {}
+        self._path_queue = deque()
         self._velocities = {}
         state = storage.load()
         if state:
@@ -76,6 +79,8 @@ class World(Actions, Combat, Monsters, Terrain):
         }
 
     def restore(self, state):
+        self._path_jobs = {}
+        self._path_queue = deque()
         self.seed = state["seed"]
         self.random = random.Random()
         self.random.setstate(tuples(state["random"]))
@@ -322,6 +327,35 @@ class World(Actions, Combat, Monsters, Terrain):
         candidates.sort(key=lambda point: (point[0] - player.x) ** 2 + (point[1] - player.y) ** 2)
         return next((point for point in candidates if self.can_stand(*point, player_id=player.id, ignore_monsters=player.temperature < 5)), None)
 
+    def return_destination(self):
+        half = CHUNK_SIZE // 2
+        pending = [(0, 0, 0)]
+        queued = {(0, 0)}
+        monster_tiles = {(tile(monster.x), tile(monster.y)) for monster in self.monsters.values()}
+        best = None
+        while pending:
+            lower_bound, chunk_x, chunk_y = heapq.heappop(pending)
+            if best is not None and lower_bound > best[0]:
+                break
+            self.generate_chunk(chunk_x, chunk_y)
+            candidates = sorted((horizontal ** 2 + vertical ** 2, horizontal, vertical) for horizontal in range(chunk_x * CHUNK_SIZE - half, chunk_x * CHUNK_SIZE + half + 1) for vertical in range(chunk_y * CHUNK_SIZE - half, chunk_y * CHUNK_SIZE + half + 1))
+            for origin_distance, horizontal, vertical in candidates:
+                if best is not None and origin_distance > best[0]:
+                    break
+                if (horizontal, vertical) in monster_tiles or self.structure_at(horizontal, vertical) or not self.can_stand(horizontal, vertical):
+                    continue
+                safety = min(((horizontal - monster_x) ** 2 + (vertical - monster_y) ** 2 for monster_x, monster_y in monster_tiles), default=math.inf)
+                candidate = (origin_distance, -safety, horizontal, vertical)
+                if best is None or candidate < best:
+                    best = candidate
+            for offset_x, offset_y in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                neighbor = (chunk_x + offset_x, chunk_y + offset_y)
+                if neighbor not in queued:
+                    queued.add(neighbor)
+                    nearest_distance = sum(max(0, abs(coordinate * CHUNK_SIZE) - half) ** 2 for coordinate in neighbor)
+                    heapq.heappush(pending, (nearest_distance, *neighbor))
+        return best[2], best[3]
+
     def environment(self):
         day = int(self.elapsed // DAY_SECONDS)
         season = (day // SEASON_DAYS) % len(SEASONS)
@@ -356,7 +390,9 @@ class World(Actions, Combat, Monsters, Terrain):
         if (previous_temperature < 5) != (player.temperature < 5):
             controls.movement_epoch += 1
         if player.temperature < 5:
-            controls.stop_attack()
+            item = player.inventory[player.selected]
+            if item is None or item.kind not in HEALING_ITEMS and item.kind not in RETURN_ITEMS:
+                controls.stop_attack()
             controls.ghost_monsters.update(monster.id for monster in self.monsters.values() if distance(player, monster) < BODY_RADIUS * 2)
         elif previous_temperature < 5:
             controls.ghost_monsters.update(monster.id for monster in self.monsters.values() if distance(player, monster) < BODY_RADIUS * 2)
@@ -405,10 +441,10 @@ class World(Actions, Combat, Monsters, Terrain):
                 "elapsed": self.elapsed,
                 "paused": not self.online or self.fault is not None,
                 "fault": self.fault,
-                "movement": {"mode": "client" if controls.client_movement else "server", "epoch": controls.movement_epoch},
+                "movement": {"mode": "client" if controls.client_movement else "server", "epoch": controls.movement_epoch, "teleport_epoch": controls.teleport_epoch},
                 "environment": self.environment(),
                 "you": {**encode(player), "tile": [tile(player.x), tile(player.y)], "offset": [player.x - tile(player.x), player.y - tile(player.y)], "ambient_temperature": self.temperature_at(player), "downed": player.temperature < 5},
-                "players": [{"id": other.id, "x": other.x, "y": other.y, "temperature": other.temperature, "hunger": other.hunger, "downed": other.temperature < 5, "velocity_x": self.controls[other_id].velocity_x, "velocity_y": self.controls[other_id].velocity_y} for other_id in sorted(self.online) if (other := self.players[other_id]) and abs(other.x - player.x) <= 20 and abs(other.y - player.y) <= 13],
+                "players": [{"id": other.id, "x": other.x, "y": other.y, "temperature": other.temperature, "hunger": other.hunger, "downed": other.temperature < 5, "velocity_x": self.controls[other_id].velocity_x, "velocity_y": self.controls[other_id].velocity_y, "teleport_epoch": self.controls[other_id].teleport_epoch} for other_id in sorted(self.online) if (other := self.players[other_id]) and abs(other.x - player.x) <= 20 and abs(other.y - player.y) <= 13],
                 "structures": structures,
                 "chunks": sorted(visible_chunks),
                 "monsters": [{"id": monster.id, "x": monster.x, "y": monster.y, "big": monster.big, "fast": monster.fast, "hp": monster.hp, "demolition": monster.demolition, "overlap_player": monster.overlap_player, "velocity_x": self._velocities.get(monster.id, (0.0, 0.0))[0], "velocity_y": self._velocities.get(monster.id, (0.0, 0.0))[1]} for monster in self.monsters.values() if abs(monster.x - player.x) <= 20 and abs(monster.y - player.y) <= 13],
@@ -422,7 +458,7 @@ class World(Actions, Combat, Monsters, Terrain):
 
     @staticmethod
     def catalog():
-        return {"tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "vending_offers": VENDING_OFFERS, "machine_offers": MACHINE_OFFERS, "currency": {"item": "coin", "player_field": "money", "uses_slots": False}, "monster_coin_drops": MONSTER_COIN_DROPS, "monster_spawning": {"night_start": NIGHT_MONSTER_HOURS[0], "night_end": NIGHT_MONSTER_HOURS[1], **MONSTER_SPAWN_CHANCES}, "terrain": {"version": TERRAIN_VERSION, "vending_machine_chance": VENDING_MACHINE_CHANCE, "match_machine_chance": MATCH_MACHINE_CHANCE, "unexplored_uses_latest": True}, "axe": AXE, "guns": GUNS, "projectiles": {"piercing": True, "range": "viewport_half_diagonal", "default_viewport": list(DEFAULT_VIEWPORT), "blockers": sorted(BULLET_BLOCKERS)}, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED, "fast_monster_speed": FAST_MONSTER_SPEED}, "knockback": KNOCKBACK, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "protocol": 1}
+        return {"tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "vending_offers": VENDING_OFFERS, "machine_offers": MACHINE_OFFERS, "currency": {"item": "coin", "player_field": "money", "uses_slots": False}, "monster_coin_drops": MONSTER_COIN_DROPS, "monster_spawning": {"night_start": NIGHT_MONSTER_HOURS[0], "night_end": NIGHT_MONSTER_HOURS[1], **MONSTER_SPAWN_CHANCES}, "terrain": {"version": TERRAIN_VERSION, "vending_machine_chance": VENDING_MACHINE_CHANCE, "match_machine_chance": MATCH_MACHINE_CHANCE, "chest_first_aid_kit_chance": FIRST_AID_KIT_CHANCE, "chest_return_staff_chance": RETURN_STAFF_CHANCE, "unexplored_uses_latest": True}, "axe": AXE, "guns": GUNS, "projectiles": {"piercing": True, "range": "viewport_half_diagonal", "default_viewport": list(DEFAULT_VIEWPORT), "blockers": sorted(BULLET_BLOCKERS)}, "healing_items": HEALING_ITEMS, "return_items": RETURN_ITEMS, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED, "fast_monster_speed": FAST_MONSTER_SPEED}, "knockback": KNOCKBACK, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "protocol": 1}
 
     def close(self):
         with self.lock:

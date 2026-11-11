@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field, is_dataclass
 from uuid import uuid4
 
-from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, FAST_MONSTER_SPEED, GUNS, IGNITERS, INVENTORY_SLOTS, MONSTER_SPEED
+from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, FAST_MONSTER_SPEED, GUNS, IGNITERS, INVENTORY_SLOTS, MONSTER_SPEED, RETURN_ITEMS
 
 
 def identifier() -> str:
@@ -17,7 +17,7 @@ class Item:
 
     @classmethod
     def create(cls, kind: str) -> "Item":
-        return cls(kind, ammo=GUNS[kind]["ammo"] if kind in GUNS else None, uses=IGNITERS.get(kind))
+        return cls(kind, ammo=GUNS[kind]["ammo"] if kind in GUNS else None, uses=RETURN_ITEMS[kind]["uses"] if kind in RETURN_ITEMS else IGNITERS.get(kind))
 
 
 @dataclass
@@ -73,6 +73,7 @@ class Controls:
     ghost_monsters: set[str] = field(default_factory=set)
     client_movement: bool = False
     movement_epoch: int = 0
+    teleport_epoch: int = 0
     velocity_x: float = 0.0
     velocity_y: float = 0.0
     demolition_container: str | None = None
@@ -149,7 +150,12 @@ class Projectile:
 
 
 def item_from(data: dict | None) -> Item | None:
-    return Item(**data) if data else None
+    if not data:
+        return None
+    values = dict(data)
+    if values["kind"] in RETURN_ITEMS and values.get("uses") is None:
+        values["uses"] = RETURN_ITEMS[values["kind"]]["uses"]
+    return Item(**values)
 
 
 def structure_from(data: dict) -> Structure:
@@ -173,6 +179,20 @@ def player_from(data: dict) -> Player:
 
 
 def encode(value):
+    if value is None or isinstance(value, (str, int, float)):
+        return value
+    if type(value) is Item:
+        return vars(value).copy()
+    if type(value) is Structure:
+        return {**vars(value), "slots": [encode(item) for item in value.slots], "igniter": encode(value.igniter)}
+    if type(value) is Monster:
+        return {**vars(value), "path": [list(point) for point in value.path]}
+    if type(value) is Player:
+        return {**vars(value), "inventory": [encode(item) for item in value.inventory], "backpack": [encode(item) for item in value.backpack]}
+    if type(value) is Projectile:
+        return {**vars(value), "hit_targets": list(value.hit_targets)}
+    if type(value) is GroundItem:
+        return {**vars(value), "item": encode(value.item)}
     if is_dataclass(value):
         return {name: encode(element) for name, element in vars(value).items()}
     if isinstance(value, (list, tuple)):

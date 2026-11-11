@@ -451,6 +451,43 @@ def equipment():
         save(kind, image)
 
 
+def first_aid_kit():
+    image, drawing = canvas()
+    drawing.ellipse((4, 25, 28, 30), fill=(38, 62, 72, 65))
+    drawing.rounded_rectangle((10, 3, 22, 11), radius=2, fill=PALETTE["outline"])
+    drawing.rectangle((13, 6, 19, 9), fill=(0, 0, 0, 0))
+    drawing.rounded_rectangle((4, 9, 28, 28), radius=3, fill=PALETTE["outline"])
+    drawing.rounded_rectangle((6, 11, 26, 26), radius=2, fill="#eff4e5")
+    drawing.rectangle((7, 12, 25, 15), fill="#8fbaa5")
+    drawing.rectangle((7, 24, 25, 26), fill="#b9cfc2")
+    drawing.rounded_rectangle((10, 14, 22, 25), radius=2, fill="#3a8d72")
+    drawing.rectangle((15, 16, 17, 23), fill=PALETTE["light"])
+    drawing.rectangle((12, 18, 20, 20), fill=PALETTE["light"])
+    drawing.rectangle((7, 17, 8, 20), fill=PALETTE["wood_dark"])
+    drawing.rectangle((24, 17, 25, 20), fill=PALETTE["wood_dark"])
+    save("first_aid_kit", image)
+
+
+def return_staff():
+    image, drawing = canvas()
+    drawing.ellipse((4, 26, 26, 30), fill=(38, 62, 72, 55))
+    drawing.line((7, 27, 23, 8), fill=PALETTE["outline"], width=6)
+    drawing.line((7, 27, 23, 8), fill=PALETTE["wood_dark"], width=4)
+    drawing.line((7, 26, 22, 8), fill=PALETTE["wood_light"], width=2)
+    for horizontal, vertical in ((9, 24), (13, 19), (17, 14)):
+        drawing.line((horizontal - 1, vertical - 1, horizontal + 2, vertical + 1), fill=PALETTE["gold"], width=2)
+    drawing.arc((14, 1, 29, 16), 10, 235, fill=PALETTE["outline"], width=5)
+    drawing.arc((15, 2, 28, 15), 10, 235, fill=PALETTE["gold"], width=3)
+    drawing.polygon(((21, 2), (26, 7), (22, 14), (17, 8)), fill=PALETTE["outline"])
+    drawing.polygon(((21, 3), (25, 7), (22, 12), (18, 8)), fill="#9186ee")
+    drawing.polygon(((21, 3), (23, 7), (20, 9), (18, 8)), fill="#8ef1ef")
+    drawing.line((21, 4, 20, 7), fill=PALETTE["light"], width=1)
+    for horizontal, vertical in ((9, 5), (28, 20), (5, 15)):
+        drawing.line((horizontal - 2, vertical, horizontal + 2, vertical), fill="#b5ecf6", width=1)
+        drawing.line((horizontal, vertical - 2, horizontal, vertical + 2), fill="#e9e3ff", width=1)
+    save("return_staff", image)
+
+
 def match_machine():
     image, drawing = canvas()
     drawing.ellipse((5, 25, 28, 30), fill=(38, 62, 72, 65))
@@ -576,7 +613,7 @@ def effects():
 
 
 def combat_effects():
-    durations = {"fx_slash": 0.28, "fx_claw": 0.32, "fx_impact": 0.3, "fx_debris": 0.5, "fx_muzzle": 0.15}
+    durations = {"fx_slash": 0.28, "fx_claw": 0.32, "fx_impact": 0.3, "fx_debris": 0.5, "fx_muzzle": 0.15, "fx_heal": 0.9, "fx_teleport": 1.0}
     for name, duration in durations.items():
         sheet = Image.new("RGBA", (32 * 6, 32))
         for frame in range(6):
@@ -608,6 +645,39 @@ def combat_effects():
                     horizontal = round(16 + math.cos(angle) * reach)
                     vertical = round(16 + math.sin(angle) * reach - math.sin(phase * math.pi) * 3)
                     drawing.rectangle((horizontal, vertical, horizontal + 1 + chip % 2, vertical + 1), fill=(213, 172, 118, alpha) if chip % 2 else (112, 76, 62, alpha))
+            elif name == "fx_teleport":
+                radius = 4 + round(phase * 10)
+                glow = round(210 * (1 - phase * 0.6))
+                drawing.ellipse((16 - radius, 23 - radius // 3, 16 + radius, 23 + radius // 3), fill=(98, 79, 209, glow // 3), outline=(165, 141, 255, glow), width=2)
+                drawing.ellipse((18 - radius, 24 - radius // 3, 14 + radius, 22 + radius // 3), outline=(146, 248, 245, glow), width=1)
+                for rune in range(6):
+                    angle = rune * math.tau / 6 + phase * 1.4
+                    horizontal = round(16 + math.cos(angle) * radius)
+                    vertical = round(23 + math.sin(angle) * radius / 3)
+                    drawing.line((horizontal, vertical - 2, horizontal, vertical + 1), fill=(255, 234, 170, glow), width=1)
+                    drawing.point((horizontal + 1, vertical - 1), fill=(255, 255, 240, glow))
+                for pillar in range(5):
+                    horizontal = 10 + pillar * 3
+                    top = max(2, 18 - round(math.sin(phase * math.pi) * (10 + pillar % 2 * 4)))
+                    drawing.line((horizontal, 21, horizontal, top), fill=(139, 215, 255, glow // 3), width=3)
+                    drawing.line((horizontal, 20, horizontal, top + 1), fill=(213, 250, 255, glow // 2), width=1)
+                for spark in range(7):
+                    horizontal = 4 + (spark * 7 + frame * 2) % 25
+                    vertical = 19 - (spark * 5 + frame * 3) % 18
+                    drawing.line((horizontal - 1, vertical, horizontal + 1, vertical), fill=(225, 221, 255, glow), width=1)
+                    drawing.line((horizontal, vertical - 1, horizontal, vertical + 1), fill=(255, 244, 194, glow), width=1)
+            elif name == "fx_heal":
+                radius = 4 + round(phase * 11)
+                halo_alpha = round(230 * (1 - phase * 0.9))
+                drawing.ellipse((16 - radius, 23 - radius // 3, 16 + radius, 23 + radius // 3), outline=(255, 229, 166, halo_alpha), width=2)
+                drawing.ellipse((17 - radius, 24 - radius // 3, 15 + radius, 22 + radius // 3), outline=(255, 255, 222, halo_alpha), width=1)
+                for offset, top, drift in ((-8, 13, -2), (0, 9, 0), (8, 15, 2)):
+                    horizontal = 16 + offset + round(phase * drift)
+                    vertical = top - round(phase * 7)
+                    drawing.rectangle((horizontal - 3, vertical - 1, horizontal + 3, vertical + 1), fill=(255, 245, 236, alpha))
+                    drawing.rectangle((horizontal - 1, vertical - 3, horizontal + 1, vertical + 3), fill=(255, 245, 236, alpha))
+                    drawing.line((horizontal - 2, vertical, horizontal + 2, vertical), fill=(237, 64, 77, alpha), width=1)
+                    drawing.line((horizontal, vertical - 2, horizontal, vertical + 2), fill=(237, 64, 77, alpha), width=1)
             else:
                 reach = round(26 - phase * 11)
                 drawing.polygon(((4, 16), (13, 11), (reach, 4 + frame), (reach - 3, 13), (30 - frame, 16), (reach - 3, 19), (reach, 28 - frame), (13, 21)), fill=(245, 182, 83, alpha))
@@ -639,6 +709,8 @@ def main():
     monsters()
     actor_animations()
     equipment()
+    first_aid_kit()
+    return_staff()
     vending_items()
     match_machine()
     food()

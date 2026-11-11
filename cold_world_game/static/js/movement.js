@@ -88,6 +88,7 @@ export class ClientMovement {
     this.input = { x: 0, y: 0 };
     this.ghosts = new Set();
     this.epoch = null;
+    this.teleportEpoch = null;
     this.enabled = false;
     this.active = false;
     this.stale = false;
@@ -97,8 +98,9 @@ export class ClientMovement {
   observe(state, now = performance.now() / 1000) {
     const previous = this.state;
     const epoch = state.movement?.epoch ?? 0;
+    const teleportEpoch = state.movement?.teleport_epoch ?? 0;
     const enabled = state.movement?.mode === 'client';
-    const reset = !previous || !this.position || enabled !== this.enabled || this.stale || state.paused;
+    const reset = !previous || !this.position || enabled !== this.enabled || this.stale || state.paused || teleportEpoch !== this.teleportEpoch;
     if (reset || epoch !== this.epoch) {
       const prior = this.sample();
       this.position = { x: state.you.x, y: state.you.y };
@@ -108,6 +110,7 @@ export class ClientMovement {
     }
     this.enabled = enabled;
     this.epoch = epoch;
+    this.teleportEpoch = teleportEpoch;
     this.arrival = now;
     this.stale = false;
     this.state = state;
