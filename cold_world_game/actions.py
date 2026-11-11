@@ -1,7 +1,7 @@
 import math
 import time
 
-from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DROP_DISTANCE, FOODS, IGNITERS, INVENTORY_SLOTS, PICKUP_RADIUS, RECIPES, SOLID, VENDING_OFFERS
+from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DROP_DISTANCE, FOODS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, SOLID
 from .geometry import DIRECTIONS, circle_square, distance, normalized, segment_box, tile
 from .models import GroundItem, Item, Structure
 
@@ -43,6 +43,14 @@ class Actions:
             target = command.get("target_id", controls.aim_target)
             if target is not None and (not isinstance(target, str) or len(target) > 64):
                 raise GameError("invalid_argument", "target_id must be an entity ID or null")
+            view_width, view_height = controls.view_width, controls.view_height
+            if "viewport" in command:
+                viewport = command["viewport"]
+                if not isinstance(viewport, list) or len(viewport) != 2:
+                    raise GameError("invalid_argument", "viewport must be a two-element array in world units")
+                view_width, view_height = number(viewport[0], "viewport.width", 64), number(viewport[1], "viewport.height", 64)
+                if view_width <= 0 or view_height <= 0:
+                    raise GameError("invalid_argument", "viewport dimensions must be positive")
             position = command.get("position")
             if controls.client_movement and position is not None:
                 velocity = command.get("velocity", [0, 0])
@@ -59,6 +67,7 @@ class Actions:
             controls.move_x, controls.move_y = move_x, move_y
             controls.aim_x, controls.aim_y = aim_x, aim_y
             controls.aim_target = target
+            controls.view_width, controls.view_height = view_width, view_height
             controls.last_input = time.monotonic()
         elif kind == "select":
             selected = integer(command.get("slot"), "slot", 0, 9)
@@ -75,7 +84,7 @@ class Actions:
             if controls.ui:
                 return {"accepted": False}
             target = self.structure_at(tile(controls.aim_x), tile(controls.aim_y))
-            if target and target.kind in CONTAINERS and (not shift or target.kind in ("chest", "vending_machine")) and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
+            if target and target.kind in CONTAINERS and (not shift or target.kind in PANEL_DEMOLITION) and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
                 self.open_container(player, controls, target.id)
                 return {"opened": target.id}
             item = player.inventory[player.selected]
@@ -96,9 +105,9 @@ class Actions:
                 return {"accepted": True}
             structure = self.access_container(player, command.get("id"))
             item = player.inventory[player.selected]
-            allowed = ("chest",) if kind == "dismantle_chest" else ("chest", "vending_machine")
+            allowed = ("chest",) if kind == "dismantle_chest" else PANEL_DEMOLITION
             if not controls.ui or controls.container != structure.id or structure.kind not in allowed:
-                raise GameError("invalid_container", "Open this chest or vending machine before dismantling it")
+                raise GameError("invalid_container", "Open this chest or trading machine before dismantling it")
             if structure.kind == "chest" and any(structure.slots):
                 raise GameError("chest_not_empty", "Empty this chest before dismantling it")
             if player.temperature < 5 or item is None or item.kind != "axe" or self.demolition_locked(structure.id):
@@ -162,14 +171,15 @@ class Actions:
 
     def trade(self, player, controls, command):
         structure = self.access_container(player, command.get("id"))
-        if structure.kind != "vending_machine":
-            raise GameError("invalid_container", "This building is not a vending machine")
+        if structure.kind not in MACHINE_OFFERS:
+            raise GameError("invalid_container", "This building is not a trading machine")
         if not controls.ui or controls.container != structure.id:
-            raise GameError("container_closed", "Open the vending machine before trading")
+            raise GameError("container_closed", "Open the trading machine before trading")
+        offers = MACHINE_OFFERS[structure.kind]
         offer_id = command.get("offer")
-        if not isinstance(offer_id, str) or offer_id not in VENDING_OFFERS:
-            raise GameError("invalid_offer", "Unknown vending offer")
-        return self.consume_and_produce(player, controls, VENDING_OFFERS[offer_id])
+        if not isinstance(offer_id, str) or offer_id not in offers:
+            raise GameError("invalid_offer", "Unknown offer for this trading machine")
+        return self.consume_and_produce(player, controls, offers[offer_id])
 
     def consume_and_produce(self, player, controls, recipe):
         storages = (player.backpack, player.inventory)

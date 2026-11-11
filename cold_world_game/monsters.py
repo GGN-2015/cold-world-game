@@ -3,27 +3,37 @@ import math
 from collections import deque
 from functools import lru_cache
 
-from .constants import BODY_RADIUS, CHUNK_SIZE, KNOCKBACK, MONSTER_DEMOLITION, MONSTER_LIMIT, MONSTER_PROJECTILE_SPEED, MONSTER_SPEED, SOLID
+from .constants import BODY_RADIUS, CHUNK_SIZE, KNOCKBACK, MONSTER_DEMOLITION, MONSTER_LIMIT, MONSTER_PROJECTILE_SPEED, MONSTER_SPAWN_CHANCES, NIGHT_MONSTER_HOURS, SOLID
 from .geometry import DIRECTIONS, distance, normalized, tile
 from .models import Monster, Projectile
 
 
-PATH_STEPS = tuple((offset_x, offset_y, math.hypot(offset_x, offset_y) / MONSTER_SPEED) for offset_x, offset_y in DIRECTIONS)
+PATH_STEPS = tuple((offset_x, offset_y, math.hypot(offset_x, offset_y)) for offset_x, offset_y in DIRECTIONS)
 PATH_PLANS_PER_TICK = 8
 
 
 class Monsters:
+    @staticmethod
+    def allows_player_overlap(monster, player_id):
+        return player_id is not None and not monster.big and monster.target == player_id and monster.overlap_player == player_id
+
     def demolition_locked(self, structure_id):
         return any(monster.demolition == structure_id for monster in self.monsters.values())
 
     @staticmethod
     def clear_target(monster):
         monster.target = None
+        monster.overlap_player = None
         monster.path = []
         monster.demolition = None
         monster.demolition_progress = 0.0
         monster.next_demolition_feedback = 0.0
         monster.next_plan = 0.0
+
+    def monster_spawn_chances(self):
+        hour = self.environment()["hour"]
+        start, end = NIGHT_MONSTER_HOURS
+        return MONSTER_SPAWN_CHANCES["night" if hour >= start or hour < end else "day"]
 
     def spawn_monster(self):
         if len(self.monsters) >= MONSTER_LIMIT:
@@ -39,17 +49,21 @@ class Monsters:
             return
         if not self.can_stand(position_x, position_y, monster_id="spawning"):
             return
-        big = self.random.random() < 0.1
-        monster = Monster(position_x, position_y, big=big, hp=50 if big else 10)
+        chances = self.monster_spawn_chances()
+        roll = self.random.random()
+        big = roll < chances["big"]
+        fast = not big and roll < chances["big"] + chances["fast"]
+        monster = Monster(position_x, position_y, big=big, fast=fast, hp=50 if big else 10)
         self.monsters[monster.id] = monster
 
     def update_monsters(self, seconds):
+        standing_players = {player_id: self.players[player_id] for player_id in self.online if self.players[player_id].temperature >= 5}
         identifiers = list(self.monsters)
         cursor = getattr(self, "_path_cursor", None)
         if cursor in self.monsters:
             pivot = identifiers.index(cursor) + 1
             identifiers = identifiers[pivot:] + identifiers[:pivot]
-        due = [identifier for identifier in identifiers if self.monsters[identifier].next_plan <= self.elapsed and (self.monsters[identifier].target is not None or any(distance(self.monsters[identifier], self.players[player_id]) <= 32 for player_id in self.online))]
+        due = [identifier for identifier in identifiers if self.monsters[identifier].next_plan <= self.elapsed and (self.monsters[identifier].target in standing_players or any(distance(self.monsters[identifier], player) <= 32 for player in standing_players.values()))]
         planning = set(due[:PATH_PLANS_PER_TICK])
         if planning:
             self._path_cursor = due[min(len(due), PATH_PLANS_PER_TICK) - 1]
@@ -57,8 +71,8 @@ class Monsters:
             if all(distance(monster, self.players[player_id]) > 120 for player_id in self.online):
                 del self.monsters[monster_id]
                 continue
-            target = self.players.get(monster.target) if monster.target in self.online else None
-            if target is None or target.temperature <= 0 or distance(monster, target) > 40:
+            target = standing_players.get(monster.target)
+            if target is None or target.temperature < 5 or distance(monster, target) > 40:
                 self.clear_target(monster)
                 target = None
             can_see = target is not None and self.visible(monster.x, monster.y, target.x, target.y)
@@ -69,7 +83,7 @@ class Monsters:
                 self.clear_target(monster)
                 target = None
             if target is None:
-                candidates = [self.players[player_id] for player_id in self.online if self.players[player_id].temperature > 0 and distance(monster, self.players[player_id]) <= 32 and self.visible(monster.x, monster.y, self.players[player_id].x, self.players[player_id].y)]
+                candidates = [player for player in standing_players.values() if player.temperature >= 5 and distance(monster, player) <= 32 and self.visible(monster.x, monster.y, player.x, player.y)]
                 if candidates:
                     target = min(candidates, key=lambda player: (distance(monster, player), player.id))
                     monster.target = target.id
@@ -79,6 +93,8 @@ class Monsters:
             if target is None:
                 self.wander(monster, seconds)
                 continue
+            if monster.big or monster.overlap_player != target.id or distance(monster, target) > 1 + KNOCKBACK["monster_melee"] + 1e-9:
+                monster.overlap_player = None
             if monster.demolition:
                 structure = self.structures.get(monster.demolition)
                 if structure and distance(monster, structure) <= 1 + 1e-9:
@@ -90,13 +106,22 @@ class Monsters:
             separation = distance(monster, target)
             if can_see and separation <= 1:
                 if self.elapsed + 1e-9 >= monster.next_attack:
-                    self.emit_event("melee", monster.id, "monster_big" if monster.big else "monster", monster.x, monster.y, target=target.id, target_x=target.x, target_y=target.y)
+                    previous_x, previous_y = target.x, target.y
+                    self.emit_event("melee", monster.id, "monster_big" if monster.big else "monster_fast" if monster.fast else "monster", monster.x, monster.y, target=target.id, target_x=target.x, target_y=target.y)
                     self.hurt_player(target, 2 if monster.big else 1, source=monster.id, direction=(target.x - monster.x, target.y - monster.y), knockback=KNOCKBACK["monster_big_melee" if monster.big else "monster_melee"])
                     monster.next_attack = self.elapsed + (1.5 if monster.big else 1)
-                continue
+                    if not monster.big and target.temperature >= 5:
+                        displacement = math.hypot(target.x - previous_x, target.y - previous_y)
+                        if displacement + 1e-6 < KNOCKBACK["monster_melee"]:
+                            monster.overlap_player = target.id
+                        elif distance(monster, target) >= BODY_RADIUS * 2:
+                            monster.overlap_player = None
+                if target.temperature < 5 or not self.allows_player_overlap(monster, target.id):
+                    continue
             if monster.big and can_see and 1 < separation <= 12 and self.elapsed + 1e-9 >= monster.next_attack:
                 direction_x, direction_y = normalized(target.x - monster.x, target.y - monster.y)
-                projectile = Projectile(monster.x, monster.y, direction_x * MONSTER_PROJECTILE_SPEED, direction_y * MONSTER_PROJECTILE_SPEED, 12, 5, monster.id, hostile=True, origin_x=monster.x, origin_y=monster.y, spawned_at=self.elapsed)
+                projectile = Projectile(monster.x, monster.y, direction_x * MONSTER_PROJECTILE_SPEED, direction_y * MONSTER_PROJECTILE_SPEED, 0, 5, monster.id, hostile=True, origin_x=monster.x, origin_y=monster.y, spawned_at=self.elapsed, range_player=target.id)
+                projectile.remaining = self.projectile_range(projectile)
                 self.projectiles[projectile.id] = projectile
                 self.emit_event("shot", monster.id, "monster", monster.x, monster.y, direction=[direction_x, direction_y])
                 monster.next_attack = self.elapsed + 2
@@ -131,34 +156,48 @@ class Monsters:
             monster.next_plan = 0
 
     def follow_path(self, monster, seconds):
-        while monster.path and math.hypot(monster.path[0][0] - monster.x, monster.path[0][1] - monster.y) < 0.05:
-            monster.path.pop(0)
-        if not monster.path:
-            return
-        point_x, point_y = monster.path[0]
-        structure = self.structure_at(point_x, point_y)
-        separation = math.hypot(point_x - monster.x, point_y - monster.y)
-        if structure and structure.kind in SOLID:
-            if monster.big and structure.kind in MONSTER_DEMOLITION:
-                if separation <= 1 + 1e-9:
-                    self.demolish(monster, structure, seconds)
-                    return
-                travel = min(MONSTER_SPEED * seconds, max(0, separation - 0.95))
+        remaining = monster.speed * seconds
+        while remaining > 1e-9:
+            while monster.path and math.hypot(monster.path[0][0] - monster.x, monster.path[0][1] - monster.y) < 1e-9:
+                monster.path.pop(0)
+            closing = not monster.big and (tile(monster.x), tile(monster.y)) == (tile(monster.seen_x), tile(monster.seen_y))
+            if closing:
+                point_x, point_y = monster.seen_x, monster.seen_y
+            elif monster.path:
+                point_x, point_y = monster.path[0]
             else:
+                return
+            structure = self.structure_at(tile(point_x), tile(point_y))
+            blocked = structure is not None and structure.kind in SOLID
+            separation = math.hypot(point_x - monster.x, point_y - monster.y)
+            if blocked:
+                if monster.big and structure.kind in MONSTER_DEMOLITION:
+                    if separation <= 1 + 1e-9:
+                        self.demolish(monster, structure, remaining / monster.speed)
+                        return
+                    travel = min(remaining, max(0, separation - 0.95))
+                else:
+                    monster.next_plan = 0
+                    return
+            else:
+                travel = min(remaining, max(0, separation - 0.05) if closing else separation)
+            if travel <= 1e-9:
+                return
+            direction_x, direction_y = normalized(point_x - monster.x, point_y - monster.y)
+            previous_x, previous_y = monster.x, monster.y
+            if not self.move_body(monster, direction_x * travel, direction_y * travel, monster_id=monster.id):
                 monster.next_plan = 0
                 return
-        else:
-            travel = min(MONSTER_SPEED * seconds, separation)
-        direction_x, direction_y = normalized(point_x - monster.x, point_y - monster.y)
-        if not self.move_body(monster, direction_x * travel, direction_y * travel, monster_id=monster.id):
-            monster.next_plan = 0
+            remaining -= travel
+            if closing or blocked or math.hypot(monster.x - previous_x - direction_x * travel, monster.y - previous_y - direction_y * travel) > 1e-9:
+                return
 
     def find_path(self, monster, allow_demolition):
         start = tile(monster.x), tile(monster.y)
         goal_x, goal_y = monster.seen_x, monster.seen_y
         occupied = set()
         bodies = [other for other in self.monsters.values() if other.id != monster.id]
-        bodies.extend(self.players[player_id] for player_id in self.online if self.players[player_id].temperature >= 5 and monster.id not in self.controls[player_id].ghost_monsters)
+        bodies.extend(self.players[player_id] for player_id in self.online if self.players[player_id].temperature >= 5 and (monster.big or player_id != monster.target) and monster.id not in self.controls[player_id].ghost_monsters)
         for body in bodies:
             for point_x in range(tile(body.x) - 1, tile(body.x) + 2):
                 for point_y in range(tile(body.y) - 1, tile(body.y) + 2):
@@ -184,15 +223,15 @@ class Monsters:
                     continue
                 if offset_x and offset_y and (cell_cost((current[0] + offset_x, current[1]), False) is None or cell_cost((current[0], current[1] + offset_y), False) is None):
                     continue
-                yield neighbor, movement_cost + extra
+                yield neighbor, movement_cost / monster.speed + extra
 
         goals = set()
-        for point_x in range(tile(goal_x) - 1, tile(goal_x) + 2):
-            for point_y in range(tile(goal_y) - 1, tile(goal_y) + 2):
-                structure = self.structure_at(point_x, point_y)
-                ignored = structure.id if allow_demolition and structure and structure.kind in MONSTER_DEMOLITION else None
-                if math.hypot(point_x - goal_x, point_y - goal_y) <= 1 + 1e-9 and cell_cost((point_x, point_y), allow_demolition) is not None and self.visible(point_x, point_y, goal_x, goal_y, ignore=ignored):
-                    goals.add((point_x, point_y))
+        goal_cells = [(point_x, point_y) for point_x in range(tile(goal_x) - 1, tile(goal_x) + 2) for point_y in range(tile(goal_y) - 1, tile(goal_y) + 2)] if monster.big else [(tile(goal_x), tile(goal_y))]
+        for point_x, point_y in goal_cells:
+            structure = self.structure_at(point_x, point_y)
+            ignored = structure.id if allow_demolition and structure and structure.kind in MONSTER_DEMOLITION else None
+            if math.hypot(point_x - goal_x, point_y - goal_y) <= 1 + 1e-9 and cell_cost((point_x, point_y), allow_demolition) is not None and self.visible(point_x, point_y, goal_x, goal_y, ignore=ignored):
+                goals.add((point_x, point_y))
         if start in goals:
             return [], True
         if not any(neighbors(start)):
@@ -247,10 +286,10 @@ class Monsters:
         goal_radius = max(math.hypot(point[0] - goal_x, point[1] - goal_y) for point in goals)
 
         def heuristic(point):
-            return min(travel_distance(point, goal) for goal in goals) / MONSTER_SPEED
+            return min(travel_distance(point, goal) for goal in goals) / monster.speed
 
         def remaining_distance(point):
-            return max(0, math.hypot(point[0] - goal_x, point[1] - goal_y) - goal_radius) / MONSTER_SPEED
+            return max(0, math.hypot(point[0] - goal_x, point[1] - goal_y) - goal_radius) / monster.speed
 
         pending = [(heuristic(start), 0, start)]
         costs, parents = {start: 0.0}, {}
@@ -288,16 +327,16 @@ class Monsters:
             selected = True
         if not (monster.wander_x or monster.wander_y):
             return
-        moved = self.move_body(monster, monster.wander_x * MONSTER_SPEED * seconds, monster.wander_y * MONSTER_SPEED * seconds, monster_id=monster.id)
+        moved = self.move_body(monster, monster.wander_x * monster.speed * seconds, monster.wander_y * monster.speed * seconds, monster_id=monster.id)
         if not moved and not selected:
             self.choose_wander(monster, seconds)
-            self.move_body(monster, monster.wander_x * MONSTER_SPEED * seconds, monster.wander_y * MONSTER_SPEED * seconds, monster_id=monster.id)
+            self.move_body(monster, monster.wander_x * monster.speed * seconds, monster.wander_y * monster.speed * seconds, monster_id=monster.id)
 
     def choose_wander(self, monster, seconds):
         candidates, weights = [], []
-        players = [self.players[player_id] for player_id in sorted(self.online) if self.players[player_id].temperature > 0]
+        players = [self.players[player_id] for player_id in sorted(self.online) if self.players[player_id].temperature >= 5]
         nearest = min(players, key=lambda player: distance(monster, player)) if players else None
-        step = min(0.3, MONSTER_SPEED * seconds)
+        step = min(0.3, monster.speed * seconds)
         for offset_x, offset_y in DIRECTIONS:
             direction_x, direction_y = normalized(offset_x, offset_y)
             if self.can_stand(monster.x + direction_x * step, monster.y + direction_y * step, monster_id=monster.id):

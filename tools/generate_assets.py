@@ -1,3 +1,4 @@
+import colorsys
 import json
 import math
 import random
@@ -203,6 +204,19 @@ def roster_icons():
     save("roster", image)
 
 
+def fast_monster_tint(image):
+    tinted = image.copy()
+    for horizontal in range(image.width):
+        for vertical in range(image.height):
+            red, green, blue, alpha = image.getpixel((horizontal, vertical))
+            if not alpha:
+                continue
+            hue, saturation, brightness = colorsys.rgb_to_hsv(red / 255, green / 255, blue / 255)
+            color = colorsys.hsv_to_rgb((hue + 0.22) % 1, min(1, max(0.18, saturation * 1.3)), brightness)
+            tinted.putpixel((horizontal, vertical), (*[round(channel * 255) for channel in color], alpha))
+    return tinted
+
+
 def monsters():
     for big in (False, True):
         image, drawing = canvas()
@@ -228,6 +242,8 @@ def monsters():
             drawing.line((10, 23, 8, 26), fill=PALETTE["outline"], width=3)
             drawing.line((22, 23, 24, 26), fill=PALETTE["outline"], width=3)
         save("monster_big" if big else "monster_small", image)
+        if not big:
+            save("monster_fast", fast_monster_tint(image))
 
 
 def traveler_frame(coat, direction, pose):
@@ -373,7 +389,7 @@ def monster_frame(big, direction, pose):
 
 
 def actor_animations():
-    for kind in ("player", "player_other", "monster_small", "monster_big"):
+    for kind in ("player", "player_other", "monster_small", "monster_big", "monster_fast"):
         sheet = Image.new("RGBA", (160, 128))
         for row, direction in enumerate(ACTOR_DIRECTIONS):
             for pose in range(len(WALK_POSES)):
@@ -381,6 +397,8 @@ def actor_animations():
                     frame = traveler_frame("#cf784e" if kind == "player" else "#498a97", direction, pose)
                 else:
                     frame = monster_frame(kind == "monster_big", direction, pose)
+                    if kind == "monster_fast":
+                        frame = fast_monster_tint(frame)
                 sheet.alpha_composite(frame, (pose * 32, row * 32))
         asset = f"{kind}_motion"
         save(asset, sheet)
@@ -431,6 +449,29 @@ def equipment():
             drawing.line((8, 15, 8, 23), fill=PALETTE["wood_light"], width=2)
             drawing.polygon(((16, 19), (20, 15), (22, 20), (19, 24)), fill=PALETTE["gold"])
         save(kind, image)
+
+
+def match_machine():
+    image, drawing = canvas()
+    drawing.ellipse((5, 25, 28, 30), fill=(38, 62, 72, 65))
+    drawing.rectangle((5, 3, 26, 28), fill=PALETTE["outline"])
+    drawing.rectangle((7, 5, 24, 26), fill="#b58b47")
+    drawing.rectangle((24, 5, 25, 26), fill="#75603f")
+    drawing.rectangle((8, 6, 22, 9), fill="#f4ddb0")
+    drawing.line((10, 8, 16, 8), fill="#8d4d3d")
+    drawing.rectangle((8, 11, 19, 21), fill="#344f55")
+    for vertical in (12, 17):
+        drawing.rectangle((10, vertical, 17, vertical + 3), fill="#e5be77")
+        drawing.rectangle((11, vertical + 1, 15, vertical + 2), fill="#b95640")
+        drawing.line((12, vertical + 1, 14, vertical + 1), fill="#fff0ce")
+    drawing.rectangle((21, 12, 22, 14), fill=PALETTE["outline"])
+    drawing.point((22, 17), fill=PALETTE["gold"])
+    drawing.line((19, 8, 21, 6), fill="#8d4d3d")
+    drawing.point((21, 6), fill="#d86e43")
+    drawing.rectangle((9, 23, 21, 25), fill=PALETTE["outline"])
+    drawing.rectangle((8, 28, 10, 29), fill=PALETTE["outline"])
+    drawing.rectangle((22, 28, 24, 29), fill=PALETTE["outline"])
+    save("match_machine", image)
 
 
 def vending_items():
@@ -574,7 +615,7 @@ def combat_effects():
             sheet.alpha_composite(image, (frame * 32, 0))
         save(name, sheet)
         COMBAT_EFFECTS[name] = {"asset": name, "frame_width": 96, "frame_height": 96, "frames": 6, "duration": duration}
-    for kind in ("monster_small", "monster_big"):
+    for kind in ("monster_small", "monster_big", "monster_fast"):
         source = Image.open(DESTINATION / f"{kind}.png").convert("RGBA").resize((32, 32), Image.Resampling.NEAREST)
         sheet = Image.new("RGBA", (32 * 6, 32))
         for frame in range(6):
@@ -599,6 +640,7 @@ def main():
     actor_animations()
     equipment()
     vending_items()
+    match_machine()
     food()
     effects()
     combat_effects()

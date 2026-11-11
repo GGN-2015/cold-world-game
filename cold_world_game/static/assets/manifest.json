@@ -102,6 +102,11 @@
       "width": 96,
       "height": 96
     },
+    "monster_fast": {
+      "file": "monster_fast.png",
+      "width": 96,
+      "height": 96
+    },
     "monster_big": {
       "file": "monster_big.png",
       "width": 96,
@@ -124,6 +129,11 @@
     },
     "monster_big_motion": {
       "file": "monster_big_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "monster_fast_motion": {
+      "file": "monster_fast_motion.png",
       "width": 480,
       "height": 384
     },
@@ -184,6 +194,11 @@
     },
     "cola": {
       "file": "cola.png",
+      "width": 96,
+      "height": 96
+    },
+    "match_machine": {
+      "file": "match_machine.png",
       "width": 96,
       "height": 96
     },
@@ -296,6 +311,11 @@
       "file": "monster_big_death.png",
       "width": 576,
       "height": 96
+    },
+    "monster_fast_death": {
+      "file": "monster_fast_death.png",
+      "width": 576,
+      "height": 96
     }
   },
   "animations": {
@@ -374,6 +394,25 @@
         4
       ],
       "stride": 1.35
+    },
+    "monster_fast": {
+      "asset": "monster_fast_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stride": 1.0
     }
   },
   "effects": {
@@ -421,6 +460,13 @@
     },
     "monster_big_death": {
       "asset": "monster_big_death",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.65
+    },
+    "monster_fast_death": {
+      "asset": "monster_fast_death",
       "frame_width": 96,
       "frame_height": 96,
       "frames": 6,

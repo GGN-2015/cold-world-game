@@ -9,7 +9,7 @@ from contextlib import contextmanager
 
 from .actions import Actions, GameError
 from .combat import Combat
-from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BURN_SECONDS, CHUNK_SIZE, DAY_SECONDS, DROP_DISTANCE, FOODS, GUNS, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, MONSTER_COIN_DROPS, MONSTER_SPEED, OPAQUE, PICKUP_RADIUS, PLAYER_SPEED, RECIPES, SEASON_DAYS, SEASON_OFFSETS, SEASONS, SOLID, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS
+from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BULLET_BLOCKERS, BURN_SECONDS, CHUNK_SIZE, DAY_SECONDS, DEFAULT_VIEWPORT, DROP_DISTANCE, FAST_MONSTER_SPEED, FOODS, GUNS, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, MACHINE_OFFERS, MATCH_MACHINE_CHANCE, MONSTER_COIN_DROPS, MONSTER_SPAWN_CHANCES, MONSTER_SPEED, NIGHT_MONSTER_HOURS, OPAQUE, PICKUP_RADIUS, PLAYER_SPEED, RECIPES, SEASON_DAYS, SEASON_OFFSETS, SEASONS, SOLID, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS
 from .geometry import circle_square, distance, segment_box, tile
 from .models import Controls, GroundItem, Item, Monster, Player, Projectile, encode, item_from, player_from, structure_from
 from .monsters import Monsters
@@ -158,7 +158,7 @@ class World(Actions, Combat, Monsters, Terrain):
             self.online.add(player_id)
             self.controls[player_id] = Controls(aim_x=player.x + 1, aim_y=player.y, last_input=time.monotonic(), client_movement=client_movement)
             for monster in self.monsters.values():
-                if monster.target not in self.online or self.players[monster.target].temperature <= 0:
+                if monster.target not in self.online or self.players[monster.target].temperature < 5:
                     self.clear_target(monster)
             return self.snapshot(player_id)
 
@@ -173,6 +173,9 @@ class World(Actions, Combat, Monsters, Terrain):
                 return
             with self.transaction():
                 self.touch()
+                for projectile in self.projectiles.values():
+                    if projectile.range_player == player_id or (not projectile.hostile and projectile.owner == player_id):
+                        projectile.remaining = self.projectile_range(projectile)
                 self.online.remove(player_id)
                 self.controls.pop(player_id, None)
                 for monster in self.monsters.values():
@@ -239,12 +242,13 @@ class World(Actions, Combat, Monsters, Terrain):
         if not ignore_monsters:
             ghost = self.controls[player_id].ghost_monsters if player_id in self.controls else set()
             for monster in self.monsters.values():
-                if monster.id != monster_id and monster.id not in ghost and math.hypot(x - monster.x, y - monster.y) < BODY_RADIUS * 2 - 1e-9:
+                if monster.id != monster_id and monster.id not in ghost and not self.allows_player_overlap(monster, player_id) and math.hypot(x - monster.x, y - monster.y) < BODY_RADIUS * 2 - 1e-9:
                     return False
         if monster_id is not None:
+            moving_monster = self.monsters.get(monster_id)
             for other_id in self.online:
                 player = self.players[other_id]
-                if player.temperature >= 5 and monster_id not in self.controls[other_id].ghost_monsters and math.hypot(x - player.x, y - player.y) < BODY_RADIUS * 2 - 1e-9:
+                if player.temperature >= 5 and monster_id not in self.controls[other_id].ghost_monsters and not (moving_monster and self.allows_player_overlap(moving_monster, other_id)) and math.hypot(x - player.x, y - player.y) < BODY_RADIUS * 2 - 1e-9:
                     return False
         return True
 
@@ -407,7 +411,7 @@ class World(Actions, Combat, Monsters, Terrain):
                 "players": [{"id": other.id, "x": other.x, "y": other.y, "temperature": other.temperature, "hunger": other.hunger, "downed": other.temperature < 5, "velocity_x": self.controls[other_id].velocity_x, "velocity_y": self.controls[other_id].velocity_y} for other_id in sorted(self.online) if (other := self.players[other_id]) and abs(other.x - player.x) <= 20 and abs(other.y - player.y) <= 13],
                 "structures": structures,
                 "chunks": sorted(visible_chunks),
-                "monsters": [{"id": monster.id, "x": monster.x, "y": monster.y, "big": monster.big, "hp": monster.hp, "demolition": monster.demolition, "velocity_x": self._velocities.get(monster.id, (0.0, 0.0))[0], "velocity_y": self._velocities.get(monster.id, (0.0, 0.0))[1]} for monster in self.monsters.values() if abs(monster.x - player.x) <= 20 and abs(monster.y - player.y) <= 13],
+                "monsters": [{"id": monster.id, "x": monster.x, "y": monster.y, "big": monster.big, "fast": monster.fast, "hp": monster.hp, "demolition": monster.demolition, "overlap_player": monster.overlap_player, "velocity_x": self._velocities.get(monster.id, (0.0, 0.0))[0], "velocity_y": self._velocities.get(monster.id, (0.0, 0.0))[1]} for monster in self.monsters.values() if abs(monster.x - player.x) <= 20 and abs(monster.y - player.y) <= 13],
                 "projectiles": [encode(projectile) for projectile in self.projectiles.values() if abs(projectile.x - player.x) <= 22 and abs(projectile.y - player.y) <= 15],
                 "ground": [encode(ground) for ground in self.ground.values() if abs(ground.x - player.x) <= 20 and abs(ground.y - player.y) <= 13],
                 "container": encode(container) if container else None,
@@ -418,7 +422,7 @@ class World(Actions, Combat, Monsters, Terrain):
 
     @staticmethod
     def catalog():
-        return {"tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "vending_offers": VENDING_OFFERS, "currency": {"item": "coin", "player_field": "money", "uses_slots": False}, "monster_coin_drops": MONSTER_COIN_DROPS, "terrain": {"version": TERRAIN_VERSION, "vending_machine_chance": VENDING_MACHINE_CHANCE, "unexplored_uses_latest": True}, "axe": AXE, "guns": GUNS, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED}, "knockback": KNOCKBACK, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "protocol": 1}
+        return {"tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "vending_offers": VENDING_OFFERS, "machine_offers": MACHINE_OFFERS, "currency": {"item": "coin", "player_field": "money", "uses_slots": False}, "monster_coin_drops": MONSTER_COIN_DROPS, "monster_spawning": {"night_start": NIGHT_MONSTER_HOURS[0], "night_end": NIGHT_MONSTER_HOURS[1], **MONSTER_SPAWN_CHANCES}, "terrain": {"version": TERRAIN_VERSION, "vending_machine_chance": VENDING_MACHINE_CHANCE, "match_machine_chance": MATCH_MACHINE_CHANCE, "unexplored_uses_latest": True}, "axe": AXE, "guns": GUNS, "projectiles": {"piercing": True, "range": "viewport_half_diagonal", "default_viewport": list(DEFAULT_VIEWPORT), "blockers": sorted(BULLET_BLOCKERS)}, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED, "fast_monster_speed": FAST_MONSTER_SPEED}, "knockback": KNOCKBACK, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "protocol": 1}
 
     def close(self):
         with self.lock:

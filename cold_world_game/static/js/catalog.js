@@ -1,7 +1,8 @@
 import { hasTranslation, t } from './i18n.js';
 
-export const buildings = new Set(['wall', 'fence', 'floor', 'chest', 'campfire', 'vending_machine']);
-export const containers = new Set(['chest', 'campfire', 'vending_machine']);
+export const machines = new Set(['vending_machine', 'match_machine']);
+export const buildings = new Set(['wall', 'fence', 'floor', 'chest', 'campfire', ...machines]);
+export const containers = new Set(['chest', 'campfire', ...machines]);
 export const itemName = (kind) => hasTranslation(`item.${kind}`) ? t(`item.${kind}`) : kind;
 export const seasonName = (season) => hasTranslation(`season.${season}`) ? t(`season.${season}`) : season;
 export const assetUrl = (kind) => `/static/assets/${kind}.png`;

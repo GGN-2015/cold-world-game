@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field, is_dataclass
 from uuid import uuid4
 
-from .constants import BACKPACK_SLOTS, GUNS, IGNITERS, INVENTORY_SLOTS
+from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, FAST_MONSTER_SPEED, GUNS, IGNITERS, INVENTORY_SLOTS, MONSTER_SPEED
 
 
 def identifier() -> str:
@@ -76,6 +76,8 @@ class Controls:
     velocity_x: float = 0.0
     velocity_y: float = 0.0
     demolition_container: str | None = None
+    view_width: float = DEFAULT_VIEWPORT[0]
+    view_height: float = DEFAULT_VIEWPORT[1]
 
     def stop_attack(self) -> None:
         self.held = False
@@ -116,6 +118,12 @@ class Monster:
     demolition: str | None = None
     demolition_progress: float = 0.0
     next_demolition_feedback: float = 0.0
+    overlap_player: str | None = None
+    fast: bool = False
+
+    @property
+    def speed(self):
+        return FAST_MONSTER_SPEED if self.fast and not self.big else MONSTER_SPEED
 
 
 @dataclass
@@ -133,6 +141,11 @@ class Projectile:
     origin_x: float | None = None
     origin_y: float | None = None
     spawned_at: float | None = None
+    hit_targets: list[str] = field(default_factory=list)
+    range_player: str | None = None
+    range_x: float | None = None
+    range_y: float | None = None
+    range_radius: float | None = None
 
 
 def item_from(data: dict | None) -> Item | None:

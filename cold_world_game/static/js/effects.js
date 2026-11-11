@@ -27,7 +27,7 @@ export class CombatEffects {
     for (const event of state.events || []) {
       if (event.id <= previous || !lifetimes[event.type] || state.elapsed - event.time > 0.6) continue;
       if (event.type === 'death') this.active = this.active.filter((effect) => effect.event.actor !== event.actor || !['shot', 'melee', 'chop'].includes(effect.event.type));
-      this.active.push({ event, age: 0, duration: event.type === 'death' ? this.definitions[event.kind === 'monster_big' ? 'monster_big_death' : 'monster_small_death']?.duration || lifetimes.death : lifetimes[event.type] });
+      this.active.push({ event, age: 0, duration: event.type === 'death' ? this.definitions[event.kind === 'monster_big' ? 'monster_big_death' : event.kind === 'monster_fast' ? 'monster_fast_death' : 'monster_small_death']?.duration || lifetimes.death : lifetimes[event.type] });
     }
     if (this.active.length > 96) this.active.splice(0, this.active.length - 96);
   }
@@ -113,7 +113,7 @@ export class CombatEffects {
         const travel = Math.min(1, phase * 2);
         const horizontal = event.x + (event.knockback?.[0] || 0) * travel;
         const vertical = event.y + (event.knockback?.[1] || 0) * travel;
-        this.frame(renderer, big ? 'monster_big_death' : 'monster_small_death', horizontal, vertical - (big ? 0.3 : 0.13), big ? 1.6 : 1.1, phase, 0, big ? 1.9 : 1.25, direction.x < 0);
+        this.frame(renderer, big ? 'monster_big_death' : event.kind === 'monster_fast' ? 'monster_fast_death' : 'monster_small_death', horizontal, vertical - (big ? 0.3 : 0.13), big ? 1.6 : 1.1, phase, 0, big ? 1.9 : 1.25, direction.x < 0);
         this.frame(renderer, 'fx_debris', horizontal, vertical, big ? 1.4 : 1, phase);
       }
     }

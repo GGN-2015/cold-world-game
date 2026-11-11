@@ -100,6 +100,10 @@ export class WorldRenderer {
     this.effects.observe(state);
   }
 
+  viewport() {
+    return [this.width / this.scale, this.height / this.scale];
+  }
+
   reset() {
     this.state = null;
     this.positions.clear();
@@ -219,7 +223,7 @@ export class WorldRenderer {
           if (!owned) this.bar(entity.x, entity.y - 0.94, entity.temperature / 36, '#8fcede', 0.7);
         }
       } else {
-        this.actorSprite(entity.big ? 'monster_big' : 'monster_small', entity, entity.big ? 1.6 : 1.1, entity.big ? 1.9 : 1.25, entity.big ? 0.3 : 0.13);
+        this.actorSprite(entity.big ? 'monster_big' : entity.fast ? 'monster_fast' : 'monster_small', entity, entity.big ? 1.6 : 1.1, entity.big ? 1.9 : 1.25, entity.big ? 0.3 : 0.13);
         this.bar(entity.x, entity.y - (entity.big ? 1.2 : 0.8), entity.hp / (entity.big ? 50 : 10), '#dc8372', entity.big ? 1 : 0.65);
       }
     }
@@ -243,7 +247,7 @@ export class WorldRenderer {
     if (this.state && this.pointer.active && !this.panelOpen) this.drawPointer();
     if (this.state?.interaction.progress > 0) {
       const target = state.structures.find((structure) => `structure:${structure.id}` === state.interaction.target);
-      this.bar(local.x, local.y + 0.7, Math.min(1, state.interaction.progress / (['wall', 'chest', 'vending_machine'].includes(target?.kind) ? 1.5 : 0.5)), '#efbb78', 0.9);
+      this.bar(local.x, local.y + 0.7, Math.min(1, state.interaction.progress / (['wall', 'chest', 'vending_machine', 'match_machine'].includes(target?.kind) ? 1.5 : 0.5)), '#efbb78', 0.9);
     }
     context.fillStyle = 'rgba(255,255,255,.55)';
     for (let index = 0; index < 65; index++) {
@@ -287,6 +291,12 @@ export class WorldRenderer {
     context.lineCap = 'round';
     const width = Math.max(5, this.scale * 0.16);
     for (const projectile of projectiles) {
+      if (Number.isFinite(projectile.range_radius)) {
+        const local = this.state && projectile.range_player === this.state.you.id;
+        const center = local ? this.positions.get(this.state.you.id) || this.state.you : { x: projectile.range_x, y: projectile.range_y };
+        const radius = local ? Math.hypot(...this.viewport()) / 2 : projectile.range_radius;
+        if (Math.hypot(projectile.x - center.x, projectile.y - center.y) > radius + 1e-9) continue;
+      }
       const point = this.screenPoint(projectile.x, projectile.y);
       const magnitude = Math.hypot(projectile.velocity_x, projectile.velocity_y) || 1;
       const length = Number.isFinite(projectile.origin_x) && Number.isFinite(projectile.origin_y) ? Math.min(0.8, Math.hypot(projectile.x - projectile.origin_x, projectile.y - projectile.origin_y)) : 0.8;

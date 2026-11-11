@@ -3,14 +3,20 @@ CHUNK_SIZE = 15
 BODY_RADIUS = 0.35
 PLAYER_SPEED = 4.0
 MONSTER_SPEED = 1.2
+FAST_MONSTER_SPEED = PLAYER_SPEED * 1.2
+NIGHT_MONSTER_HOURS = (21, 3)
+MONSTER_SPAWN_CHANCES = {"day": {"small": 0.9, "big": 0.1, "fast": 0.0}, "night": {"small": 0.8, "big": 0.1, "fast": 0.1}}
 MONSTER_PROJECTILE_SPEED = 2.25
+DEFAULT_VIEWPORT = (32.0, 18.0)
+PROJECTILE_RANGE = (DEFAULT_VIEWPORT[0] ** 2 + DEFAULT_VIEWPORT[1] ** 2) ** 0.5 / 2
 INVENTORY_SLOTS = 10
 BACKPACK_SLOTS = 30
 DROP_DISTANCE = 2.0
 PICKUP_RADIUS = 0.75
 WORLD_RADIUS = 120
-TERRAIN_VERSION = 2
+TERRAIN_VERSION = 3
 VENDING_MACHINE_CHANCE = 0.02
+MATCH_MACHINE_CHANCE = VENDING_MACHINE_CHANCE
 MONSTER_LIMIT = 70
 MONSTER_COIN_DROPS = {"small": ((1, 0.1), (0, 0.9)), "big": ((1, 0.6), (2, 0.2), (0, 0.2))}
 DAY_SECONDS = 1440
@@ -33,20 +39,23 @@ FOODS = {
     "compressed_biscuits": 4,
     "cola": 2,
 }
+READY_TO_EAT_FOODS = frozenset({"cola", "oreos", "compressed_biscuits"})
 IGNITERS = {"lighter": 20, "gasoline": 5, "diesel": 5, "kerosene": 5, "matches": 1}
 AXE = {"range": 3, "interval": 0.5, "damage": 4}
 KNOCKBACK = {"axe": 0.7, "bullet": 0.4, "monster_melee": 0.65, "monster_big_melee": 1.0, "monster_bullet": 0.9, "player_bullet": 0.3, "big_monster_scale": 0.6}
 GUNS = {
-    "handgun": {"ammo": 100, "interval": 0.25, "speed": 20, "range": 20, "damage": 5},
-    "shotgun": {"ammo": 200, "interval": 0.8, "speed": 18, "range": 12, "damage": 2},
-    "rifle": {"ammo": 1000, "interval": 0.15, "speed": 28, "range": 30, "damage": 5},
+    "handgun": {"ammo": 100, "interval": 0.25, "speed": 20, "range": PROJECTILE_RANGE, "damage": 5},
+    "shotgun": {"ammo": 200, "interval": 0.8, "speed": 18, "range": PROJECTILE_RANGE, "damage": 2},
+    "rifle": {"ammo": 1000, "interval": 0.15, "speed": 28, "range": PROJECTILE_RANGE, "damage": 5},
 }
-BUILDINGS = frozenset({"fence", "wall", "floor", "chest", "campfire", "vending_machine"})
-CONTAINERS = frozenset({"chest", "campfire", "vending_machine"})
-SOLID = frozenset({"tree", "wall", "fence", "chest", "campfire", "vending_machine"})
+TRADING_MACHINES = frozenset({"vending_machine", "match_machine"})
+PANEL_DEMOLITION = TRADING_MACHINES | {"chest"}
+BUILDINGS = frozenset({"fence", "wall", "floor", "chest", "campfire"}) | TRADING_MACHINES
+CONTAINERS = frozenset({"chest", "campfire"}) | TRADING_MACHINES
+SOLID = frozenset({"tree", "wall", "fence", "chest", "campfire"}) | TRADING_MACHINES
 OPAQUE = frozenset({"tree", "wall"})
-BULLET_BLOCKERS = frozenset({"tree", "wall", "chest", "vending_machine"})
-DEMOLITION = {"tree": 0.5, "fence": 0.5, "wall": 1.5, "floor": 0.5, "chest": 1.5, "campfire": 0.5, "vending_machine": 1.5}
+BULLET_BLOCKERS = frozenset({"tree", "chest"}) | TRADING_MACHINES
+DEMOLITION = {"tree": 0.5, "fence": 0.5, "wall": 1.5, "floor": 0.5, "chest": 1.5, "campfire": 0.5, "vending_machine": 1.5, "match_machine": 1.5}
 MONSTER_DEMOLITION = {"fence": 1.0, "wall": 3.0}
 RECIPES = {
     "fence": {"inputs": {"wood": 1}, "output": "fence", "count": 2},
@@ -61,4 +70,10 @@ VENDING_OFFERS = {
     "buy_wood": {"inputs": {"coin": 1}, "output": "wood", "count": 10},
     "buy_cola": {"inputs": {"coin": 1}, "output": "cola", "count": 1},
 }
+MATCH_OFFERS = {
+    "sell_wood": {"inputs": {"wood": 10}, "output": "coin", "count": 1},
+    "buy_wood": {"inputs": {"coin": 1}, "output": "wood", "count": 10},
+    "buy_matches": {"inputs": {"coin": 1}, "output": "matches", "count": 1},
+}
+MACHINE_OFFERS = {"vending_machine": VENDING_OFFERS, "match_machine": MATCH_OFFERS}
 ITEM_KINDS = frozenset({"wood", "axe", "coin"}) | BUILDINGS | FOODS.keys() | IGNITERS.keys() | GUNS.keys()

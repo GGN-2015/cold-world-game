@@ -1,4 +1,5 @@
-const solid = new Set(['tree', 'wall', 'fence', 'chest', 'campfire', 'vending_machine']);
+const solid = new Set(['tree', 'wall', 'fence', 'chest', 'campfire', 'vending_machine', 'match_machine']);
+const allowsPlayerOverlap = (monster, playerId) => playerId != null && !monster.big && monster.overlap_player === playerId;
 
 export class CollisionMap {
   constructor({ radius = 0.35, chunk_size = 15 } = {}) {
@@ -11,7 +12,7 @@ export class CollisionMap {
 
   update(state) {
     this.tiles = new Set(state.structures.filter((entity) => solid.has(entity.kind)).map((entity) => `${entity.x},${entity.y}`));
-    this.bulletTiles = new Set(state.structures.filter((entity) => ['tree', 'wall', 'chest', 'vending_machine'].includes(entity.kind)).map((entity) => `${entity.x},${entity.y}`));
+    this.bulletTiles = new Set(state.structures.filter((entity) => ['tree', 'chest', 'vending_machine', 'match_machine'].includes(entity.kind)).map((entity) => `${entity.x},${entity.y}`));
     this.chunks = new Set(state.chunks.map(([horizontal, vertical]) => `${horizontal},${vertical}`));
   }
 
@@ -110,8 +111,8 @@ export class ClientMovement {
     this.arrival = now;
     this.stale = false;
     this.state = state;
-    if (!previous || previous.you.downed || state.you.downed) {
-      for (const monster of state.monsters) if (Math.hypot(monster.x - this.position.x, monster.y - this.position.y) < this.collision.radius * 2) this.ghosts.add(monster.id);
+    for (const monster of state.monsters) {
+      if ((!previous || previous.you.downed || state.you.downed || allowsPlayerOverlap(monster, state.you.id)) && Math.hypot(monster.x - this.position.x, monster.y - this.position.y) < this.collision.radius * 2) this.ghosts.add(monster.id);
     }
     const monsters = new Set(state.monsters.map((monster) => monster.id));
     for (const identifier of this.ghosts) if (!monsters.has(identifier)) this.ghosts.delete(identifier);
@@ -139,7 +140,7 @@ export class ClientMovement {
     const previous = this.position;
     const colliders = monsters.filter((monster) => {
       if (this.ghosts.has(monster.id) && Math.hypot(monster.x - previous.x, monster.y - previous.y) >= this.collision.radius * 2) this.ghosts.delete(monster.id);
-      return !this.ghosts.has(monster.id);
+      return !this.ghosts.has(monster.id) && !allowsPlayerOverlap(monster, you.id);
     });
     if (this.active && !this.stale && !this.state.paused && !you.downed) {
       const speed = this.speed * (you.temperature < 18 ? 0.5 : 1) * (you.hunger <= 0 ? 0.5 : 1);

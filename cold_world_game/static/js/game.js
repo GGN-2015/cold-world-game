@@ -119,7 +119,7 @@ function input(force = false) {
   const aim = aimPoint();
   if (isMobileDevice) renderer.pointer = { ...aim, active: true };
   const target = renderer.findTarget();
-  if (connection.send('input', { move: [renderer.movement.input.x, renderer.movement.input.y], aim: [aim.x, aim.y], target_id: target?.id || null, ...renderer.movement.report() })) lastInput = now;
+  if (connection.send('input', { move: [renderer.movement.input.x, renderer.movement.input.y], aim: [aim.x, aim.y], target_id: target?.id || null, viewport: renderer.viewport(), ...renderer.movement.report() })) lastInput = now;
 }
 
 function leave() {

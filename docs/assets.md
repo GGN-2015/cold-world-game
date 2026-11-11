@@ -2,7 +2,7 @@
 
 ## 可直接替换的贴图
 
-全部 59 张贴图位于 `cold_world_game/static/assets/`，包含 48 张静态贴图、4 张四向角色动画图集、5 张动作特效图集和 2 张怪物死亡图集，是已经导出的真实 PNG 文件，不依赖外部图床或在线图像服务。当前美术使用手工编排的像素图样和统一色板生成，无第三方素材依赖。
+全部 63 张贴图位于 `cold_world_game/static/assets/`，包含 50 张静态贴图、5 张四向角色动画图集、5 张动作特效图集和 3 张怪物死亡图集，是已经导出的真实 PNG 文件，不依赖外部图床或在线图像服务。当前美术使用手工编排的像素图样和统一色板生成，无第三方素材依赖。
 
 静态图片为 96 × 96 像素，四向动画图集为 480 × 384 像素，动作特效与死亡图集为 576 × 96 像素，每帧仍为 96 × 96。原始图样按每帧 32 × 32 像素编排，再最近邻放大 3 倍。除雪地外使用透明 RGBA 背景；画面通过 Canvas 2D 绘制，关闭平滑插值。世界中的大小和落脚位置由渲染器决定，而不是图片像素尺寸。
 
@@ -12,12 +12,14 @@
 | 场景与建筑 | `tree.png`、`wall.png`、`floor.png`、`fence.png`、`chest.png` |
 | 篝火 | `campfire.png`（未点燃）、`campfire_lit.png`（燃烧） |
 | 售货机与兑换物品 | `vending_machine.png`、`coin.png`、`cola.png`，均为独立 96 × 96 透明 PNG；硬币图用于地面掉落、金钱状态栏和兑换图标，不占玩家物品格 |
+| 自助火柴机 | `match_machine.png`，独立 96 × 96 透明 PNG，由 `match_machine` 绘图函数生成；黄铜色机壳与火柴盒展示窗区别于红色售货机，出售的火柴沿用 `matches.png` |
 | 自己与其他玩家四向动画 | `player_motion.png`、`player_other_motion.png` |
 | 玩家旧版静态图（保留） | `player.png`、`player_back.png`、`player_other.png`、`player_other_back.png` |
 | 倒地玩家 | `player_downed.png` |
 | 玩家列表 | `roster.png` 为名单按钮图标；`roster_online.png`、`roster_offline.png` 为在线暖色与离线冷色头像，均为独立 96 × 96 透明 PNG，由 `roster_icons` 生成 |
-| 怪物四向动画 | `monster_small_motion.png`、`monster_big_motion.png` |
-| 怪物死亡动画 | `monster_small_death.png`、`monster_big_death.png` |
+| 怪物四向动画 | `monster_small_motion.png`、`monster_big_motion.png`、`monster_fast_motion.png` |
+| 怪物死亡动画 | `monster_small_death.png`、`monster_big_death.png`、`monster_fast_death.png` |
+| 快速怪静态图 | `monster_fast.png`；与跑动、死亡图集一起，由 `fast_monster_tint` 对小怪图样做紫色色相转换，保留透明度、轮廓、帧布局与落脚点，分别导出为独立 PNG |
 | 动作特效 | `fx_slash.png`（挥斧）、`fx_claw.png`（爪痕）、`fx_impact.png`（受击）、`fx_debris.png`（木屑）、`fx_muzzle.png`（枪口闪光） |
 | 怪物旧版静态图（保留） | `monster_small.png`、`monster_big.png` |
 | 材料与工具 | `wood.png`、`axe.png`、`lighter.png`、`matches.png` |
@@ -34,7 +36,7 @@
 
 ## 四向立绘与跑动差分
 
-四套图集分别对应自己（橙色外套）、其他玩家（蓝色外套）、小怪和大怪，每套包含 20 个差分，共 80 个姿态。每张图集是 **5 列 × 4 行**，从左上角开始，无间距或边框：
+五套图集分别对应自己（橙色外套）、其他玩家（蓝色外套）、小怪、大怪和快速怪（紫色小怪），每套包含 20 个差分，共 100 个姿态。每张图集是 **5 列 × 4 行**，从左上角开始，无间距或边框：
 
 | 行（从 0 开始） | 方向 | 列 0 | 列 1～4 |
 | --- | --- | --- | --- |
@@ -47,11 +49,11 @@
 
 动画由服务器快照中的实际位移决定，不根据按键或鼠标朝向假定正在移动。停止后回到最后朝向的站姿，碰墙时不会原地跑，失温倒地不播放跑动。斜向运动按主轴选择朝向，接近对角线时保留当前匹配方向，避免抖动。新出现的角色、重新连接和大幅位置跳变不会被当成跑动；暂停或连续 0.3 秒渲染时间没有新快照时回到站姿。
 
-跑动帧按画面实际行进距离推进，与渲染帧率无关，受冷或饥饿减速时动画也随之放慢。`animations` 中的 `stride` 是一个完整跑动循环对应的格数：玩家为 1.5，小怪为 1，大怪为 1.35。角色移动速度和所有服务器判定保持不变；这些参数只调整视觉步频。`frame_width` / `frame_height` 指单帧像素尺寸，`directions` 指行序，`idle_frame` 和 `walk_frames` 指列号。
+跑动帧按画面实际行进距离推进，与渲染帧率无关，受冷或饥饿减速时动画也随之放慢。`animations` 中的 `stride` 是一个完整跑动循环对应的格数：玩家为 1.5，小怪和快速怪为 1，大怪为 1.35。快速怪因自身每秒行进 4.8 格，步频高于普通小怪；动画参数只调整视觉步频，不改变移动速度和服务器判定。`frame_width` / `frame_height` 指单帧像素尺寸，`directions` 指行序，`idle_frame` 和 `walk_frames` 指列号。
 
 ## 攻击、受击与死亡图集
 
-`effects` 中的七张图集均为从左到右排列的六帧，单行、无边距，使用 `frame_width`、`frame_height`、`frames`、`duration` 配置。挥斧、爪痕、红色受击、木屑和枪口闪光分别使用独立 PNG；大小怪死亡图集展示逐步倾倒、落下、透明消散，时长 0.65 秒。替换时保留透明背景和一致的落脚基准。
+`effects` 中的八张图集均为从左到右排列的六帧，单行、无边距，使用 `frame_width`、`frame_height`、`frames`、`duration` 配置。挥斧、爪痕、红色受击、木屑和枪口闪光分别使用独立 PNG；三种怪物死亡图集展示逐步倾倒、落下、透明消散，时长 0.65 秒。替换时保留透明背景和一致的落脚基准。
 
 `effects.js` 按服务器动作事件逐帧播放，并旋转攻击特效、短暂抖动受击目标和正在拆除的建筑。死亡特效使用事件里的位置、大小与击退位移独立绘制，因此服务器立即移除怪物后仍能播完动画，不保留碰撞或攻击能力。玩家受伤时另有 Canvas 屏幕边缘闪红。初次登录、重连、后台恢复不补播旧特效，同一事件在多份快照中出现也不重复播放。
 

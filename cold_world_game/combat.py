@@ -1,6 +1,6 @@
 import math
 
-from .constants import AXE, BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, FOODS, GUNS, KNOCKBACK, MONSTER_COIN_DROPS
+from .constants import AXE, BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, FOODS, GUNS, KNOCKBACK, MONSTER_COIN_DROPS, PANEL_DEMOLITION, PROJECTILE_RANGE, READY_TO_EAT_FOODS, TRADING_MACHINES
 from .geometry import distance, normalized, segment_box, segment_circle, tile
 from .models import Item, Projectile, identifier
 
@@ -13,7 +13,7 @@ class Combat:
             return
         if controls.demolition_container:
             structure = self.structures.get(controls.demolition_container)
-            if not controls.ui or controls.container != controls.demolition_container or structure is None or structure.kind not in ("chest", "vending_machine") or distance(player, structure) > 2 or player.temperature < 5 or item.kind != "axe":
+            if not controls.ui or controls.container != controls.demolition_container or structure is None or structure.kind not in PANEL_DEMOLITION or distance(player, structure) > 2 or player.temperature < 5 or item.kind != "axe":
                 controls.stop_attack()
                 return
             self.dismantle_structure(player, controls, structure, seconds)
@@ -54,7 +54,8 @@ class Combat:
         offsets = (-12, -6, 0, 6, 12) if item.kind == "shotgun" else (0,)
         for offset in offsets:
             heading = angle + math.radians(offset)
-            projectile = Projectile(player.x, player.y, math.cos(heading) * settings["speed"], math.sin(heading) * settings["speed"], settings["range"], settings["damage"], player.id, shot=shot, origin_x=player.x, origin_y=player.y, spawned_at=self.elapsed)
+            projectile = Projectile(player.x, player.y, math.cos(heading) * settings["speed"], math.sin(heading) * settings["speed"], 0, settings["damage"], player.id, shot=shot, origin_x=player.x, origin_y=player.y, spawned_at=self.elapsed, range_player=player.id)
+            projectile.remaining = self.projectile_range(projectile)
             self.projectiles[projectile.id] = projectile
         if item.ammo == 0:
             player.inventory[player.selected] = None
@@ -62,8 +63,8 @@ class Combat:
 
     def eat(self, player, controls, item, seconds):
         point = tile(controls.aim_x), tile(controls.aim_y)
-        near_fire = any(fire.kind == "campfire" and fire.lit and 1 <= abs(tile(player.x) - fire.x) + abs(tile(player.y) - fire.y) <= 3 for fire in self.structures.values())
-        if player.hunger > 10 or not near_fire or self.structure_at(*point):
+        fire_requirement_met = item.kind in READY_TO_EAT_FOODS or any(fire.kind == "campfire" and fire.lit and 1 <= abs(tile(player.x) - fire.x) + abs(tile(player.y) - fire.y) <= 3 for fire in self.structures.values())
+        if player.hunger > 10 or not fire_requirement_met or self.structure_at(*point):
             controls.target = None
             controls.progress = 0
             return
@@ -109,7 +110,7 @@ class Combat:
         self.dismantle_structure(player, controls, structure, seconds)
 
     def dismantle_structure(self, player, controls, structure, seconds):
-        if structure is None or distance(player, structure) > 3 or not self.visible(player.x, player.y, structure.x, structure.y, ignore=structure.id) or self.demolition_locked(structure.id) or (structure.kind == "campfire" and not controls.shift) or (structure.kind in ("chest", "vending_machine") and controls.demolition_container != structure.id) or (structure.kind == "chest" and any(structure.slots)):
+        if structure is None or distance(player, structure) > 3 or not self.visible(player.x, player.y, structure.x, structure.y, ignore=structure.id) or self.demolition_locked(structure.id) or (structure.kind == "campfire" and not controls.shift) or (structure.kind in PANEL_DEMOLITION and controls.demolition_container != structure.id) or (structure.kind == "chest" and any(structure.slots)):
             if controls.demolition_container:
                 controls.stop_attack()
             else:
@@ -132,8 +133,8 @@ class Combat:
                 materials = [Item.create("wood") for count in range(self.random.randint(1, 3))]
             elif structure.kind == "fence":
                 materials = [Item.create("fence")]
-            elif structure.kind == "vending_machine":
-                materials = [Item.create("vending_machine")]
+            elif structure.kind in TRADING_MACHINES:
+                materials = [Item.create(structure.kind)]
             elif structure.kind == "campfire":
                 materials = [Item.create("wood") for count in range(structure.fuel)]
                 if structure.igniter:
@@ -189,7 +190,7 @@ class Combat:
             count = self.random.choices([coins for coins, probability in drops], weights=[probability for coins, probability in drops], k=1)[0]
             for index in range(count):
                 self.drop_item(Item.create("coin"), monster.x, monster.y)
-            self.emit_event("death", monster.id, "monster_big" if monster.big else "monster", impact_x, impact_y, source=actor, target=monster.id, target_type="monster", direction=list(normalized(*direction)), knockback=displacement)
+            self.emit_event("death", monster.id, "monster_big" if monster.big else "monster_fast" if monster.fast else "monster", impact_x, impact_y, source=actor, target=monster.id, target_type="monster", direction=list(normalized(*direction)), knockback=displacement)
             self.monsters.pop(monster.id, None)
 
     def hurt_player(self, player, amount, source=None, direction=None, knockback=0.0):
@@ -208,14 +209,47 @@ class Combat:
             if previous >= 5:
                 controls.movement_epoch += 1
                 controls.ghost_monsters.update(monster.id for monster in self.monsters.values() if distance(player, monster) < BODY_RADIUS * 2)
-        if player.temperature <= 0:
             for monster in self.monsters.values():
                 if monster.target == player.id:
                     self.clear_target(monster)
 
+    def projectile_range(self, projectile):
+        if projectile.range_player is None:
+            if not projectile.hostile and projectile.owner in self.players:
+                projectile.range_player = projectile.owner
+            elif projectile.hostile:
+                monster = self.monsters.get(projectile.owner)
+                if monster and monster.target in self.players:
+                    projectile.range_player = monster.target
+                elif self.online:
+                    projectile.range_player = min(self.online, key=lambda player_id: (distance(projectile, self.players[player_id]), player_id))
+        player = self.players.get(projectile.range_player)
+        if player:
+            projectile.range_x, projectile.range_y = player.x, player.y
+            controls = self.controls.get(player.id)
+            if controls:
+                projectile.range_radius = math.hypot(controls.view_width, controls.view_height) / 2
+        if projectile.range_x is None or projectile.range_y is None:
+            projectile.range_x = projectile.origin_x if projectile.origin_x is not None else projectile.x
+            projectile.range_y = projectile.origin_y if projectile.origin_y is not None else projectile.y
+        if projectile.range_radius is None:
+            projectile.range_radius = PROJECTILE_RANGE
+        offset_x, offset_y = projectile.x - projectile.range_x, projectile.y - projectile.range_y
+        radius_squared = projectile.range_radius ** 2
+        distance_squared = offset_x * offset_x + offset_y * offset_y
+        if distance_squared > radius_squared + 1e-9:
+            return -1.0
+        direction_x, direction_y = normalized(projectile.velocity_x, projectile.velocity_y)
+        projection = offset_x * direction_x + offset_y * direction_y
+        return max(0.0, -projection + math.sqrt(max(0.0, projection * projection + radius_squared - distance_squared)))
+
     def update_projectiles(self, seconds):
         for projectile_id, projectile in list(self.projectiles.items()):
             speed = math.hypot(projectile.velocity_x, projectile.velocity_y)
+            projectile.remaining = self.projectile_range(projectile)
+            if projectile.remaining < 0 or speed <= 1e-9:
+                del self.projectiles[projectile_id]
+                continue
             travel = min(projectile.remaining, speed * seconds)
             end_x = projectile.x + projectile.velocity_x * travel / speed
             end_y = projectile.y + projectile.velocity_y * travel / speed
@@ -227,7 +261,7 @@ class Combat:
                         candidates.append((fraction, 0, "structure", structure))
             for player_id in self.online:
                 player = self.players[player_id]
-                if player.temperature <= 0 or player_id == projectile.owner:
+                if player.temperature <= 0 or player_id == projectile.owner or (projectile.hostile and player.temperature < 5):
                     continue
                 fraction = segment_circle(projectile.x, projectile.y, end_x, end_y, player.x, player.y)
                 if fraction is not None:
@@ -237,21 +271,33 @@ class Combat:
                     fraction = segment_circle(projectile.x, projectile.y, end_x, end_y, monster.x, monster.y)
                     if fraction is not None:
                         candidates.append((fraction, 2, "monster", monster))
-            if candidates:
-                fraction, priority, kind, target = min(candidates, key=lambda candidate: (candidate[0], candidate[1]))
+            blocked = False
+            for fraction, priority, kind, target in sorted(candidates, key=lambda candidate: (candidate[0], candidate[1])):
+                if kind == "structure":
+                    blocked = True
+                    break
+                target_key = f"{kind}:{target.id}"
+                if target_key in projectile.hit_targets:
+                    continue
                 if kind == "player":
+                    if target.temperature <= 0 or (projectile.hostile and target.temperature < 5):
+                        continue
+                    if not projectile.hostile and target.id in self.shot_hits.get(projectile.shot, set()):
+                        continue
+                    self.touch()
+                    projectile.hit_targets.append(target_key)
                     hit_players = self.shot_hits.setdefault(projectile.shot, set())
-                    if projectile.hostile or target.id not in hit_players:
-                        self.hurt_player(target, 5 if projectile.hostile else 1, source=projectile.owner, direction=(projectile.velocity_x, projectile.velocity_y), knockback=KNOCKBACK["monster_bullet" if projectile.hostile else "player_bullet"])
-                        hit_players.add(target.id)
-                elif kind == "monster":
+                    self.hurt_player(target, 5 if projectile.hostile else 1, source=projectile.owner, direction=(projectile.velocity_x, projectile.velocity_y), knockback=KNOCKBACK["monster_bullet" if projectile.hostile else "player_bullet"])
+                    hit_players.add(target.id)
+                elif kind == "monster" and target.id in self.monsters:
+                    self.touch()
+                    projectile.hit_targets.append(target_key)
                     self.hurt_monster(target, projectile.damage, projectile.owner, "bullet", (projectile.velocity_x, projectile.velocity_y), shot=projectile.shot)
+            if blocked or speed * seconds > projectile.remaining + 1e-9:
                 del self.projectiles[projectile_id]
             else:
                 projectile.x, projectile.y = end_x, end_y
                 projectile.remaining -= travel
-                if projectile.remaining <= 1e-9:
-                    del self.projectiles[projectile_id]
         active_shots = {projectile.shot for projectile in self.projectiles.values()}
         self.shot_hits = {shot: players for shot, players in self.shot_hits.items() if shot in active_shots}
         self.shot_impacts = {shot: monsters for shot, monsters in self.shot_impacts.items() if shot in active_shots}
