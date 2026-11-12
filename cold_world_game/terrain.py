@@ -3,6 +3,7 @@ import math
 import random
 from collections import deque
 
+from .constants import CHEST_GUN_CHANCE
 from .constants import CHUNK_SIZE, COMMON_CHEST_FOODS, COMMON_CHEST_IGNITERS, CONTAINERS, DEFIBRILLATOR_CHANCE, FIRST_AID_KIT_CHANCE, FLAME_STAFF_CHANCE, FOODS, GRENADE_CHANCE, GUN_MACHINE_CHANCE, HEAT_PATCH_CHANCE, HOMING_MISSILE_CHANCE, ICE_STAFF_CHANCE, IGNITERS, MATCH_MACHINE_CHANCE, PIGGY_BANK_CHANCE, RARE_CHEST_ITEMS, RETURN_STAFF_CHANCE, SHERIFF_BADGE_CHANCE, SOLID, SWIFTNESS_RING_CHANCE, TERRAIN_VERSION, VENDING_MACHINE_CHANCE, VODKA_CHANCE, WORLD_RADIUS
 from .geometry import chunk
 from .models import Item, Structure
@@ -204,7 +205,7 @@ class Terrain:
         items = []
         if generator.random() < 0.5:
             items.extend(Item.create("wood") for count in range(generator.randint(1, 5)))
-        if generator.random() < 0.1:
+        if generator.random() < CHEST_GUN_CHANCE:
             items.append(Item.create(generator.choices(["handgun", "shotgun", "rifle"], [0.7, 0.2, 0.1])[0]))
         if generator.random() < 0.3:
             items.extend(Item.create(generator.choice(COMMON_CHEST_FOODS)) for count in range(generator.randint(1, 5)))

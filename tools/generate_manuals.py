@@ -54,8 +54,8 @@ class Manual:
         elif kind in self.rules.COMMON_CHEST_IGNITERS:
             sources.append("自然箱子的火种组有20%概率生成1件火种，本物品从该组等概率抽选")
         elif kind in {"handgun", "shotgun", "rifle"}:
-            chance = {"handgun": 7, "shotgun": 2, "rifle": 1}[kind]
-            sources.append(f"自然箱子枪械组抽选，折合每箱 {chance}% 概率")
+            chance = self.rules.CHEST_GUN_CHANCE * {"handgun": 70, "shotgun": 20, "rifle": 10}[kind]
+            sources.append(f"自然箱子枪械组抽选，折合每箱 {chance:g}% 概率")
         elif kind == "axe":
             sources.append("新玩家初始携带")
         elif kind == "durian_peel":

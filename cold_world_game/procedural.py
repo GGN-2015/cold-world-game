@@ -77,6 +77,7 @@ def profile():
     )]
     machines.extend([kind, "room_machine:" + kind + ":v1", definition["chance"]] for kind, definition in ROOM_MACHINES.items())
     result = {"algorithm": 1, "version": rules.TERRAIN_VERSION, "size": rules.CHUNK_SIZE, "machines": machines, "outdoors": {kind: dict(definition) for kind, definition in OUTDOOR_FEATURES.items()}, "rare": [[kind, chance] for kind, chance in sorted(rare.items())], "foods": list(rules.COMMON_CHEST_FOODS), "igniters": list(rules.COMMON_CHEST_IGNITERS), "items": {kind: {"ammo": item.ammo, "uses": item.uses} for kind in sorted(rules.ITEM_KINDS) if (item := Item.create(kind))}}
+    result["chest_gun_chance"] = rules.CHEST_GUN_CHANCE
     result["digest"] = hashlib.sha256(json.dumps(result, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     return result
 
@@ -92,7 +93,7 @@ def cell_seed(seed, horizontal, vertical, tile_x, tile_y):
 def chest_items(seed, horizontal, vertical, tile_x, tile_y, settings):
     base = cell_seed(seed, horizontal, vertical, tile_x, tile_y)
     items = []
-    for name, chance in (("wood", .5), ("gun", .1), ("food", .3), ("igniter", .2)):
+    for name, chance in (("wood", .5), ("gun", settings.get("chest_gun_chance", .1)), ("food", .3), ("igniter", .2)):
         stream = RandomStream(derive(base, "loot", name))
         if stream.random() >= chance:
             continue
