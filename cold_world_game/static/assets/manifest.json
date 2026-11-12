@@ -362,6 +362,11 @@
       "width": 576,
       "height": 96
     },
+    "chainsaw": {
+      "file": "chainsaw.png",
+      "width": 96,
+      "height": 96
+    },
     "instant_noodles": {
       "file": "instant_noodles.png",
       "width": 96,
@@ -484,6 +489,11 @@
     },
     "fx_flame_sweep": {
       "file": "fx_flame_sweep.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_chainsaw_sweep": {
+      "file": "fx_chainsaw_sweep.png",
       "width": 576,
       "height": 96
     },
@@ -629,6 +639,46 @@
     },
     "fx_flame_sweep_ne": {
       "file": "fx_flame_sweep_ne.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_chainsaw_sweep_e": {
+      "file": "fx_chainsaw_sweep_e.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_chainsaw_sweep_se": {
+      "file": "fx_chainsaw_sweep_se.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_chainsaw_sweep_s": {
+      "file": "fx_chainsaw_sweep_s.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_chainsaw_sweep_sw": {
+      "file": "fx_chainsaw_sweep_sw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_chainsaw_sweep_w": {
+      "file": "fx_chainsaw_sweep_w.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_chainsaw_sweep_nw": {
+      "file": "fx_chainsaw_sweep_nw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_chainsaw_sweep_n": {
+      "file": "fx_chainsaw_sweep_n.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_chainsaw_sweep_ne": {
+      "file": "fx_chainsaw_sweep_ne.png",
       "width": 1152,
       "height": 192
     },
@@ -1561,6 +1611,26 @@
         "fx_flame_sweep_nw",
         "fx_flame_sweep_n",
         "fx_flame_sweep_ne"
+      ],
+      "direction_frame_width": 192,
+      "direction_frame_height": 192,
+      "radius_ratio": 0.46875
+    },
+    "fx_chainsaw_sweep": {
+      "asset": "fx_chainsaw_sweep",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.3,
+      "directions": [
+        "fx_chainsaw_sweep_e",
+        "fx_chainsaw_sweep_se",
+        "fx_chainsaw_sweep_s",
+        "fx_chainsaw_sweep_sw",
+        "fx_chainsaw_sweep_w",
+        "fx_chainsaw_sweep_nw",
+        "fx_chainsaw_sweep_n",
+        "fx_chainsaw_sweep_ne"
       ],
       "direction_frame_width": 192,
       "direction_frame_height": 192,

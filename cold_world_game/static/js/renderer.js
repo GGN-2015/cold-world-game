@@ -290,7 +290,7 @@ export class WorldRenderer {
       const held = state.you.inventory[this.selected];
       const returning = state.interaction.target?.startsWith('return:');
       const reviving = state.interaction.target?.startsWith('revive:');
-      const duration = returning ? this.catalog.return_items?.[held?.kind]?.duration ?? 1.5 : reviving ? this.catalog.revival_items?.[held?.kind]?.duration ?? 1.5 : this.catalog.healing_items?.[held?.kind]?.duration ?? this.catalog.explosive_weapons?.[held?.kind]?.duration ?? (target?.kind === 'wall' || containers.has(target?.kind) ? 1.5 : 0.5);
+      const duration = returning ? this.catalog.return_items?.[held?.kind]?.duration ?? 1.5 : reviving ? this.catalog.revival_items?.[held?.kind]?.duration ?? 1.5 : this.catalog.healing_items?.[held?.kind]?.duration ?? this.catalog.explosive_weapons?.[held?.kind]?.duration ?? this.catalog.harvest_tools?.[held?.kind]?.[target?.kind] ?? (target?.kind === 'wall' || containers.has(target?.kind) ? 1.5 : 0.5);
       if (returning) this.effects.frame(this, 'fx_teleport', local.x, local.y - 0.4, 2.6, (this.elapsed * 0.7) % 1);
       this.bar(local.x, local.y + 0.7, Math.min(1, state.interaction.progress / duration), returning ? '#ac9afa' : '#efbb78', 0.9);
     }

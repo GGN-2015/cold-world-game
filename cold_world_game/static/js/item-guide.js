@@ -39,7 +39,7 @@ export function itemGuide(item, catalog) {
   } else if (catalog.melee_weapons?.[kind]) {
     category = 'melee';
     effect = t(`guide.effect.${kind}`, catalog.melee_weapons[kind]);
-    use = t(kind === 'axe' ? 'guide.use.axe' : 'guide.use.staff');
+    use = t(kind === 'chainsaw' ? 'guide.use.chainsaw' : kind === 'axe' ? 'guide.use.axe' : 'guide.use.staff');
   } else if (catalog.explosive_weapons?.[kind]) {
     category = 'explosive';
     effect = t(`guide.effect.${kind}`, catalog.explosive_weapons[kind]);

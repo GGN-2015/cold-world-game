@@ -1,6 +1,6 @@
 import math
 
-from .constants import BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, DRINKS, EXPLOSIVE_WEAPONS, FLAME_STAFF, FOODS, GUNS, HEALING_ITEMS, KNOCKBACK, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, PANEL_DEMOLITION, PASSIVE_ITEMS, PROJECTILE_RANGE, READY_TO_EAT_FOODS, RETURN_ITEMS, REVIVAL_ITEMS, SMALL_MONSTER_FOOD_CHANCE, SMALL_MONSTER_FOOD_WEIGHTS
+from .constants import BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, DRINKS, EXPLOSIVE_WEAPONS, FLAME_STAFF, FOODS, GUNS, HARVEST_TOOLS, HEALING_ITEMS, KNOCKBACK, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, PANEL_DEMOLITION, PASSIVE_ITEMS, PROJECTILE_RANGE, READY_TO_EAT_FOODS, RETURN_ITEMS, REVIVAL_ITEMS, SMALL_MONSTER_FOOD_CHANCE, SMALL_MONSTER_FOOD_WEIGHTS
 from .expansion import carried_modifier
 from .geometry import distance, normalized, segment_box, segment_circle, tile
 from .models import Item, Projectile, identifier
@@ -10,12 +10,12 @@ from .missiles import homing_position
 class Combat:
     def update_player_attack(self, player, controls, seconds):
         item = player.inventory[player.selected]
-        if not controls.held or item is None:
+        if not controls.held or item is None or (item.uses is not None and item.uses <= 0):
             controls.stop_attack()
             return
         if controls.demolition_container:
             structure = self.structures.get(controls.demolition_container)
-            if not controls.ui or controls.container != controls.demolition_container or structure is None or structure.kind not in PANEL_DEMOLITION or distance(player, structure) > 2 or player.temperature < 5 or item.kind != "axe":
+            if not controls.ui or controls.container != controls.demolition_container or structure is None or structure.kind not in PANEL_DEMOLITION or distance(player, structure) > 2 or player.temperature < 5 or item.kind not in HARVEST_TOOLS:
                 controls.stop_attack()
                 return
             self.dismantle_structure(player, controls, structure, seconds)
@@ -47,7 +47,7 @@ class Combat:
             if controls.pending_shot or item.kind == "rifle" or GUNS[item.kind].get("automatic", False):
                 self.fire_gun(player, controls, item)
             controls.pending_shot = False
-        elif item.kind == "axe":
+        elif item.kind in HARVEST_TOOLS:
             self.swing_axe(player, controls, seconds)
         elif item.kind in MELEE_WEAPONS:
             controls.target = None
@@ -304,7 +304,7 @@ class Combat:
         for monster, offset_x, offset_y in targets:
             self.apply_weapon_status(monster, settings, player.id)
             self.hurt_monster(monster, settings["damage"], player.id, item.kind, (offset_x, offset_y))
-        if item.uses is not None:
+        if item.uses is not None and (targets or not settings.get("consume_on_hit", False)):
             item.uses -= 1
             if item.uses <= 0:
                 player.inventory[player.selected] = None
@@ -332,6 +332,11 @@ class Combat:
         self.dismantle_structure(player, controls, structure, seconds)
 
     def dismantle_structure(self, player, controls, structure, seconds):
+        item = player.inventory[player.selected]
+        durations = HARVEST_TOOLS.get(item.kind, {}) if item else {}
+        if item is None or (item.uses is not None and item.uses <= 0) or (structure is not None and structure.kind not in durations):
+            controls.stop_attack()
+            return
         if structure is None or distance(player, structure) > 3 or not self.visible(player.x, player.y, structure.x, structure.y, ignore=structure.id) or self.demolition_locked(structure.id) or (structure.kind in PANEL_DEMOLITION and (controls.demolition_container != structure.id or not structure.empty)):
             if controls.demolition_container:
                 controls.stop_attack()
@@ -341,15 +346,15 @@ class Combat:
             return
         target = "structure:" + structure.id
         previous_progress = controls.progress if controls.target == target else 0.0
-        if previous_progress + seconds + 1e-9 >= DEMOLITION[structure.kind]:
+        if previous_progress + seconds + 1e-9 >= durations[structure.kind]:
             self.touch()
         if controls.target != target:
             controls.next_demolition_feedback = 0.0
         self.progress(controls, target, seconds)
         if self.elapsed + 1e-9 >= controls.next_demolition_feedback:
-            self.emit_event("chop", player.id, structure.kind, player.x, player.y, target=structure.id, target_x=structure.x, target_y=structure.y)
+            self.emit_event("chop", player.id, structure.kind, player.x, player.y, target=structure.id, target_x=structure.x, target_y=structure.y, weapon=item.kind)
             controls.next_demolition_feedback = self.elapsed + 0.3
-        if controls.progress + 1e-9 >= DEMOLITION[structure.kind]:
+        if controls.progress + 1e-9 >= durations[structure.kind]:
             self.touch()
             if structure.kind == "tree":
                 materials = [Item.create("wood") for count in range(self.random.randint(1, 3))]
@@ -361,6 +366,10 @@ class Combat:
                 self.drop_item(material, structure.x, structure.y)
             self.emit_event("break", player.id, structure.kind, structure.x, structure.y, target=structure.id)
             self.remove_structure(structure)
+            if item.uses is not None:
+                item.uses -= 1
+                if item.uses <= 0:
+                    player.inventory[player.selected] = None
             controls.stop_attack()
 
     def knock_back(self, body, direction, distance, player_id=None, monster_id=None):

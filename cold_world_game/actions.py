@@ -1,7 +1,7 @@
 import math
 import time
 
-from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DRINKS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FOODS, GUNS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, MAX_COINS, MELEE_WEAPONS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS, SOLID
+from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DRINKS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FOODS, GUNS, HARVEST_TOOLS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, MAX_COINS, MELEE_WEAPONS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS, SOLID
 from .geometry import DIRECTIONS, circle_square, distance, normalized, segment_box, tile
 from .models import GroundItem, Item, Structure
 
@@ -102,7 +102,7 @@ class Actions:
                 if item and item.kind in MELEE_WEAPONS:
                     controls.attack_id = attack_id
                     swing = bool(self.strike_melee(player, controls))
-            controls.held = True
+            controls.held = player.inventory[player.selected] is not None
             controls.shift = shift
             if item and item.kind in GUNS and (item.kind == "homing_missile" or GUNS[item.kind].get("instant", False)) and controls.pending_shot:
                 self.fire_gun(player, controls, item)
@@ -123,8 +123,8 @@ class Actions:
             if not structure.empty:
                 code = "bank_not_empty" if structure.kind == "piggy_bank" else "fire_not_empty" if structure.kind == "campfire" else "chest_not_empty"
                 raise GameError(code, "Remove all stored items before dismantling this container")
-            if player.temperature < 5 or item is None or item.kind != "axe" or self.demolition_locked(structure.id):
-                raise GameError("demolition_unavailable", "Dismantling requires an axe, a standing player and no monster dismantling this structure")
+            if player.temperature < 5 or item is None or item.kind not in HARVEST_TOOLS or (item.uses is not None and item.uses <= 0) or self.demolition_locked(structure.id):
+                raise GameError("demolition_unavailable", "Dismantling requires an axe or usable chainsaw, a standing player and no monster dismantling this structure")
             if controls.demolition_container != structure.id:
                 controls.stop_attack()
             controls.demolition_container = structure.id

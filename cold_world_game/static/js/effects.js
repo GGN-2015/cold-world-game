@@ -2,7 +2,7 @@ import { expansionSweeps, expansionBlasts } from './expansion-data.js';
 
 const lifetimes = { shot: 0.15, melee: 0.28, chop: 0.28, break: 0.5, hit: 0.3, hurt: 0.3, death: 0.65, heal: 0.9, eat: 0.6, unpack: 0.6, teleport_out: 1, teleport_in: 1, explosion: 0.65 };
 const neutralPose = Object.freeze({ x: 0, y: 0, reacting: false, direction: null });
-const sweepEffects = { ...expansionSweeps, axe: 'fx_axe_sweep', ice_staff: 'fx_ice_sweep', flame_staff: 'fx_flame_sweep' };
+const sweepEffects = { ...expansionSweeps, axe: 'fx_axe_sweep', chainsaw: 'fx_chainsaw_sweep', ice_staff: 'fx_ice_sweep', flame_staff: 'fx_flame_sweep' };
 
 function poseFor(poses, identifier) {
   if (!poses.has(identifier)) poses.set(identifier, { ...neutralPose });
@@ -130,7 +130,7 @@ export class CombatEffects {
         const baked = sweeping && this.directionalAxe(renderer, effect, phase);
         if (!baked) this.frame(renderer, sweeping ? sweepEffects[event.kind] : monster ? 'fx_claw' : 'fx_slash', sweeping ? event.x : actor.x, sweeping ? event.y : actor.y - 0.28, sweeping ? (event.range ?? renderer.catalog?.axe?.range ?? 3) * 32 / 15 : monster ? 1.8 : 2.1, phase, direction.angle);
         if (!monster && !baked) {
-          const axe = renderer.images.get(sweepEffects[event.kind] ? event.kind : 'axe');
+          const axe = renderer.images.get(sweepEffects[event.kind] ? event.kind : event.weapon || 'axe');
           if (axe) {
             const swing = direction.angle - (sweeping ? Math.PI / 2 : 1) + phase * (sweeping ? Math.PI : 2);
             const point = renderer.screenPoint(actor.x + Math.cos(swing) * 0.55, actor.y - 0.28 + Math.sin(swing) * 0.55);

@@ -119,6 +119,13 @@ def throw(seconds, generator):
     return envelope * (generator.uniform(-1, 1) * .22 + math.sin(math.tau * 380 * seconds) * .04)
 
 
+def chainsaw(seconds, generator):
+    envelope = min(1.0, seconds / .025) * min(1.0, (.3 - seconds) / .04)
+    engine = math.sin(math.tau * (95 * seconds + .3 * math.sin(math.tau * 12 * seconds)))
+    teeth = math.sin(math.tau * 760 * seconds) * .14 + math.sin(math.tau * 1480 * seconds) * .08
+    return envelope * (engine * .26 + teeth + generator.uniform(-1, 1) * .12)
+
+
 def main():
     DESTINATION.mkdir(parents=True, exist_ok=True)
     export("handgun", 0.23, lambda seconds, generator: gunshot(seconds, generator, 36, 0.3))
@@ -131,11 +138,12 @@ def main():
     export("break", 0.4, wood_break)
     export("hit", 0.25, hit)
     export("axe", 0.3, axe_sweep)
+    export("chainsaw", 0.3, chainsaw)
     export("monster_attack", 0.3, lambda seconds, generator: swing(seconds, generator, monster=True))
     export("monster_death", 0.65, monster_death)
     export("throw", 0.22, throw)
     export("explosion", 0.65, explosion)
-    print(f"Exported 14 replaceable WAV sound effects to {DESTINATION}")
+    print(f"Exported 15 replaceable WAV sound effects to {DESTINATION}")
 
 
 if __name__ == "__main__":

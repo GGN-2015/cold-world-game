@@ -4,7 +4,7 @@
 
 ## 可直接替换的贴图
 
-全部 257 张贴图位于 `cold_world_game/static/assets/`，包含 149 张静态贴图、8 张四向角色动画图集、24 张基础动作特效图集、72 张方向挥斧/挥杖图集、3 张怪物死亡图集和 1 张大怪起立图集，是已经导出的真实 PNG 文件，不依赖外部图床或在线图像服务。当前美术使用手工编排的像素图样和统一色板生成，无第三方素材依赖。
+全部 267 张贴图位于 `cold_world_game/static/assets/`，包含 150 张静态贴图、8 张四向角色动画图集、25 张基础动作特效图集、80 张方向近战挥动图集、3 张怪物死亡图集和 1 张大怪起立图集，是已经导出的真实 PNG 文件，不依赖外部图床或在线图像服务。当前美术使用手工编排的像素图样和统一色板生成，无第三方素材依赖。
 
 静态图片为 96 × 96 像素，四向动画图集为 480 × 384 像素，动作特效与死亡图集为 576 × 96 像素，每帧仍为 96 × 96。原始图样按每帧 32 × 32 像素编排，再最近邻放大 3 倍。除雪地外使用透明 RGBA 背景；画面通过 Canvas 2D 绘制，关闭平滑插值。世界中的大小和落脚位置由渲染器决定，而不是图片像素尺寸。
 
@@ -19,7 +19,7 @@
 | 玩家 | `player.png`、`player_back.png`、`player_other.png`、`player_other_back.png`、`player_downed.png` 及两套 `_motion.png` |
 | 怪物 | `monster_small/big/fast.png`，对应 `_motion`、`_frozen`、`_frozen_motion`、`_death`，以及大怪/快速怪 `_sleep` 和大怪 `_rise`；见[怪物图鉴](combat.md#怪物图鉴) |
 | 界面图标 | `roster.png`、`roster_online.png`、`roster_offline.png`、`snowflake.png` 等 |
-| 攻击与受击 | `fx_axe_sweep`、`fx_ice_sweep`、`fx_flame_sweep`及各近战八方向图集，`fx_claw`、`fx_impact`、`fx_muzzle` |
+| 攻击与受击 | `fx_axe_sweep`、`fx_chainsaw_sweep`、`fx_ice_sweep`、`fx_flame_sweep`及各近战八方向图集，`fx_claw`、`fx_impact`、`fx_muzzle` |
 | 采集、医疗与传送 | `fx_slash`、`fx_debris`、`fx_heal`、`fx_teleport`、进食与拆包共享图集 |
 | 持续状态与爆炸 | `fx_burning` 为灼烧怪物共享火苗；`fx_explosion`、冰霜/火焰/脉冲范围动画用于对应攻击 |
 
@@ -56,7 +56,7 @@
 
 ## 物品图标与共享特效
 
-所有食品、武器、道具、材料和设施各有独立96×96 PNG，形状、色板和符号用于区分物品。近战分别有六帧扇形与八方向图集；冰霜、火焰、脉冲、医疗、拆包和进食等使用共享图集。当前资源清单包含257张PNG，运行时只按时间选帧贴图，不为每个怪物实时生成粒子。
+所有食品、武器、道具、材料和设施各有独立96×96 PNG，形状、色板和符号用于区分物品。近战分别有六帧扇形与八方向图集；冰霜、火焰、脉冲、医疗、拆包和进食等使用共享图集。当前资源清单包含267张PNG，运行时只按时间选帧贴图，不为每个怪物实时生成粒子。
 
 `tools/generate_assets.py` 统一调用绘图脚本并更新清单；`tools/expansion_assets.py` 生成物品与特效图样及对应双语数据，`tools/machine_assets.py` 生成机器图样及双语数据。脚本的实现分工不决定手册分类：所有条目均按玩法职责进入食品、武器、工具和设施图鉴。
 

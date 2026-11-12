@@ -19,7 +19,8 @@ BACKPACK_SLOTS = 30
 DROP_DISTANCE = 2.0
 PICKUP_RADIUS = 0.75
 WORLD_RADIUS = 120
-TERRAIN_VERSION = 15
+TERRAIN_VERSION = 16
+CHAINSAW_CHANCE = 0.02
 HOMING_MISSILE_CHANCE = 0.02
 SWIFTNESS_RING_CHANCE = 0.02
 SHERIFF_BADGE_CHANCE = 0.02
@@ -70,9 +71,10 @@ REVIVAL_ITEMS = {"defibrillator": {"duration": 1.5, "range": 2.0, "temperature":
 RETURN_ITEMS = {"return_staff": {"duration": 1.5, "uses": 20}}
 IGNITERS = {"lighter": 20, "gasoline": 5, "diesel": 5, "kerosene": 5, "matches": 1}
 AXE = {"range": 3, "interval": 0.5, "damage": 4, "arc_degrees": 180}
+CHAINSAW = {"range": 2.5, "interval": 0.5, "damage": 6, "arc_degrees": 180, "uses": 200, "consume_on_hit": True}
 ICE_STAFF = {**AXE, "damage": AXE["damage"] * 2, "uses": 100, "freeze_duration": 4.0, "speed_scale": 0.5}
 FLAME_STAFF = {**AXE, "uses": 100, "burn_duration": 4.0, "burn_interval": 0.5, "burn_damage": AXE["damage"]}
-MELEE_WEAPONS = {"axe": AXE, "ice_staff": ICE_STAFF, "flame_staff": FLAME_STAFF}
+MELEE_WEAPONS = {"axe": AXE, "chainsaw": CHAINSAW, "ice_staff": ICE_STAFF, "flame_staff": FLAME_STAFF}
 EXPLOSIVE_WEAPONS = {
     "grenade": {"duration": 0.5, "interval": 1.0, "flight_duration": 0.45, "radius": 3.0, "damage": AXE["damage"] * 5, "coin_cost": 0},
     "coin_launcher": {"duration": 0.5, "interval": 1.0, "flight_duration": 0.45, "radius": 3.0, "damage": AXE["damage"] * 5, "coin_cost": 1},
@@ -94,6 +96,7 @@ BULLET_BLOCKERS = frozenset({"tree"})
 MONSTER_BULLET_BLOCKERS = BULLET_BLOCKERS | CONTAINERS
 DEMOLITION = {"tree": 0.5, "fence": 0.5, "wall": 1.5, "floor": 0.5, "chest": 1.5, "campfire": 1.5, "piggy_bank": 1.5, "vending_machine": 1.5, "match_machine": 1.5, "gun_machine": 1.5}
 DEMOLITION.update({kind: 1.5 for kind in ROOM_MACHINES})
+HARVEST_TOOLS = {"axe": DEMOLITION, "chainsaw": {**DEMOLITION, "tree": 0.25}}
 MONSTER_DEMOLITION = {"fence": 1.0, "wall": 3.0}
 RECIPES = {
     "fence": {"inputs": {"wood": 1}, "output": "fence", "count": 2},
@@ -127,7 +130,7 @@ COMMON_CHEST_IGNITERS = tuple(IGNITERS)
 FOODS["durian"] = 3
 READY_TO_EAT_FOODS = READY_TO_EAT_FOODS | {"durian"}
 EXPLOSIVE_WEAPONS["durian_peel"] = {**EXPLOSIVE_WEAPONS["grenade"]}
-RARE_CHEST_ITEMS = {"durian": DURIAN_CHANCE, **{kind: definition["chance"] for kind, definition in EXPANSION_ITEMS.items()}}
+RARE_CHEST_ITEMS = {"durian": DURIAN_CHANCE, "chainsaw": CHAINSAW_CHANCE, **{kind: definition["chance"] for kind, definition in EXPANSION_ITEMS.items()}}
 for item_kind, definition in EXPANSION_ITEMS.items():
     mechanic, settings = definition["mechanic"], definition["settings"]
     if mechanic == "food":

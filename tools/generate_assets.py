@@ -978,15 +978,37 @@ def effects():
     save("footprint", image)
 
 
+def chainsaw():
+    image, drawing = canvas()
+    drawing.ellipse((3, 25, 29, 29), fill="#52768060")
+    drawing.polygon(((13, 13), (26, 3), (30, 4), (31, 8), (18, 21)), fill=PALETTE["outline"])
+    drawing.polygon(((15, 14), (27, 5), (29, 6), (29, 8), (18, 18)), fill=PALETTE["shade"])
+    drawing.line(((16, 14), (28, 6)), fill=PALETTE["light"], width=2)
+    for tooth in range(5):
+        horizontal, vertical = 17 + tooth * 2, 13 - tooth * 2
+        drawing.rectangle((horizontal - 2, vertical - 3, horizontal, vertical - 2), fill=PALETTE["outline"])
+        drawing.rectangle((horizontal + 2, vertical + 2, horizontal + 3, vertical + 3), fill=PALETTE["outline"])
+    drawing.rounded_rectangle((1, 15, 12, 26), radius=3, fill=PALETTE["outline"])
+    drawing.rectangle((4, 18, 10, 22), fill=PALETTE["snow"])
+    drawing.rounded_rectangle((7, 14, 21, 26), radius=3, fill=PALETTE["outline"])
+    drawing.rectangle((9, 16, 19, 23), fill=PALETTE["orange"])
+    drawing.rectangle((10, 16, 18, 17), fill=PALETTE["gold"])
+    drawing.rectangle((10, 20, 14, 21), fill=PALETTE["wood_dark"])
+    drawing.ellipse((16, 19, 19, 22), fill=PALETTE["ice"])
+    drawing.line(((8, 13), (10, 10), (16, 10), (19, 13)), fill=PALETTE["outline"], width=3)
+    drawing.line(((10, 11), (15, 11)), fill=PALETTE["shade"], width=1)
+    save("chainsaw", image)
+
+
 def combat_effects():
-    durations = {"fx_slash": 0.28, "fx_claw": 0.32, "fx_impact": 0.3, "fx_debris": 0.5, "fx_muzzle": 0.15, "fx_heal": 0.9, "fx_teleport": 1.0, "fx_axe_sweep": 0.3, "fx_ice_sweep": 0.3, "fx_flame_sweep": 0.3}
+    durations = {"fx_slash": 0.28, "fx_claw": 0.32, "fx_impact": 0.3, "fx_debris": 0.5, "fx_muzzle": 0.15, "fx_heal": 0.9, "fx_teleport": 1.0, "fx_axe_sweep": 0.3, "fx_ice_sweep": 0.3, "fx_flame_sweep": 0.3, "fx_chainsaw_sweep": 0.3}
     for name, duration in durations.items():
         sheet = Image.new("RGBA", (32 * 6, 32))
         for frame in range(6):
             image, drawing = canvas()
             phase = frame / 5
             alpha = round(255 * (1 - phase * 0.75))
-            if name in ("fx_axe_sweep", "fx_ice_sweep", "fx_flame_sweep"):
+            if name in ("fx_axe_sweep", "fx_ice_sweep", "fx_flame_sweep", "fx_chainsaw_sweep"):
                 fade = round(210 * (1 - phase * 0.8))
                 drawing.pieslice((1, 1, 31, 31), -90, 90, fill=(140, 219, 244, round(36 * (1 - phase))))
                 drawing.line((16, 1, 16, 31), fill=(168, 223, 248, fade // 2), width=1)
@@ -994,6 +1016,12 @@ def combat_effects():
                 leading = -90 + phase * 180
                 drawing.arc((2, 2, 30, 30), max(-90, leading - 70), leading + 1, fill=(255, 235, 180, alpha), width=3)
                 drawing.arc((3, 3, 29, 29), max(-90, leading - 50), leading + 1, fill=(255, 255, 240, alpha), width=1)
+                if name == "fx_chainsaw_sweep":
+                    for spark in range(5):
+                        angle = math.radians(leading - spark * 11)
+                        horizontal = round(16 + math.cos(angle) * (11 + spark % 2))
+                        vertical = round(16 + math.sin(angle) * (11 + spark % 2))
+                        drawing.rectangle((horizontal, vertical, horizontal + 1, vertical + 1), fill=(255, 172 + spark * 12, 80, alpha))
                 angle = math.radians(leading)
                 horizontal = round(16 + math.cos(angle) * 14)
                 vertical = round(16 + math.sin(angle) * 14)
@@ -1125,6 +1153,7 @@ def main():
     match_machine()
     arsenal_equipment()
     homing_missile()
+    chainsaw()
     food()
     effects()
     combat_effects()
@@ -1132,6 +1161,7 @@ def main():
     directional_weapon_sweeps("axe", "fx_axe_sweep")
     directional_weapon_sweeps("ice_staff", "fx_ice_sweep")
     directional_weapon_sweeps("flame_staff", "fx_flame_sweep")
+    directional_weapon_sweeps("chainsaw", "fx_chainsaw_sweep")
     specification = importlib.util.spec_from_file_location("expansion_art", Path(__file__).with_name("expansion_assets.py"))
     expansion_art = importlib.util.module_from_spec(specification)
     specification.loader.exec_module(expansion_art)

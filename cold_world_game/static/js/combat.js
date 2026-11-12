@@ -25,7 +25,7 @@ export class LocalCombat {
     const event = { type: 'melee', actor: state.you.id, kind: item.kind, x: origin.x, y: origin.y, direction: [horizontal / magnitude, vertical / magnitude], range: settings.range, arc_degrees: settings.arc_degrees, attack_id: attackId, predicted: true };
     this.cooldownUntil = now + settings.interval;
     this.renderer.effects.predict(event);
-    this.predictions.set(attackId, { created: now, source: this.audio.play('axe', 1) });
+    this.predictions.set(attackId, { created: now, source: this.audio.play(item.kind === 'chainsaw' ? 'chainsaw' : 'axe', 1) });
     return attackId;
   }
 

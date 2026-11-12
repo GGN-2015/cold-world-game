@@ -1,4 +1,4 @@
-const clips = ['handgun', 'shotgun', 'rifle', 'eat', 'place', 'hurt', 'chop', 'break', 'hit', 'axe', 'monster_attack', 'monster_death', 'throw', 'explosion'];
+const clips = ['chainsaw', 'handgun', 'shotgun', 'rifle', 'eat', 'place', 'hurt', 'chop', 'break', 'hit', 'axe', 'monster_attack', 'monster_death', 'throw', 'explosion'];
 
 export class GameAudio extends EventTarget {
   constructor() {
@@ -88,7 +88,7 @@ export class GameAudio extends EventTarget {
       if (event.id <= previous || state.elapsed - event.time > 0.6) continue;
       const separation = Math.hypot(event.x - state.you.x, event.y - state.you.y);
       if (separation >= 18) continue;
-      const clip = event.type === 'shot' ? (event.kind === 'homing_missile' ? 'throw' : clips.includes(event.kind) ? event.kind : 'handgun') : event.type === 'melee' ? (event.kind.startsWith('monster') ? 'monster_attack' : 'axe') : event.type === 'death' ? 'monster_death' : event.type === 'heal' ? 'eat' : event.type === 'unpack' ? 'place' : event.type;
+      const clip = event.type === 'shot' ? (event.kind === 'homing_missile' ? 'throw' : clips.includes(event.kind) ? event.kind : 'handgun') : (event.type === 'melee' && event.kind === 'chainsaw' || event.type === 'chop' && event.weapon === 'chainsaw') ? 'chainsaw' : event.type === 'melee' ? (event.kind.startsWith('monster') ? 'monster_attack' : 'axe') : event.type === 'death' ? 'monster_death' : event.type === 'heal' ? 'eat' : event.type === 'unpack' ? 'place' : event.type;
       const rate = event.kind === 'monster_big' || (event.type === 'shot' && event.kind === 'monster') ? 0.72 : 1;
       const key = `${clip}:${rate}:${Math.floor(event.time * 20 + 1e-8)}`;
       const volume = (1 - separation / 18) ** 2;

@@ -243,6 +243,7 @@ export class GameUI {
     if (!this.state || this.isOpen()) { hint.hidden = true; return; }
     const equipped = this.state.you.inventory[this.controls.selected()];
     const melee = this.catalog.melee_weapons?.[equipped?.kind] || (equipped?.kind === 'axe' ? this.catalog.axe : null);
+    const harvesting = this.catalog.harvest_tools?.[equipped?.kind] || (equipped?.kind === 'axe');
     let text = '';
     if (this.catalog.revival_items?.[equipped?.kind]) {
       text = t(target?.category === 'player' ? 'hint.reviveTarget' : 'hint.defibrillator', { name: target?.id || '', ...this.catalog.revival_items[equipped.kind] });
@@ -256,8 +257,8 @@ export class GameUI {
       text = t('hint.returnStaff', { duration: this.catalog.return_items[equipped.kind].duration, uses: equipped.uses });
     } else if (target?.category === 'structure') {
       const near = distance(this.state.you, target) <= (containers.has(target.kind) ? 2 : 3);
-      if (containers.has(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${equipped?.kind === 'axe' && distance(this.state.you, target) <= 3 ? t(target.kind === 'piggy_bank' ? 'hint.bankDismantle' : target.kind === 'chest' ? 'hint.chestDismantle' : machines.has(target.kind) ? 'hint.vendingDismantle' : 'hint.fireDismantle') : ''}`;
-      else if (equipped?.kind === 'axe') text = `${itemName(target.kind)} · ${t(target.monster_demolition ? 'hint.busy' : near ? 'hint.gather' : 'hint.nearer')}`;
+      if (containers.has(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${harvesting && distance(this.state.you, target) <= 3 ? t(target.kind === 'piggy_bank' ? 'hint.bankDismantle' : target.kind === 'chest' ? 'hint.chestDismantle' : machines.has(target.kind) ? 'hint.vendingDismantle' : 'hint.fireDismantle') : ''}`;
+      else if (harvesting) text = `${itemName(target.kind)} · ${t(target.monster_demolition ? 'hint.busy' : near ? 'hint.gather' : 'hint.nearer')}`;
     } else if (target) {
       text = `${t(target.big ? 'hint.bigMonster' : target.fast ? 'hint.fastMonster' : 'hint.smallMonster')} · ${target.hp} HP`;
       if (target.sleeping) text += t('hint.sleeping');
@@ -266,9 +267,9 @@ export class GameUI {
       if (this.state.elapsed < (target.burning_until ?? 0)) text += t('hint.burning');
       if (melee) {
         const attackHint = equipped.kind === 'flame_staff' ? 'hint.flameAttack' : equipped.kind === 'ice_staff' ? target.sleeping || target.rising != null ? 'hint.iceRestAttack' : 'hint.iceAttack' : 'hint.attack';
-        text += distance(this.state.you, target) <= melee.range ? t(attackHint) : t(equipped.kind === 'flame_staff' ? 'hint.flameRange' : equipped.kind === 'ice_staff' ? 'hint.iceRange' : 'hint.axeRange', { range: melee.range });
+        text += distance(this.state.you, target) <= melee.range ? t(attackHint) : t(equipped.kind === 'chainsaw' ? 'hint.chainsawRange' : equipped.kind === 'flame_staff' ? 'hint.flameRange' : equipped.kind === 'ice_staff' ? 'hint.iceRange' : 'hint.axeRange', { range: melee.range });
       }
-    } else if (melee) text = t(equipped.kind === 'flame_staff' ? isMobileDevice ? 'hint.flameSweepTouch' : 'hint.flameSweep' : equipped.kind === 'ice_staff' ? isMobileDevice ? 'hint.iceSweepTouch' : 'hint.iceSweep' : isMobileDevice ? 'hint.axeSweepTouch' : 'hint.axeSweep', { range: melee.range });
+    } else if (melee) text = t(equipped.kind === 'chainsaw' ? isMobileDevice ? 'hint.chainsawSweepTouch' : 'hint.chainsawSweep' : equipped.kind === 'flame_staff' ? isMobileDevice ? 'hint.flameSweepTouch' : 'hint.flameSweep' : equipped.kind === 'ice_staff' ? isMobileDevice ? 'hint.iceSweepTouch' : 'hint.iceSweep' : isMobileDevice ? 'hint.axeSweepTouch' : 'hint.axeSweep', { range: melee.range });
     hint.textContent = text;
     hint.hidden = !text;
   }
@@ -480,7 +481,7 @@ export class GameUI {
     const item = this.state.you.inventory[this.controls.selected()];
     const locked = this.state.structures.some((structure) => structure.id === container.id && structure.monster_demolition);
     const empty = !(container.slots || []).some(Boolean) && !(container.fuel > 0) && !container.igniter && !(container.balance > 0);
-    button.disabled = this.busy || !empty || locked || item?.kind !== 'axe' || this.state.you.downed;
+    button.disabled = this.busy || !empty || locked || !(this.catalog.harvest_tools?.[item?.kind] || item?.kind === 'axe') || (item?.uses != null && item.uses <= 0) || this.state.you.downed;
     const kind = this.catalog.room_machines?.[container.kind] ? 'machine' : container.kind === 'piggy_bank' ? 'bank' : container.kind === 'chest' ? 'chest' : container.kind === 'campfire' ? 'fire' : container.kind === 'match_machine' ? 'match' : container.kind === 'gun_machine' ? 'gun' : 'vending';
     byId(button.getAttribute('aria-describedby')).textContent = t(!empty ? `${kind}.emptyFirst` : locked ? 'panel.monsterWarning' : `${kind}.dismantleHint`);
     const hold = this.demolitionHold;
