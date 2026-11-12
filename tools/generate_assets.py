@@ -573,6 +573,25 @@ def monster_resting():
     COMBAT_EFFECTS["monster_big_rise"] = {"asset": "monster_big_rise", "frame_width": 96, "frame_height": 96, "frames": 6, "duration": 1.0}
 
 
+def monster_sleep_effect():
+    frames = 24
+    sheet = Image.new("RGBA", (32 * frames, 32))
+    for frame in range(frames):
+        phase = frame / frames
+        opacity = round(255 * min(1, phase / 0.18, (1 - phase) / 0.25))
+        drift = round(math.sin(phase * math.tau))
+        rise = round(phase * 5)
+        image, drawing = canvas()
+        for horizontal, vertical, size in ((4, 22, 5), (12, 15, 6), (21, 9, 7)):
+            left, top = horizontal + drift, vertical - rise
+            points = ((left, top), (left + size - 1, top), (left, top + size - 1), (left + size - 1, top + size - 1))
+            drawing.line(points, fill=(45, 78, 96, opacity), width=3)
+            drawing.line(points, fill=(218, 246, 255, opacity), width=1)
+        sheet.alpha_composite(image, (frame * 32, 0))
+    save("fx_sleep_zzz", sheet)
+    COMBAT_EFFECTS["fx_sleep_zzz"] = {"asset": "fx_sleep_zzz", "frame_width": 96, "frame_height": 96, "frames": frames, "duration": 2.4}
+
+
 def equipment():
     for kind in ("axe", "lighter", "matches", "handgun", "shotgun", "rifle", "gasoline", "diesel", "kerosene"):
         image, drawing = canvas()
@@ -1205,6 +1224,7 @@ def main():
     frozen_monsters()
     actor_animations()
     monster_resting()
+    monster_sleep_effect()
     equipment()
     first_aid_kit()
     piggy_bank()

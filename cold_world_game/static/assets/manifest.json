@@ -182,6 +182,11 @@
       "width": 576,
       "height": 96
     },
+    "fx_sleep_zzz": {
+      "file": "fx_sleep_zzz.png",
+      "width": 2304,
+      "height": 96
+    },
     "axe": {
       "file": "axe.png",
       "width": 96,
@@ -1795,6 +1800,13 @@
       "frame_height": 96,
       "frames": 6,
       "duration": 1.0
+    },
+    "fx_sleep_zzz": {
+      "asset": "fx_sleep_zzz",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 24,
+      "duration": 2.4
     },
     "fx_missile_explosion": {
       "asset": "fx_missile_explosion",

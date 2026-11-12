@@ -258,6 +258,8 @@ export class WorldRenderer {
         if (entity.sleeping) {
           const pose = this.effects.pose(entity.id);
           this.sprite(entity.big ? 'monster_big_sleep' : 'monster_fast_sleep', entity.x + pose.x, entity.y + pose.y, entity.big ? 1.6 : 1.1, entity.big ? 1.9 : 1.25, entity.big ? 0.3 : 0.13);
+          const sleepPhase = this.elapsed / (this.effects.definitions.fx_sleep_zzz?.duration || 2.4) + entity.x * 0.137 + entity.y * 0.173;
+          this.effects.frame(this, 'fx_sleep_zzz', entity.x + pose.x + 0.28, entity.y + pose.y - (entity.big ? 1.15 : 0.9), entity.big ? 0.95 : 0.8, sleepPhase - Math.floor(sleepPhase));
         } else if (entity.big && entity.rising != null) {
           const duration = this.catalog.monster_activity?.rise_seconds ?? 1;
           const elapsed = state.paused ? 0 : Math.max(0, Math.min(0.3, performance.now() / 1000 - this.motion.arrival));
