@@ -40,6 +40,10 @@ class Terrain:
                 self._landmines[structure.id] = structure
             if structure.kind == "campfire":
                 self._campfires[structure.id] = structure
+            if hasattr(self, "invalidate_chunk"):
+                self.invalidate_chunk(structure)
+                if structure.kind in OUTDOOR_FEATURES:
+                    self._seats_by_chunk.setdefault((chunk(structure.x), chunk(structure.y)), set()).add(structure.id)
         self._terrain_revision = getattr(self, "_terrain_revision", 0) + 1
         self.structures[structure.id] = structure
         self.tiles[structure.x, structure.y] = structure.id
@@ -49,6 +53,9 @@ class Terrain:
             self.record_structure(structure.id, checkpoint=True)
             self._campfires.pop(structure.id, None)
             self._landmines.pop(structure.id, None)
+            if hasattr(self, "invalidate_chunk"):
+                self.invalidate_chunk(structure, removed=True)
+                self._seats_by_chunk.get((chunk(structure.x), chunk(structure.y)), set()).discard(structure.id)
         self._terrain_revision = getattr(self, "_terrain_revision", 0) + 1
         self.structures.pop(structure.id, None)
         self.tiles.pop((structure.x, structure.y), None)
@@ -70,6 +77,22 @@ class Terrain:
             return
         if hasattr(self, "touch_terrain"):
             self.touch_terrain()
+        if hasattr(self, "terrain_profile"):
+            from .procedural import plan
+            objects, interior = plan(self.seed, chunk_x, chunk_y, self.terrain_profile())
+            self.remember_baseline((chunk_x, chunk_y), objects)
+            self._stream_generating = True
+            try:
+                for structure in objects:
+                    self.add_structure(structure)
+                    self._dirty_structures.pop(structure.id, None)
+            finally:
+                self._stream_generating = False
+            if (chunk_x, chunk_y) == (0, 0):
+                self.origin_region = interior
+            self.chunks.add((chunk_x, chunk_y))
+            self.chunk_versions[chunk_x, chunk_y] = TERRAIN_VERSION
+            return
         digest = hashlib.blake2b(f"{self.seed}:{chunk_x}:{chunk_y}".encode(), digest_size=16).digest()
         generator = random.Random(int.from_bytes(digest, "big"))
         center_x, center_y = chunk_x * CHUNK_SIZE, chunk_y * CHUNK_SIZE

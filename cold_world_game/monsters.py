@@ -56,9 +56,10 @@ class Monsters:
     def spawn_monster(self):
         if len(self.monsters) >= MONSTER_LIMIT:
             return
-        player = self.players[self.random.choice(sorted(self.online))]
-        angle = self.random.uniform(0, math.tau)
-        radius = math.sqrt(self.random.uniform(20 ** 2, 120 ** 2))
+        stream = self.event_random("spawn")
+        player = self.players[stream.choice(sorted(self.online))]
+        angle = stream.uniform(0, math.tau)
+        radius = math.sqrt(stream.uniform(20 ** 2, 120 ** 2))
         position_x = player.x + math.cos(angle) * radius
         position_y = player.y + math.sin(angle) * radius
         if not self.generated(position_x, position_y) or self.structure_at(tile(position_x), tile(position_y)):
@@ -68,7 +69,7 @@ class Monsters:
         if not self.can_stand(position_x, position_y, monster_id="spawning"):
             return
         chances = self.monster_spawn_chances()
-        roll = self.random.random()
+        roll = stream.random()
         cumulative = 0.0
         species = "small"
         for candidate in ("big", "fast", "crawler", "armored", "stalker", "small"):
@@ -76,7 +77,7 @@ class Monsters:
             if roll < cumulative:
                 species = candidate
                 break
-        monster = Monster(position_x, position_y, big=species == "big", fast=species == "fast", species=species if species not in {"big", "fast"} else "small", hp=MONSTER_TYPES[species]["hp"])
+        monster = Monster(position_x, position_y, id=f"m:{self.tick_number}", big=species == "big", fast=species == "fast", species=species if species not in {"big", "fast"} else "small", hp=MONSTER_TYPES[species]["hp"])
         self.monsters[monster.id] = monster
 
     def update_monsters(self, seconds):
@@ -422,5 +423,5 @@ class Monsters:
                 candidates.append((direction_x, direction_y))
                 toward = nearest is not None and direction_x * (nearest.x - monster.x) + direction_y * (nearest.y - monster.y) > 0
                 weights.append(1.2 if toward else 1.0)
-        monster.wander_x, monster.wander_y = self.random.choices(candidates, weights)[0] if candidates else (0.0, 0.0)
+        monster.wander_x, monster.wander_y = self.event_random("wander", monster.id).choices(candidates, weights)[0] if candidates else (0.0, 0.0)
         monster.next_wander = self.elapsed + 2

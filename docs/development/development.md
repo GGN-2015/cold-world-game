@@ -14,6 +14,9 @@
 | 物品机制数据 | `cold_world_game/expansion.py` | 名称、概率、机制、效果及用法；文件名不构成手册分组 |
 | 房屋加工/交易机器数据 | `cold_world_game/room_machines.py` | 独立概率、描述与配方 |
 | 怪物与户外设施数据 | `cold_world_game/wildlife.py` | 六种属性、威胁分数、座位独立概率与有限弹药 |
+| 确定性地图与稀疏覆盖 | `cold_world_game/procedural.py`、`cold_world_game/terrain_stream.py` | 固定生成算法、版本配置、格子初始内容、区块订阅，见[地图实现](terrain.md) |
+| 浏览器地图缓存 | `cold_world_game/static/js/terrain-worker.js`、`terrain-cache.js` | 后台生成、校验、IndexedDB、订阅合并与故障回退 |
+| 同图性能回放 | `tools/benchmark_terrain.py` | 临时世界、两种协议的处理耗时/字节与SQLite体积；不替代实际浏览器延迟测试 |
 | 基础界面双语 | `cold_world_game/static/js/i18n.js` | 每键中文/English，同步修改两种语言 |
 | PNG与清单 | `tools/generate_assets.py` 及其绘图模块 | 独立资源及离线预烘焙动画，见[美术](assets.md) |
 | WAV与清单 | `tools/generate_audio.py` | 见[音效](audio.md) |

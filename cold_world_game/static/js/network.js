@@ -1,4 +1,5 @@
 import { StateSync } from './sync.js';
+import { TerrainCache } from './terrain-cache.js';
 
 export class GameConnection extends EventTarget {
   constructor() {
@@ -22,6 +23,7 @@ export class GameConnection extends EventTarget {
   connect(credentials) {
     this.disconnect();
     this.credentials = { ...credentials };
+    this.procedural = typeof Worker !== 'undefined';
     this.manual = false;
     this.everJoined = false;
     this.attempt = 0;
@@ -36,53 +38,68 @@ export class GameConnection extends EventTarget {
     let joined = false;
     const handshakeTimer = setTimeout(() => socket.close(), 12000);
     socket.addEventListener('open', () => {
-      socket.send(JSON.stringify({ type: 'join', ...this.credentials, quiet_inputs: true, client_movement: true, player_roster: true, state_deltas: true }));
+      socket.send(JSON.stringify({ type: 'join', ...this.credentials, quiet_inputs: true, client_movement: true, player_roster: true, state_deltas: true, procedural_terrain: this.procedural ? 1 : 0 }));
     });
+    let incoming = Promise.resolve();
     socket.addEventListener('message', (event) => {
-      if (socket !== this.socket) return;
-      let message;
-      try { message = JSON.parse(event.data); } catch { return; }
-      if (message.type === 'welcome') {
-        clearTimeout(handshakeTimer);
-        joined = true;
-        this.ready = true;
-        this.everJoined = true;
-        this.attempt = 0;
-        this.sync.reset(message.state, message.state_revision ?? 0);
-        this.emit('welcome', message);
-        this.emit('state', message.state);
-        if (message.roster) this.emit('roster', message.roster);
-        this.emit('status', { phase: 'connected' });
-      } else if (message.type === 'state') {
-        this.sync.reset(message.state);
-        this.emit('state', message.state);
-      } else if (message.type === 'delta') {
-        let state;
-        try {
-          state = this.sync.apply(message);
-        } catch {
-          socket.close(1002, 'State resync required');
-          return;
+      incoming = incoming.then(async () => {
+        if (socket !== this.socket) return;
+        let message;
+        try { message = JSON.parse(event.data); } catch { return; }
+        if (message.type === 'welcome') {
+          clearTimeout(handshakeTimer);
+          joined = true;
+          this.everJoined = true;
+          this.attempt = 0;
+          this.terrain?.close();
+          this.terrain = null;
+          if (message.terrain_config) {
+            this.terrain = new TerrainCache(message.terrain_config);
+            await this.terrain.update(message.terrain);
+            this.terrain.addEventListener('change', () => {
+              if (socket === this.socket && this.ready) this.emit('state', this.terrain.decorate(this.sync.state));
+            });
+          }
+          if (socket !== this.socket) return;
+          this.ready = true;
+          this.sync.reset(message.state, message.state_revision ?? 0);
+          if (this.terrain) message.state = this.terrain.decorate(message.state);
+          this.emit('welcome', message);
+          this.emit('state', message.state);
+          if (message.roster) this.emit('roster', message.roster);
+          this.emit('status', { phase: 'connected' });
+        } else if (message.type === 'state') {
+          this.sync.reset(message.state);
+          this.emit('state', message.state);
+        } else if (message.type === 'delta') {
+          let state;
+          try {
+            state = this.sync.apply(message);
+          } catch {
+            socket.close(1002, 'State resync required');
+            return;
+          }
+          if (message.terrain && this.terrain) this.terrain.update(message.terrain).catch(() => { if (socket === this.socket) { this.procedural = false; socket.close(); } });
+          this.emit('state', this.terrain ? this.terrain.decorate(state) : state);
+        } else if (message.type === 'roster') {
+          this.emit('roster', message);
+        } else if (message.type === 'ack' || message.type === 'error') {
+          const pending = this.pending.get(message.seq);
+          if (pending) {
+            clearTimeout(pending.timer);
+            this.pending.delete(message.seq);
+            this.emit('settled', message);
+            if (message.type === 'ack') pending.resolve(message.result);
+            else pending.reject(message);
+          } else if (message.type === 'error') {
+            if (!joined && (message.code !== 'id_in_use' || !this.everJoined)) {
+              this.manual = true;
+              this.emit('loginerror', message);
+            } else if (joined) this.emit('commanderror', message);
+            if (message.seq == null) socket.close(1000);
+          }
         }
-        this.emit('state', state);
-      } else if (message.type === 'roster') {
-        this.emit('roster', message);
-      } else if (message.type === 'ack' || message.type === 'error') {
-        const pending = this.pending.get(message.seq);
-        if (pending) {
-          clearTimeout(pending.timer);
-          this.pending.delete(message.seq);
-          this.emit('settled', message);
-          if (message.type === 'ack') pending.resolve(message.result);
-          else pending.reject(message);
-        } else if (message.type === 'error') {
-          if (!joined && (message.code !== 'id_in_use' || !this.everJoined)) {
-            this.manual = true;
-            this.emit('loginerror', message);
-          } else if (joined) this.emit('commanderror', message);
-          if (message.seq == null) socket.close(1000);
-        }
-      }
+      }).catch(() => { if (socket === this.socket) { this.procedural = false; socket.close(); } });
     });
     socket.addEventListener('close', () => {
       clearTimeout(handshakeTimer);
@@ -140,6 +157,8 @@ export class GameConnection extends EventTarget {
   disconnect() {
     this.manual = true;
     this.ready = false;
+    this.terrain?.close();
+    this.terrain = null;
     clearTimeout(this.retryTimer);
     this.rejectPending();
     if (this.socket) {

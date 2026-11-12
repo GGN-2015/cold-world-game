@@ -16,10 +16,20 @@
 10秒内发送首条消息：
 
 ```json
-{"type":"join","player_id":"玩家甲","password":"服务器口令","quiet_inputs":true,"client_movement":true,"state_deltas":true,"player_roster":true}
+{"type":"join","player_id":"玩家甲","password":"服务器口令","quiet_inputs":true,"client_movement":true,"state_deltas":true,"procedural_terrain":1,"player_roster":true}
 ```
 
 成功返回 `welcome`，含 `player_id`、`protocol:1`、附近完整 `state` 和差分基线 `state_revision:0`。玩家ID为1～64字符，不全为空白、不含控制字符；身份绑定连接，后续不能指定他人。错误口令、同名在线或无法出生时发错误并关闭。默认只允许同源浏览器，额外Origin须服务端显式允许；非浏览器可不带Origin。
+
+## 地图订阅
+
+`procedural_terrain:1`仅在同时启用`state_deltas:true`时生效。服务端在`welcome`附加`terrain_config`（会话标识、字符串种子、按区块版本索引的生成配置）和`terrain`，常规`state.structures`为空，动态外观放在`state.structure_states`。没有协商此能力的连接保持原有建筑快照与字段差分，不要求旧客户端理解种子地图。
+
+`terrain`包含`add`和`remove`。`remove`是退订区块的`"x,y"`标识；`add`中完整区块包含`id/x/y/version/revision/hash/add/remove`，内部`add`是当前外观覆盖记录，内部`remove`是已删除自然对象的ID。共享生成区块用本地基底叠加覆盖；旧区块的`hash`为空、`add`为完整现有外观，不进行推测生成。
+
+已订阅区块的近期变化可以表示为`{id,revision,patch:true,add,remove}`，仅增删变化对象；没有基底时不能应用这种补丁。修订记录不足时服务端重新发送完整区块覆盖。区块无变化时不发送`terrain`；附近订阅范围是5×5区块，不广播全图。每次重新握手重建订阅基线，不跨会话比较修订号。
+
+`structure_states`只传点燃、占座、机枪弹药与怪物拆除等动态外观；容器实际内容仍从服务端交互状态读取，不由默认地图推算。浏览器异步加载区块后更新渲染与碰撞索引，不用空基底接受权威修改。实现与缓存故障回退见[确定性地图](../development/terrain.md)。
 
 每条消息最多32768字节JSON文本，拒绝NaN/Infinity。每连接持续60命令/秒、突发120；超限断开。带 `seq` 的请求收到对应 `ack` 或 `error`，错误含机器码与英文消息，浏览器按代码翻译。连接级无 `seq` 错误通常随后关闭。`ping` 返回当前 `elapsed`。断线重新握手拿完整状态，不重放物品修改命令。
 

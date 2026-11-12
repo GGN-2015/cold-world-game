@@ -88,8 +88,14 @@ export class WorldRenderer {
     const first = !this.state;
     if (this.structureSource !== state.structures) {
       this.structureSource = state.structures;
-      this.floors = state.structures.filter((entity) => entity.kind === 'floor');
-      this.staticEntities = state.structures.filter((entity) => entity.kind !== 'floor').map((entity) => ({ ...entity, category: 'structure' })).sort((first, second) => first.y - second.y);
+      if (state.terrain_geometry != null && this.terrainGeometry === state.terrain_geometry) {
+        const current = new Map(state.structures.map(entity => [entity.id, entity]));
+        for (const entity of this.staticEntities) Object.assign(entity, current.get(entity.id));
+      } else {
+        this.floors = state.structures.filter((entity) => entity.kind === 'floor');
+        this.staticEntities = state.structures.filter((entity) => entity.kind !== 'floor').map((entity) => ({ ...entity, category: 'structure' })).sort((first, second) => first.y - second.y);
+      }
+      this.terrainGeometry = state.terrain_geometry;
     }
     this.state = state;
     this.collision.update(state);

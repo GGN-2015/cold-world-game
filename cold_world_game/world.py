@@ -21,13 +21,15 @@ from .outdoors import Outdoors
 from .wildlife import MONSTER_TYPES, OUTDOOR_FEATURES, SEATS
 from .storage import WorldDelta
 from .terrain import Terrain
+from .terrain_stream import TerrainStream
+from .procedural import plan
 
 
 def tuples(value):
     return tuple(tuples(element) for element in value) if isinstance(value, list) else value
 
 
-class World(Administration, Outdoors, Actions, Combat, Monsters, Terrain):
+class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, Terrain):
     def __init__(self, storage, seed=None, admin=None):
         self.admin = admin_id(admin)
         self.storage = storage
@@ -53,6 +55,8 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, Terrain):
         self._path_jobs = {}
         self._path_queue = deque()
         self._velocities = {}
+        self.init_terrain_stream()
+        self._seats_by_chunk = {}
         state = storage.load()
         if state:
             self.restore(state)
@@ -77,7 +81,7 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, Terrain):
         self.next_save = self.elapsed + 2
 
     def export(self):
-        return {**self.export_metadata(), "structures": [encode(value) for value in self.structures.values()]}
+        return {**self.export_metadata(), "materialized": True, "structures": [encode(value) for value in self.structures.values()]}
 
     def export_terrain(self):
         chunks = sorted(self.chunks)
@@ -85,12 +89,14 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, Terrain):
             "chunks": chunks,
             "chunk_versions": [[*point, self.chunk_versions.get(point, 1)] for point in chunks],
             "origin_region": list(self.origin_region),
+            "generation_profiles": self.generation_profiles,
         }
 
     def export_metadata(self, terrain=True):
         return {
             **(self.export_terrain() if terrain else {}),
             "seed": self.seed,
+            "terrain_format": 1,
             "random": self.random.getstate(),
             "elapsed": self.elapsed,
             "tick_number": self.tick_number,
@@ -107,6 +113,9 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, Terrain):
         self._path_jobs = {}
         self._path_queue = deque()
         self.seed = state["seed"]
+        self.generation_profiles = state.get("generation_profiles", self.generation_profiles)
+        self._chunk_views.clear()
+        self._baseline_views.clear()
         self.random = random.Random()
         self.random.setstate(tuples(state["random"]))
         self.elapsed = state["elapsed"]
@@ -116,11 +125,29 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, Terrain):
             versions = {(chunk_x, chunk_y): version for chunk_x, chunk_y, version in state.get("chunk_versions", [])}
             self.chunk_versions = {point: versions.get(point, 1) for point in self.chunks}
             self.origin_region = [tuple(point) for point in state["origin_region"]]
+            self._natural_geometry = {point: value for point, value in self._natural_geometry.items() if point in self.chunks}
         if "structures" in state:
-            self.structures = {values["id"]: structure_from(values) for values in state["structures"]}
+            self.structures = {}
+            self._natural_geometry = {}
+            if state.get("terrain_format") == 1:
+                for point, version in sorted(self.chunk_versions.items()):
+                    if version >= 18:
+                        objects, interior = plan(self.seed, *point, self.terrain_profile(version))
+                        self.remember_baseline(point, objects)
+                        if not state.get("materialized"):
+                            self.structures.update((structure.id, structure) for structure in objects)
+            for values in state["structures"]:
+                if values.get("deleted"):
+                    self.structures.pop(values["id"], None)
+                else:
+                    self.structures[values["id"]] = structure_from(values)
             self.tiles = {(value.x, value.y): value.id for value in self.structures.values()}
             self._campfires = {value.id: value for value in self.structures.values() if value.kind == "campfire"}
             self._landmines = {value.id: value for value in self.structures.values() if value.kind == "landmine"}
+            self._seats_by_chunk = {}
+            for structure in self.structures.values():
+                if structure.kind in SEATS:
+                    self._seats_by_chunk.setdefault((chunk(structure.x), chunk(structure.y)), set()).add(structure.id)
             self._structure_order = {identifier: index for index, identifier in enumerate(self.structures)}
             self._next_structure_order = len(self.structures)
             self._dirty_structures = {}
@@ -154,8 +181,7 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, Terrain):
         self._dirty_structures.setdefault(identifier, None)
 
     def save_changes(self):
-        changed = {identifier: encode(self.structures[identifier]) for identifier in self._dirty_structures if identifier in self.structures}
-        removed = {identifier for identifier in self._dirty_structures if identifier not in self.structures}
+        changed, removed = self.sparse_changes()
         metadata = self.export_metadata(terrain=False)
         if self._terrain_dirty:
             metadata.update(self.export_terrain())
@@ -163,7 +189,8 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, Terrain):
         self._dirty_structures.clear()
         self._terrain_dirty = False
         for identifier in removed:
-            self._structure_order.pop(identifier, None)
+            if identifier not in self.structures:
+                self._structure_order.pop(identifier, None)
 
     @contextmanager
     def transaction(self):
@@ -223,7 +250,7 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, Terrain):
             player = self.players.get(player_id)
             if player is None:
                 points = self.origin_spawn_points()
-                self.random.shuffle(points)
+                self.event_random("player-spawn", player_id).shuffle(points)
                 position = next((point for point in points if self.can_stand(*point, player_id=player_id)), None)
                 if position is None:
                     raise GameError("spawn_blocked", "No safe spawn position is currently available")
@@ -536,13 +563,13 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, Terrain):
                     has_space = None in player.backpack
                 del self.ground[ground_id]
 
-    def snapshot(self, player_id):
+    def snapshot(self, player_id, procedural=False):
         with self.lock:
             player = self.players[player_id]
             resting, rising = self.monster_activity()
             structures = []
             demolitions = {monster.demolition for monster in self.monsters.values() if monster.demolition and not self.monster_inactive(monster)}
-            for horizontal in range(math.ceil(player.x - 20), math.floor(player.x + 20) + 1):
+            for horizontal in range(math.ceil(player.x - 20), math.floor(player.x + 20) + 1) if not procedural else ():
                 for vertical in range(math.ceil(player.y - 13), math.floor(player.y + 13) + 1):
                     structure = self.structure_at(horizontal, vertical)
                     if structure:
@@ -566,6 +593,7 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, Terrain):
                 "you": {**encode(player), "seated": seat.kind if seat else None, "seat_id": controls.seat, "tile": [tile(player.x), tile(player.y)], "offset": [player.x - tile(player.x), player.y - tile(player.y)], "ambient_temperature": self.temperature_at(player), "downed": player.temperature < 5, "is_admin": self.admin is not None and player.id == self.admin},
                 "players": [{"id": other.id, "x": other.x, "y": other.y, "temperature": other.temperature, "hunger": other.hunger, "downed": other.temperature < 5, "move_speed": self.player_speed(other), "velocity_x": self.controls[other_id].velocity_x, "velocity_y": self.controls[other_id].velocity_y, "teleport_epoch": self.controls[other_id].teleport_epoch, "seated": self.structures[self.controls[other_id].seat].kind if self.controls[other_id].seat in self.structures else None, "seat_direction": (round(math.atan2(self.controls[other_id].aim_y - other.y, self.controls[other_id].aim_x - other.x) / (math.pi / 4)) + 8) % 8 if self.controls[other_id].seat else 0} for other_id in sorted(self.online) if (other := self.players[other_id]) and abs(other.x - player.x) <= 20 and abs(other.y - player.y) <= 13],
                 "structures": structures,
+                **({"structure_states": self.structure_states(player)} if procedural else {}),
                 "chunks": sorted(visible_chunks),
                 "monsters": [{"id": monster.id, "x": monster.x, "y": monster.y, "big": monster.big, "fast": monster.fast, "species": monster.kind, "max_hp": MONSTER_TYPES[monster.kind]["hp"], "move_speed": monster.speed, "hp": monster.hp, "frozen_until": monster.frozen_until, "burning_until": monster.burning_until, "sleeping": (monster.big or monster.fast) and resting, "rising": rising if monster.big else None, "demolition": monster.demolition, "overlap_player": monster.overlap_player, "velocity_x": self._velocities.get(monster.id, (0.0, 0.0))[0], "velocity_y": self._velocities.get(monster.id, (0.0, 0.0))[1]} for monster in self.monsters.values() if abs(monster.x - player.x) <= 20 and abs(monster.y - player.y) <= 13],
                 "projectiles": [encode(projectile) for projectile in self.projectiles.values() if (abs(projectile.x - player.x) <= 22 and abs(projectile.y - player.y) <= 15) or (projectile.kind in EXPLOSIVE_WEAPONS and abs(projectile.target_x - player.x) <= 22 and abs(projectile.target_y - player.y) <= 15)],

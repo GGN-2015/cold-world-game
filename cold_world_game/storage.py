@@ -22,6 +22,23 @@ class Storage:
         identifiers = [value["id"] for value in structures]
         if len(set(identifiers)) != len(identifiers):
             raise ValueError("Duplicate structure IDs in save")
+        if state.get("materialized") and state.get("terrain_format") == 1:
+            from .models import encode
+            from .procedural import plan
+            records = {value["id"]: value for value in structures}
+            for horizontal, vertical, version in state.get("chunk_versions", []):
+                if version < 18:
+                    continue
+                objects, interior = plan(state["seed"], horizontal, vertical, state["generation_profiles"][str(version)])
+                for structure in objects:
+                    original = records.get(structure.id)
+                    if original is None:
+                        records[structure.id] = {"id": structure.id, "deleted": True}
+                    elif original == encode(structure):
+                        records.pop(structure.id)
+            structures = list(records.values())
+            identifiers = list(records)
+            state = {name: value for name, value in state.items() if name != "materialized"}
         return {**state, "structures": identifiers, **{"structure:" + value["id"]: value for value in structures}}
 
     @staticmethod
@@ -64,7 +81,7 @@ class Storage:
             self._state = {}
             self._migrate_parts = False
             return None
-        if record[0] not in (1, 2, 3):
+        if record[0] not in (1, 2, 3, 4):
             raise ValueError(f"Unsupported save version: {record[0]}")
         state = self.parts(json.loads(record[1])) if record[0] == 1 else {name: json.loads(payload) for name, payload in self.connection.execute("SELECT name, payload FROM world_parts ORDER BY rowid")}
         if record[0] == 2:
@@ -75,7 +92,7 @@ class Storage:
             self._migrate_parts = False
         self._version = record[0]
         self._state = copy.deepcopy(state)
-        return self.unpack(state, sparse=record[0] == 3)
+        return self.unpack(state, sparse=record[0] >= 3)
 
     def save(self, state: dict) -> None:
         if self._state is None:
@@ -93,20 +110,21 @@ class Storage:
             values = self.parts(state)
             removed = self._state.keys() - values.keys()
         changed = {name: json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False) for name, value in values.items() if migrate or name not in self._state or value != self._state[name]}
-        if not changed and not removed and self._version == 3:
+        version = 4 if values.get("terrain_format", self._state.get("terrain_format")) == 1 else 3
+        if not changed and not removed and self._version == version:
             return
         saved = {name: json.loads(payload) for name, payload in changed.items()}
         with self.connection:
             if migrate:
                 self.connection.execute("DELETE FROM world_parts")
-            if self._version != 3:
-                self.connection.execute("INSERT INTO world(singleton, version, payload) VALUES(1, 3, '{}') ON CONFLICT(singleton) DO UPDATE SET version=3, payload='{}'")
+            if self._version != version:
+                self.connection.execute("INSERT INTO world(singleton, version, payload) VALUES(1, ?, '{}') ON CONFLICT(singleton) DO UPDATE SET version=excluded.version, payload='{}'", (version,))
             self.connection.executemany("INSERT INTO world_parts(name, payload) VALUES(?, ?) ON CONFLICT(name) DO UPDATE SET payload=excluded.payload", changed.items())
             self.connection.executemany("DELETE FROM world_parts WHERE name=?", [(name,) for name in removed])
         self._state.update(saved)
         for name in removed:
             self._state.pop(name, None)
-        self._version = 3
+        self._version = version
         self._migrate_parts = False
 
     def close(self) -> None:

@@ -90,10 +90,19 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
             quiet_inputs = message.get("quiet_inputs") is True
             wants_roster = message.get("player_roster") is True
             wants_deltas = message.get("state_deltas") is True
+            wants_terrain = message.get("procedural_terrain") == 1 and wants_deltas
+            terrain_previous = {}
+            if wants_terrain:
+                with server.world.lock:
+                    state = server.world.snapshot(player_id, procedural=True)
+                    terrain_changes, terrain_previous = server.world.terrain_updates(player_id, terrain_previous)
             state_revision = 0
             processed_sequence = 0
             state["command_sequence"] = processed_sequence
             welcome = {"type": "welcome", "player_id": player_id, "protocol": 1, "state": state}
+            if wants_terrain:
+                welcome["terrain_config"] = server.world.terrain_bootstrap()
+                welcome["terrain"] = terrain_changes
             if wants_deltas:
                 welcome["state_revision"] = state_revision
             previous_state = state
@@ -127,10 +136,16 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
                         send(websocket, {"type": "error", "seq": sequence, "code": error.code, "message": str(error)})
                 now = time.monotonic()
                 if now >= next_state:
-                    state = server.world.snapshot(player_id)
+                    with server.world.lock:
+                        state = server.world.snapshot(player_id, procedural=wants_terrain)
+                        if wants_terrain:
+                            terrain_changes, terrain_previous = server.world.terrain_updates(player_id, terrain_previous)
                     state["command_sequence"] = processed_sequence
                     if wants_deltas:
-                        send(websocket, state_delta(previous_state, state, state_revision))
+                        update = state_delta(previous_state, state, state_revision)
+                        if wants_terrain and (terrain_changes["add"] or terrain_changes["remove"]):
+                            update["terrain"] = terrain_changes
+                        send(websocket, update)
                         state_revision += 1
                         previous_state = state
                     else:

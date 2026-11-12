@@ -362,7 +362,7 @@ class Combat:
         if controls.progress + 1e-9 >= durations[structure.kind]:
             self.touch()
             if structure.kind == "tree":
-                materials = [Item.create("wood") for count in range(self.random.randint(1, 3))]
+                materials = [Item.create("wood") for count in range(self.event_random("harvest", structure.id).randint(1, 3))]
             elif structure.kind == "fence" or structure.kind in PANEL_DEMOLITION:
                 materials = [Item.create(structure.kind)]
             else:
@@ -423,15 +423,15 @@ class Combat:
                 impacts.add(monster.id)
         if monster.hp <= 0:
             drops = MONSTER_COIN_DROPS[monster.kind]
-            count = self.random.choices([coins for coins, probability in drops], weights=[probability for coins, probability in drops], k=1)[0]
+            count = self.event_random("coin-drop", monster.id).choices([coins for coins, probability in drops], weights=[probability for coins, probability in drops])[0]
             for index in range(count):
                 self.drop_item(Item.create("coin"), monster.x, monster.y)
-            if monster.kind == "small" and self.random.random() < SMALL_MONSTER_FOOD_CHANCE:
-                food = self.random.choices(list(SMALL_MONSTER_FOOD_WEIGHTS), weights=list(SMALL_MONSTER_FOOD_WEIGHTS.values()), k=1)[0]
+            if monster.kind == "small" and self.event_random("food-drop", monster.id).random() < SMALL_MONSTER_FOOD_CHANCE:
+                food = self.event_random("food-kind", monster.id).choices(list(SMALL_MONSTER_FOOD_WEIGHTS), weights=list(SMALL_MONSTER_FOOD_WEIGHTS.values()))[0]
                 self.drop_item(Item.create(food), monster.x, monster.y)
-            if monster.kind == "crawler" and self.random.random() < 0.05:
+            if monster.kind == "crawler" and self.event_random("food-drop", monster.id).random() < 0.05:
                 self.drop_item(Item.create("oreos"), monster.x, monster.y)
-            if monster.kind == "stalker" and self.random.random() < 0.15:
+            if monster.kind == "stalker" and self.event_random("wood-drop", monster.id).random() < 0.15:
                 self.drop_item(Item.create("wood"), monster.x, monster.y)
             self.emit_event("death", monster.id, f"monster_{monster.kind}", impact_x, impact_y, source=actor, target=monster.id, target_type="monster", direction=list(normalized(*direction)), knockback=displacement)
             self.monsters.pop(monster.id, None)

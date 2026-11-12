@@ -14,8 +14,9 @@ export class CollisionMap {
   }
 
   update(state) {
-    if (this.structures !== state.structures) {
-      this.structures = state.structures;
+    const geometry = state.terrain_geometry ?? state.structures;
+    if (this.structures !== geometry) {
+      this.structures = geometry;
       this.tiles = new Set(state.structures.filter((entity) => solid.has(entity.kind)).map((entity) => `${entity.x},${entity.y}`));
       this.bulletTiles = new Set(state.structures.filter((entity) => entity.kind === 'tree').map((entity) => `${entity.x},${entity.y}`));
       this.hostileBulletTiles = new Set(state.structures.filter((entity) => entity.kind === 'tree' || containers.has(entity.kind)).map((entity) => `${entity.x},${entity.y}`));
