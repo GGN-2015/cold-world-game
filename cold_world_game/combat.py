@@ -9,6 +9,10 @@ from .missiles import homing_position
 
 class Combat:
     def update_player_attack(self, player, controls, seconds):
+        seat = self.seated_structure(controls)
+        if seat and seat.kind == "mounted_gun":
+            self.fire_mounted_gun(player, controls, seat)
+            return
         item = player.inventory[player.selected]
         if not controls.held or item is None or (item.uses is not None and item.uses <= 0):
             controls.stop_attack()
@@ -254,6 +258,7 @@ class Combat:
         controls = self.controls[player.id]
         controls.movement_epoch += 1
         controls.teleport_epoch += 1
+        controls.seat = None
         controls.move_x = controls.move_y = controls.velocity_x = controls.velocity_y = 0.0
         controls.ghost_monsters.clear()
         controls.aim_target = None
@@ -402,7 +407,7 @@ class Combat:
         impact_x, impact_y = monster.x, monster.y
         displacement = [0.0, 0.0]
         attacker = self.players.get(actor)
-        if not monster.big and attacker and any(item and item.kind == "sheriff_badge" for storage in (attacker.inventory, attacker.backpack) for item in storage):
+        if monster.kind in {"small", "fast"} and attacker and any(item and item.kind == "sheriff_badge" for storage in (attacker.inventory, attacker.backpack) for item in storage):
             amount *= PASSIVE_ITEMS["sheriff_badge"]["damage_multiplier"]
         monster.hp -= amount
         impacts = self.shot_impacts.setdefault(shot, set()) if shot else None
@@ -417,14 +422,18 @@ class Combat:
             if impacts is not None:
                 impacts.add(monster.id)
         if monster.hp <= 0:
-            drops = MONSTER_COIN_DROPS["big" if monster.big else "fast" if monster.fast else "small"]
+            drops = MONSTER_COIN_DROPS[monster.kind]
             count = self.random.choices([coins for coins, probability in drops], weights=[probability for coins, probability in drops], k=1)[0]
             for index in range(count):
                 self.drop_item(Item.create("coin"), monster.x, monster.y)
-            if not monster.big and not monster.fast and self.random.random() < SMALL_MONSTER_FOOD_CHANCE:
+            if monster.kind == "small" and self.random.random() < SMALL_MONSTER_FOOD_CHANCE:
                 food = self.random.choices(list(SMALL_MONSTER_FOOD_WEIGHTS), weights=list(SMALL_MONSTER_FOOD_WEIGHTS.values()), k=1)[0]
                 self.drop_item(Item.create(food), monster.x, monster.y)
-            self.emit_event("death", monster.id, "monster_big" if monster.big else "monster_fast" if monster.fast else "monster", impact_x, impact_y, source=actor, target=monster.id, target_type="monster", direction=list(normalized(*direction)), knockback=displacement)
+            if monster.kind == "crawler" and self.random.random() < 0.05:
+                self.drop_item(Item.create("oreos"), monster.x, monster.y)
+            if monster.kind == "stalker" and self.random.random() < 0.15:
+                self.drop_item(Item.create("wood"), monster.x, monster.y)
+            self.emit_event("death", monster.id, f"monster_{monster.kind}", impact_x, impact_y, source=actor, target=monster.id, target_type="monster", direction=list(normalized(*direction)), knockback=displacement)
             self.monsters.pop(monster.id, None)
 
     def hurt_player(self, player, amount, source=None, direction=None, knockback=0.0):
@@ -438,9 +447,15 @@ class Combat:
         player.hunger = max(0.0, player.hunger - amount)
         if player.temperature < previous or player.hunger < previous_hunger:
             position_x, position_y = player.x, player.y
+            if self.controls[player.id].seat and knockback > 0:
+                knockback = max(0.65, knockback)
             displacement = self.knock_back(player, direction, knockback, player_id=player.id) if direction is not None and knockback > 0 else [0.0, 0.0]
             self.emit_event("hurt", player.id, "player", position_x, position_y, target=player.id, target_type="player", source=source, direction=list(normalized(*direction)) if direction is not None else [0.0, 0.0], knockback=displacement)
         controls = self.controls[player.id]
+        if player.temperature < previous or player.hunger < previous_hunger:
+            if controls.seat:
+                controls.stop_attack()
+            controls.seat = None
         if player.temperature < 5:
             controls.stop_attack()
             if previous >= 5:
@@ -522,7 +537,8 @@ class Combat:
                         candidates.append((fraction, 0, "structure", structure))
             for player_id in self.online:
                 player = self.players[player_id]
-                if player.temperature <= 0 or player_id == projectile.owner or (projectile.hostile and player.temperature < 5):
+                seat = self.seated_structure(self.controls[player_id])
+                if player.temperature <= 0 or player_id == projectile.owner or (projectile.hostile and (player.temperature < 5 or seat and seat.kind == "mounted_gun" and projectile.weapon_kind in {None, "monster_big"})):
                     continue
                 fraction = segment_circle(projectile.x, projectile.y, end_x, end_y, player.x, player.y)
                 if fraction is not None:

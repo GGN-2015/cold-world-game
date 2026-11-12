@@ -1,0 +1,196 @@
+{
+  "license": "CC0-1.0",
+  "performance": "Cold World deterministic procedural piano; no recorded samples",
+  "tracks": [
+    {
+      "id": "bach_prelude",
+      "piece_id": 5,
+      "tier": "calm",
+      "day": true,
+      "night": true,
+      "title_zh": "C大调前奏曲 BWV 846",
+      "title_en": "Prelude in C major, BWV 846",
+      "composer": "J. S. Bach",
+      "file": "bach_prelude.mp3",
+      "duration": 141.0,
+      "bytes": 1128741,
+      "sha256": "44deb5819c5d81b73f12cb59e60ba01804b0e7cf963ae1219b78d742ef89f3f8",
+      "source": {
+        "page": "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=5",
+        "midi": "https://www.mutopiaproject.org/ftp/BachJS/BWV846/wtk1-prelude1/wtk1-prelude1.mid",
+        "license": "Public Domain",
+        "maintainer": "Tobias Erbsland",
+        "sha256": "874e07d0479542971bfceaf420d6117da8d602d89d26eea4610e7dd1ef58bf26"
+      }
+    },
+    {
+      "id": "mozart_minuet",
+      "piece_id": 1770,
+      "tier": "calm",
+      "day": true,
+      "night": true,
+      "title_zh": "F大调小步舞曲 K.2",
+      "title_en": "Minuet in F major, K.2",
+      "composer": "W. A. Mozart",
+      "file": "mozart_minuet.mp3",
+      "duration": 73.0,
+      "bytes": 584767,
+      "sha256": "94aeab928af23cac70785967a04d164277ce3bdcb70de12c9e44d6d7f1211687",
+      "source": {
+        "page": "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1770",
+        "midi": "https://www.mutopiaproject.org/ftp/MozartWA/KV2/menuet_k2/menuet_k2.mid",
+        "license": "Public Domain",
+        "maintainer": "Nicolas Morant",
+        "sha256": "7446008d77c7237d814b64f698e8fadbb3ee1e7bf914a8dd643ee9f99523d120"
+      }
+    },
+    {
+      "id": "debussy_clair",
+      "piece_id": 1778,
+      "tier": "calm",
+      "day": false,
+      "night": true,
+      "title_zh": "月光",
+      "title_en": "Clair de lune",
+      "composer": "C. Debussy",
+      "file": "debussy_clair.mp3",
+      "duration": 181.0,
+      "bytes": 1448689,
+      "sha256": "115aed1c845f8174aeace11e4599489a70a451bd5a5e44361188fd26d3bed869",
+      "source": {
+        "page": "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1778",
+        "midi": "https://www.mutopiaproject.org/ftp/DebussyC/L75/debussy_Ste_Bergamesq_Clair/debussy_Ste_Bergamesq_Clair.mid",
+        "license": "Public Domain",
+        "maintainer": "Keith OHara",
+        "sha256": "4eee9a1546ffde1ff74cb9824ba0e57cbc821185a15185bfea9faed97820bf8c"
+      }
+    },
+    {
+      "id": "mozart_turkish",
+      "piece_id": 108,
+      "tier": "medium",
+      "day": true,
+      "night": true,
+      "title_zh": "土耳其进行曲",
+      "title_en": "Rondo alla turca",
+      "composer": "W. A. Mozart",
+      "file": "mozart_turkish.mp3",
+      "duration": 181.0,
+      "bytes": 1448689,
+      "sha256": "04bd7bf3b2e09083bfd07aee90e59b65f4c509b7c6845063cfb898dc510f3f11",
+      "source": {
+        "page": "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=108",
+        "midi": "https://www.mutopiaproject.org/ftp/MozartWA/KV331/KV331_3_RondoAllaTurca/KV331_3_RondoAllaTurca.mid",
+        "license": "Public Domain",
+        "maintainer": "Rune Zedeler and Chris Sawer",
+        "sha256": "c14299cbdd34c8b2081da84dc06519ef8a52a0d589ee53c758d28b8e3d727d1c"
+      }
+    },
+    {
+      "id": "bach_invention",
+      "piece_id": 61,
+      "tier": "medium",
+      "day": true,
+      "night": true,
+      "title_zh": "F大调二部创意曲 BWV 779",
+      "title_en": "Invention No. 8, BWV 779",
+      "composer": "J. S. Bach",
+      "file": "bach_invention.mp3",
+      "duration": 67.667,
+      "bytes": 542136,
+      "sha256": "2604786330002eee011185034572165e1205ef23ffe6a6f40b709c0e452647da",
+      "source": {
+        "page": "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=61",
+        "midi": "https://www.mutopiaproject.org/ftp/BachJS/BWV779/bach-invention-08/bach-invention-08.mid",
+        "license": "Public Domain",
+        "maintainer": "Allen Garvin",
+        "sha256": "07238719180171f76283756405ee43a0319226e869283bf29affb9e4c360e6f8"
+      }
+    },
+    {
+      "id": "beethoven_elise",
+      "piece_id": 931,
+      "tier": "medium",
+      "day": false,
+      "night": true,
+      "title_zh": "致爱丽丝",
+      "title_en": "Fur Elise",
+      "composer": "L. van Beethoven",
+      "file": "beethoven_elise.mp3",
+      "duration": 131.417,
+      "bytes": 1052046,
+      "sha256": "3fbeba091897071899a381a690b81e9ce895d25c8019dfef6b53a1320c71acf3",
+      "source": {
+        "page": "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=931",
+        "midi": "https://www.mutopiaproject.org/ftp/BeethovenLv/WoO59/fur_Elise_WoO59/fur_Elise_WoO59.mid",
+        "license": "Public Domain",
+        "maintainer": "Stelios Samelis",
+        "sha256": "1c12c21c7bbf4cf163896732672648a69d497636059837abd153c71abe50215a"
+      }
+    },
+    {
+      "id": "beethoven_fifth",
+      "piece_id": 497,
+      "tier": "high",
+      "day": true,
+      "night": true,
+      "title_zh": "第五交响曲（命运）钢琴缩编",
+      "title_en": "Symphony No. 5, piano reduction",
+      "composer": "L. van Beethoven",
+      "file": "beethoven_fifth.mp3",
+      "duration": 181.0,
+      "bytes": 1448689,
+      "sha256": "c4bf7516d3515f274271eeb79fcef1e056ccc4ece721e5cce3ab66a85275ac92",
+      "source": {
+        "page": "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=497",
+        "midi": "https://www.mutopiaproject.org/ftp/BeethovenLv/O67/beethoven_fifth_op67/beethoven_fifth_op67.mid",
+        "license": "Public Domain",
+        "maintainer": "Magnus Lewis-Smith",
+        "sha256": "c7d7c0b8c9facf54cedd77a98dc90fd59899f4c61f8cd9ad92c9e2ad8b56ead9"
+      }
+    },
+    {
+      "id": "beethoven_appassionata",
+      "piece_id": 937,
+      "tier": "high",
+      "day": true,
+      "night": true,
+      "title_zh": "热情奏鸣曲第三乐章",
+      "title_en": "Appassionata, third movement",
+      "composer": "L. van Beethoven",
+      "file": "beethoven_appassionata.mp3",
+      "duration": 181.0,
+      "bytes": 1448689,
+      "sha256": "0c2991b4881089d29fb7baf05539ce3e21579ac9c027e6e4b74d050f7398e967",
+      "source": {
+        "page": "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=937",
+        "midi": "https://www.mutopiaproject.org/ftp/BeethovenLv/O57/LVB_Sonate_57_3/LVB_Sonate_57_3.mid",
+        "license": "Public Domain",
+        "maintainer": "Stelios Samelis",
+        "sha256": "cba2978986da83870f6d4a84406a9ed923adebf865f19931d629fde204c388d8"
+      }
+    },
+    {
+      "id": "beethoven_pathetique",
+      "piece_id": 299,
+      "tier": "high",
+      "day": true,
+      "night": true,
+      "start_seconds": 45,
+      "title_zh": "悲怆奏鸣曲第一乐章快板段",
+      "title_en": "Pathetique, first movement Allegro excerpt",
+      "composer": "L. van Beethoven",
+      "file": "beethoven_pathetique.mp3",
+      "duration": 181.0,
+      "bytes": 1448689,
+      "sha256": "04aad85f55dbe1b3b6b569703d5eb86b8c04b55a64b25672f51763f1de5e9001",
+      "source": {
+        "page": "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=299",
+        "midi": "https://www.mutopiaproject.org/ftp/BeethovenLv/O13/pathetique-1/pathetique-1.mid",
+        "license": "Public Domain",
+        "maintainer": "Chris Sawer",
+        "sha256": "cfe2b012227077a304a0ed282a98dceaca6a73bd0fb4d3f2249ac4bacbe30121"
+      }
+    }
+  ]
+}

@@ -7,6 +7,7 @@ from functools import lru_cache
 from .constants import BODY_RADIUS, CHUNK_SIZE, DAY_SECONDS, ICE_STAFF, KNOCKBACK, MONSTER_DEMOLITION, MONSTER_LIMIT, MONSTER_PROJECTILE_SPEED, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, NIGHT_MONSTER_HOURS, SOLID
 from .geometry import DIRECTIONS, distance, normalized, tile
 from .models import Monster, Projectile
+from .wildlife import MONSTER_TYPES
 
 
 PATH_STEPS = tuple((offset_x, offset_y, math.hypot(offset_x, offset_y)) for offset_x, offset_y in DIRECTIONS)
@@ -68,9 +69,14 @@ class Monsters:
             return
         chances = self.monster_spawn_chances()
         roll = self.random.random()
-        big = roll < chances["big"]
-        fast = not big and roll < chances["big"] + chances["fast"]
-        monster = Monster(position_x, position_y, big=big, fast=fast, hp=50 if big else 10)
+        cumulative = 0.0
+        species = "small"
+        for candidate in ("big", "fast", "crawler", "armored", "stalker", "small"):
+            cumulative += chances[candidate]
+            if roll < cumulative:
+                species = candidate
+                break
+        monster = Monster(position_x, position_y, big=species == "big", fast=species == "fast", species=species if species not in {"big", "fast"} else "small", hp=MONSTER_TYPES[species]["hp"])
         self.monsters[monster.id] = monster
 
     def update_monsters(self, seconds):
@@ -135,9 +141,9 @@ class Monsters:
             if can_see and separation <= 1:
                 if self.elapsed + 1e-9 >= monster.next_attack:
                     previous_x, previous_y = target.x, target.y
-                    self.emit_event("melee", monster.id, "monster_big" if monster.big else "monster_fast" if monster.fast else "monster", monster.x, monster.y, target=target.id, target_x=target.x, target_y=target.y)
-                    self.hurt_player(target, 2 if monster.big else 1, source=monster.id, direction=(target.x - monster.x, target.y - monster.y), knockback=KNOCKBACK["monster_big_melee" if monster.big else "monster_melee"])
-                    monster.next_attack = self.elapsed + (1.5 if monster.big else 1)
+                    self.emit_event("melee", monster.id, f"monster_{monster.kind}", monster.x, monster.y, target=target.id, target_x=target.x, target_y=target.y)
+                    self.hurt_player(target, MONSTER_TYPES[monster.kind]["damage"], source=monster.id, direction=(target.x - monster.x, target.y - monster.y), knockback=KNOCKBACK["monster_big_melee" if monster.big else "monster_melee"])
+                    monster.next_attack = self.elapsed + MONSTER_TYPES[monster.kind]["interval"]
                     if not monster.big and target.temperature >= 5:
                         displacement = math.hypot(target.x - previous_x, target.y - previous_y)
                         if displacement + 1e-6 < KNOCKBACK["monster_melee"]:
@@ -148,7 +154,7 @@ class Monsters:
                     continue
             if monster.big and can_see and 1 < separation <= 12 and self.elapsed >= monster.frozen_until and self.elapsed + 1e-9 >= monster.next_attack:
                 direction_x, direction_y = normalized(target.x - monster.x, target.y - monster.y)
-                projectile = Projectile(monster.x, monster.y, direction_x * MONSTER_PROJECTILE_SPEED, direction_y * MONSTER_PROJECTILE_SPEED, 0, 5, monster.id, hostile=True, origin_x=monster.x, origin_y=monster.y, spawned_at=self.elapsed, range_player=target.id)
+                projectile = Projectile(monster.x, monster.y, direction_x * MONSTER_PROJECTILE_SPEED, direction_y * MONSTER_PROJECTILE_SPEED, 0, 5, monster.id, hostile=True, weapon_kind="monster_big", origin_x=monster.x, origin_y=monster.y, spawned_at=self.elapsed, range_player=target.id)
                 projectile.remaining = self.projectile_range(projectile)
                 self.projectiles[projectile.id] = projectile
                 self.emit_event("shot", monster.id, "monster", monster.x, monster.y, direction=[direction_x, direction_y])

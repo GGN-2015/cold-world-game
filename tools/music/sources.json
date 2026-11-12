@@ -1,0 +1,11 @@
+[
+  {"id":"bach_prelude","piece_id":5,"tier":"calm","day":true,"night":true,"title_zh":"C大调前奏曲 BWV 846","title_en":"Prelude in C major, BWV 846","composer":"J. S. Bach"},
+  {"id":"mozart_minuet","piece_id":1770,"tier":"calm","day":true,"night":true,"title_zh":"F大调小步舞曲 K.2","title_en":"Minuet in F major, K.2","composer":"W. A. Mozart"},
+  {"id":"debussy_clair","piece_id":1778,"tier":"calm","day":false,"night":true,"title_zh":"月光","title_en":"Clair de lune","composer":"C. Debussy"},
+  {"id":"mozart_turkish","piece_id":108,"tier":"medium","day":true,"night":true,"title_zh":"土耳其进行曲","title_en":"Rondo alla turca","composer":"W. A. Mozart"},
+  {"id":"bach_invention","piece_id":61,"tier":"medium","day":true,"night":true,"title_zh":"F大调二部创意曲 BWV 779","title_en":"Invention No. 8, BWV 779","composer":"J. S. Bach"},
+  {"id":"beethoven_elise","piece_id":931,"tier":"medium","day":false,"night":true,"title_zh":"致爱丽丝","title_en":"Fur Elise","composer":"L. van Beethoven"},
+  {"id":"beethoven_fifth","piece_id":497,"tier":"high","day":true,"night":true,"title_zh":"第五交响曲（命运）钢琴缩编","title_en":"Symphony No. 5, piano reduction","composer":"L. van Beethoven"},
+  {"id":"beethoven_appassionata","piece_id":937,"tier":"high","day":true,"night":true,"title_zh":"热情奏鸣曲第三乐章","title_en":"Appassionata, third movement","composer":"L. van Beethoven"},
+  {"id":"beethoven_pathetique","piece_id":299,"tier":"high","day":true,"night":true,"start_seconds":45,"title_zh":"悲怆奏鸣曲第一乐章快板段","title_en":"Pathetique, first movement Allegro excerpt","composer":"L. van Beethoven"}
+]

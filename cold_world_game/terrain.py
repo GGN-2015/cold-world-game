@@ -7,6 +7,7 @@ from .constants import CHUNK_SIZE, COMMON_CHEST_FOODS, COMMON_CHEST_IGNITERS, CO
 from .geometry import chunk
 from .models import Item, Structure
 from .room_machines import ROOM_MACHINES
+from .wildlife import OUTDOOR_FEATURES
 
 
 def flood(start_points, blocked, bounds):
@@ -34,6 +35,9 @@ class Terrain:
                 self._structure_order[structure.id] = self._next_structure_order
                 self._next_structure_order += 1
             self._campfires.pop(structure.id, None)
+            self._landmines.pop(structure.id, None)
+            if structure.kind == "landmine":
+                self._landmines[structure.id] = structure
             if structure.kind == "campfire":
                 self._campfires[structure.id] = structure
         self._terrain_revision = getattr(self, "_terrain_revision", 0) + 1
@@ -44,6 +48,7 @@ class Terrain:
         if hasattr(self, "record_structure"):
             self.record_structure(structure.id, checkpoint=True)
             self._campfires.pop(structure.id, None)
+            self._landmines.pop(structure.id, None)
         self._terrain_revision = getattr(self, "_terrain_revision", 0) + 1
         self.structures.pop(structure.id, None)
         self.tiles.pop((structure.x, structure.y), None)
@@ -86,6 +91,14 @@ class Terrain:
                 for tile_y in range(center_y - 7, center_y + 8):
                     if generator.random() < 0.1:
                         self.add_structure(Structure("tree", tile_x, tile_y))
+        else:
+            for kind, settings in OUTDOOR_FEATURES.items():
+                feature = self.feature_generator(settings["stream"], chunk_x, chunk_y)
+                if feature.random() < settings["chance"]:
+                    candidates = [(center_x + horizontal, center_y + vertical) for horizontal in range(-6, 7) for vertical in range(-6, 7) if self.structure_at(center_x + horizontal, center_y + vertical) is None]
+                    if candidates:
+                        position = feature.choice(candidates)
+                        self.add_structure(Structure(kind, *position, ammo=settings.get("ammo")))
         self.chunks.add((chunk_x, chunk_y))
         self.chunk_versions[chunk_x, chunk_y] = TERRAIN_VERSION
 

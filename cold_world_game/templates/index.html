@@ -30,6 +30,7 @@
           <div class="header-actions">
             <span id="connection" class="connection glass"><i></i><span>连接中</span></span>
             <button id="sound-button" class="icon-button glass" title="切换音效" aria-label="关闭音效" aria-pressed="true">音效 开</button>
+            <button id="music-button" type="button" class="icon-button glass" aria-pressed="true" data-i18n="music.on" data-i18n-aria-label="music.disable" data-i18n-title="music.hint">配乐 开</button>
             <button id="language-button" type="button" class="icon-button glass" data-language-toggle title="切换到英语" aria-label="切换到英语">EN</button>
             <button id="players-button" type="button" class="icon-button glass" aria-expanded="false" aria-controls="player-roster"><img src="{{ url_for('static', filename='assets/roster.png') }}" alt=""><span class="players-button-label" data-i18n="players.button">玩家</span><span id="players-count" class="players-button-count">0</span></button>
             <button id="inventory-button" class="icon-button glass" data-i18n-title="button.backpackHint" data-i18n-aria-label="button.backpackOpen" title="背包与合成（B，兼容 I）" aria-label="打开背包与合成"><span data-i18n="button.backpack">背包</span> <kbd>B</kbd></button>

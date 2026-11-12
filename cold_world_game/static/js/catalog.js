@@ -2,7 +2,8 @@ import { hasTranslation, t } from './i18n.js';
 import { roomMachineKinds } from './machine-data.js';
 
 export const machines = new Set(['vending_machine', 'match_machine', 'gun_machine', ...roomMachineKinds]);
-export const buildings = new Set(['wall', 'fence', 'floor', 'chest', 'campfire', 'piggy_bank', ...machines]);
+export const seats = new Set(['park_bench', 'mounted_gun']);
+export const buildings = new Set(['landmine', 'wall', 'fence', 'floor', 'chest', 'campfire', 'piggy_bank', ...machines]);
 export const containers = new Set(['chest', 'campfire', 'piggy_bank', ...machines]);
 export const itemName = (kind) => hasTranslation(`item.${kind}`) ? t(`item.${kind}`) : kind;
 export const seasonName = (season) => hasTranslation(`season.${season}`) ? t(`season.${season}`) : season;

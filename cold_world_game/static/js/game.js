@@ -1,8 +1,9 @@
-import { buildings, containers, errorText, tileAt } from './catalog.js';
+import { buildings, containers, errorText, seats, tileAt } from './catalog.js';
 import { GameConnection } from './network.js';
 import { loadAssets, WorldRenderer } from './renderer.js';
 import { GameUI } from './ui.js';
 import { GameAudio } from './audio.js';
+import { GameMusic } from './music.js';
 import { initializeLanguage, t } from './i18n.js';
 import { isMobileDevice, MobileControls } from './mobile.js';
 import { PlayerRoster } from './roster.js';
@@ -13,6 +14,7 @@ const byId = (identifier) => document.getElementById(identifier);
 const canvas = byId('world');
 const connection = new GameConnection();
 const audio = new GameAudio();
+const music = new GameMusic();
 const keys = new Set();
 let renderer;
 let ui;
@@ -30,6 +32,7 @@ let mobileAim = { x: 2, y: 0 };
 let initialized = false;
 let lastInput = 0;
 let lastHint = 0;
+let lastMusic = 0;
 let lastFrame = performance.now();
 let lastError = '';
 let lastErrorTime = 0;
@@ -128,6 +131,7 @@ function input(force = false) {
 
 function leave() {
   stop();
+  music.leave();
   localCombat.reset();
   audio.reset();
   connection.disconnect();
@@ -187,6 +191,7 @@ connection.addEventListener('welcome', (event) => {
   renderer.reset();
   stop();
   audio.reset(event.detail.state.event_sequence || 0);
+  music.enter();
   pendingSelected = false;
   ui.reset();
   playerRoster.reset(event.detail.player_id);
@@ -236,6 +241,7 @@ connection.addEventListener('status', (event) => {
   if (!connected) {
     localCombat?.reset();
     audio.stopAll();
+    if (music.active) music.suspend();
     stop();
     if (state) {
       ui.closePanel(false);
@@ -243,6 +249,7 @@ connection.addEventListener('status', (event) => {
       byId('help-overlay').hidden = true;
     }
   }
+  if (connected && music.active) music.unlock();
   if (!state && phase === 'reconnecting') {
     setServerStatus('server.retrying', {}, true);
   }
@@ -252,7 +259,7 @@ function attack(pressed, shift = false) {
   const fresh = pressed && !attackHeld;
   attackHeld = pressed;
   input(true);
-  const attackId = fresh ? localCombat.begin(state, selected, aimPoint()) : null;
+  const attackId = fresh && state.you.seated !== 'mounted_gun' ? localCombat.begin(state, selected, aimPoint()) : null;
   if (!attackId) { connection.send('attack', { pressed, shift }); return; }
   connection.command('attack', { pressed, shift, attack_id: attackId }).then((result) => {
     if (result.swing !== true) localCombat.reject(attackId);
@@ -277,7 +284,12 @@ canvas.addEventListener('pointerdown', (event) => {
     const item = state.you.inventory[selected];
     const point = { x: tileAt(renderer.pointer.x), y: tileAt(renderer.pointer.y) };
     const container = state.structures.some((entity) => containers.has(entity.kind) && entity.x === point.x && entity.y === point.y);
-    if (buildings.has(item?.kind) && (!container || event.shiftKey)) {
+    const seat = state.structures.find(entity => seats.has(entity.kind) && entity.x === point.x && entity.y === point.y);
+    if (state.you.seated === 'mounted_gun') {
+      attack(true, event.shiftKey);
+    } else if (seat && !event.shiftKey) {
+      stop(); input(true); ui.action('sit', { id: seat.id });
+    } else if (buildings.has(item?.kind) && (!container || event.shiftKey)) {
       input(true);
       attackHeld = false;
       connection.send('attack', { pressed: false });
@@ -352,15 +364,28 @@ window.addEventListener('keydown', (event) => {
 window.addEventListener('keyup', (event) => {
   if (keys.delete(event.code)) input();
 });
-window.addEventListener('blur', () => { stop(); audio.suspendPlayback(); });
-window.addEventListener('focus', () => audio.resumePlayback());
+window.addEventListener('blur', () => { stop(); audio.suspendPlayback(); music.suspend(); });
+window.addEventListener('focus', () => { audio.resumePlayback(); music.unlock(); });
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { stop(); audio.suspendPlayback(); renderer?.effects.clear(); renderer?.motion.reset(); renderer?.movement.reset(); renderer?.positions.clear(); renderer?.animator.reset(); }
-  else audio.resumePlayback();
+  if (document.hidden) { stop(); audio.suspendPlayback(); music.suspend(); renderer?.effects.clear(); renderer?.motion.reset(); renderer?.movement.reset(); renderer?.positions.clear(); renderer?.animator.reset(); }
+  else { audio.resumePlayback(); music.unlock(); }
 });
 window.addEventListener('pagehide', () => { stop(); connection.disconnect(); });
-window.addEventListener('pointerdown', () => audio.unlock(), { capture: true });
-window.addEventListener('keydown', () => audio.unlock(), { capture: true });
+window.addEventListener('pointerdown', () => { audio.unlock(); music.unlock(); }, { capture: true });
+window.addEventListener('keydown', () => { audio.unlock(); music.unlock(); }, { capture: true });
+
+function updateMusicButton() {
+  const button = byId('music-button');
+  button.textContent = isMobileDevice ? (music.muted ? '♫×' : '♫') : t(music.muted ? 'music.off' : 'music.on');
+  button.disabled = !music.available;
+  button.setAttribute('aria-pressed', String(!music.muted));
+  button.setAttribute('aria-label', t(music.muted ? 'music.enable' : 'music.disable'));
+  button.title = t(!music.available ? 'music.unavailable' : music.urls.size < music.tracks.length || !music.tracks.length ? 'music.preloading' : 'music.hint');
+}
+
+byId('music-button').onclick = () => music.toggle();
+music.addEventListener('change', updateMusicButton);
+updateMusicButton();
 
 function updateSoundButton() {
   const button = byId('sound-button');
@@ -423,7 +448,10 @@ async function initialize() {
         input();
       },
       use: attack,
-      useAtPoint: () => Boolean(catalog.explosive_weapons?.[state?.you.inventory[selected]?.kind] || catalog.revival_items?.[state?.you.inventory[selected]?.kind]),
+      useAtPoint: () => {
+        const point = aimPoint();
+        return Boolean(state?.you.seated === 'mounted_gun' || state?.structures.some(entity => seats.has(entity.kind) && entity.x === tileAt(point.x) && entity.y === tileAt(point.y)) || catalog.explosive_weapons?.[state?.you.inventory[selected]?.kind] || catalog.revival_items?.[state?.you.inventory[selected]?.kind]);
+      },
       place: () => { input(true); const point = aimPoint(); ui.action('place', { x: tileAt(point.x), y: tileAt(point.y) }); },
       drop: () => { stop(); input(); ui.action('drop', { slot: selected }); },
     });
@@ -452,6 +480,10 @@ function frame(now) {
   updateMovement();
   renderer.draw(delta);
   if (now - lastInput >= 50) input();
+  if (state && connection.ready && now - lastMusic >= 500) {
+    music.observe(state, renderer.camera, renderer.viewport(), renderer.positions, renderer.catalog.monster_types, now);
+    lastMusic = now;
+  }
   if (now - lastHint >= 150) {
     ui.updateHint(renderer.target);
     byId('fps-label').textContent = `${Math.round(renderer.fps)} FPS`;
@@ -465,6 +497,7 @@ function refreshLanguage() {
   renderServerStatus();
   renderConnectionStatus();
   updateSoundButton();
+  updateMusicButton();
   ui?.updateHint(renderer?.target);
   adminConsole?.refreshLanguage();
 }

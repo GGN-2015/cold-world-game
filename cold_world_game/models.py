@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field, is_dataclass
 from uuid import uuid4
 
-from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, FAST_MONSTER_SPEED, GUNS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MELEE_WEAPONS, MONSTER_SPEED, RETURN_ITEMS
+from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, GUNS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MELEE_WEAPONS, RETURN_ITEMS
+from .wildlife import MONSTER_TYPES
 
 
 def identifier() -> str:
@@ -32,6 +33,8 @@ class Structure:
     igniter: Item | None = None
     burn_remaining: float = 0.0
     balance: int = 0
+    ammo: int | None = None
+    owner: str | None = None
 
     @property
     def lit(self) -> bool:
@@ -85,6 +88,7 @@ class Controls:
     velocity_x: float = 0.0
     velocity_y: float = 0.0
     demolition_container: str | None = None
+    seat: str | None = None
     view_width: float = DEFAULT_VIEWPORT[0]
     view_height: float = DEFAULT_VIEWPORT[1]
 
@@ -134,10 +138,15 @@ class Monster:
     burning_until: float = 0.0
     next_burn: float = 0.0
     burn_owner: str | None = None
+    species: str = "small"
+
+    @property
+    def kind(self):
+        return "big" if self.big else "fast" if self.fast else self.species
 
     @property
     def speed(self):
-        return FAST_MONSTER_SPEED if self.fast and not self.big else MONSTER_SPEED
+        return MONSTER_TYPES.get(self.kind, MONSTER_TYPES["small"])["speed"]
 
 
 @dataclass
@@ -180,6 +189,8 @@ def item_from(data: dict | None) -> Item | None:
 
 def structure_from(data: dict) -> Structure:
     values = dict(data)
+    if values["kind"] == "mounted_gun" and "ammo" not in values:
+        values["ammo"] = 200
     values["slots"] = [item_from(item) for item in data["slots"]]
     values["igniter"] = item_from(data["igniter"])
     return Structure(**values)

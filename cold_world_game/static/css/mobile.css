@@ -6,8 +6,9 @@
 .mobile-device .touch-only{display:block}
 .mobile-device #touch-controls[hidden],.mobile-device [hidden]{display:none!important}
 .mobile-device .game-header{top:max(6px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));gap:5px;align-items:center}
-.mobile-device .world-heading{padding:6px 9px;gap:9px;min-height:44px}
-.mobile-device .world-heading strong{font-size:12px;max-width:160px}
+.mobile-device .world-heading{padding:6px 9px;gap:9px;min-height:44px;flex-shrink:1;min-width:0}
+.mobile-device .world-heading>div:first-of-type{min-width:0}
+.mobile-device .world-heading strong{font-size:12px;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mobile-device .clock-label{font-size:15px}
 .mobile-device .small-muted{font-size:11px}
 .mobile-device .world-heading .eyebrow{font-size:7px}
@@ -73,7 +74,7 @@
 .mobile-device #password-toggle,.mobile-device #join-button,.mobile-device .landing-actions .icon-button{min-height:44px;font-size:14px}
 .mobile-device .toasts{top:calc(var(--mobile-header-bottom) + 24px);right:10px;left:10px;transform:none;max-width:none;pointer-events:none}
 .mobile-device .toast{font-size:13px}
-@media(orientation:portrait){.mobile-device .header-actions{width:100%;justify-content:flex-end}.mobile-device .game-header{row-gap:5px}}
+@media(orientation:portrait){.mobile-device .header-actions{width:100%;justify-content:flex-end;flex-wrap:wrap}.mobile-device .game-header{row-gap:5px}}
 @media(orientation:landscape){
   .mobile-device{--touch-stick-size:84px;--touch-dock-height:calc(var(--inventory-dock-height,74px) + 14px)}
   .mobile-device .world-heading .eyebrow,.mobile-device .brand-snow,.mobile-device .heading-divider{display:none}

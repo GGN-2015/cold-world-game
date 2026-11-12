@@ -228,12 +228,22 @@ export class WorldRenderer {
       if (entity.category === 'structure') {
         const pose = this.effects.pose(entity.id);
         if (entity.kind === 'tree') this.sprite('tree', entity.x + pose.x, entity.y + pose.y, 2.05, 2.65, 0.62);
-        else this.sprite(entity.lit ? 'campfire_lit' : entity.kind, entity.x + pose.x, entity.y + pose.y, entity.kind === 'wall' ? 1.15 : 1.05, entity.kind === 'wall' ? 1.6 : 1.05, entity.kind === 'wall' ? 0.27 : 0.06);
+        else if (entity.kind === 'mounted_gun') {
+          const occupant = players.find(player => player.id === entity.occupant);
+          const direction = occupant?.id === state.you.id ? (Math.round(Math.atan2(this.pointer.y - occupant.y, this.pointer.x - occupant.x) / (Math.PI / 4)) + 8) % 8 : occupant?.seat_direction || 0;
+          this.sprite(`mounted_gun_${['e', 'se', 's', 'sw', 'w', 'nw', 'n', 'ne'][direction]}`, entity.x, entity.y, 1.3, 1.3, 0.08);
+        } else this.sprite(entity.lit ? 'campfire_lit' : entity.kind, entity.x + pose.x, entity.y + pose.y, entity.kind === 'wall' ? 1.15 : 1.05, entity.kind === 'wall' ? 1.6 : 1.05, entity.kind === 'wall' ? 0.27 : 0.06);
         if (entity.monster_demolition) this.label(t('world.demolition'), entity.x, entity.y - 1, '#df715b', 10);
       } else if (entity.category === 'player') {
         const owned = entity.id === state.you.id;
         if (entity.downed) this.sprite('player_downed', entity.x, entity.y, 1.25);
-        else this.actorSprite(owned ? 'player' : 'player_other', entity, 1.1, 1.45, 0.25);
+        else {
+          const seated = entity.seated && !(owned && Math.hypot(this.movement.input.x, this.movement.input.y) > 0);
+          const facing = owned ? this.pointer : { x: entity.x + Math.cos((entity.seat_direction || 0) * Math.PI / 4), y: entity.y + Math.sin((entity.seat_direction || 0) * Math.PI / 4) };
+          const horizontal = facing.x - entity.x, vertical = facing.y - entity.y;
+          const seatedDirection = Math.abs(horizontal) > Math.abs(vertical) ? horizontal < 0 ? 'left' : 'right' : vertical < 0 ? 'up' : 'down';
+          this.actorSprite((owned ? 'player' : 'player_other') + (seated ? '_seated' : ''), { ...entity, seated, seated_direction: seated ? seatedDirection : null }, 1.1, 1.45, 0.25);
+        }
         if (this.state) {
           this.label(this.state ? entity.id : t('world.traveler'), entity.x, entity.y - 1.16, owned ? '#f4c886' : '#eff9f7', 11);
           if (!owned) this.bar(entity.x, entity.y - 0.94, entity.temperature / 36, '#8fcede', 0.7);
@@ -247,11 +257,11 @@ export class WorldRenderer {
           const elapsed = state.paused ? 0 : Math.max(0, Math.min(0.3, performance.now() / 1000 - this.motion.arrival));
           this.effects.frame(this, 'monster_big_rise', entity.x, entity.y - 0.3, 1.6, Math.min(1, entity.rising + elapsed / duration), 0, 1.9);
         } else {
-          const kind = entity.big ? 'monster_big' : entity.fast ? 'monster_fast' : 'monster_small';
+          const kind = `monster_${entity.species || (entity.big ? 'big' : entity.fast ? 'fast' : 'small')}`;
           this.actorSprite(worldTime < (entity.frozen_until ?? 0) ? `${kind}_frozen` : kind, entity, entity.big ? 1.6 : 1.1, entity.big ? 1.9 : 1.25, entity.big ? 0.3 : 0.13);
         }
         if (worldTime < (entity.burning_until ?? 0)) this.effects.frame(this, 'fx_burning', entity.x, entity.y - 0.35, entity.big ? 1.3 : 0.9, worldTime * 2 % 1);
-        this.bar(entity.x, entity.y - (entity.sleeping ? 0.3 : entity.big ? 1.2 : 0.8), entity.hp / (entity.big ? 50 : 10), '#dc8372', entity.big ? 1 : 0.65);
+        this.bar(entity.x, entity.y - (entity.sleeping ? 0.3 : entity.big ? 1.2 : 0.8), entity.hp / (entity.max_hp || (entity.big ? 50 : 10)), '#dc8372', entity.big ? 1 : 0.65);
       }
     }
     const hour = state.environment.hour;

@@ -11,12 +11,14 @@ from contextlib import contextmanager
 from .actions import Actions, GameError
 from .admin import Administration, admin_id
 from .combat import Combat
-from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BODY_TEMPERATURE_RATES, BULLET_BLOCKERS, BURN_SECONDS, CHAINSAW_CHANCE, CHUNK_SIZE, DAY_SECONDS, DEFAULT_VIEWPORT, DEFIBRILLATOR_CHANCE, DRINKS, DROP_DISTANCE, EQUIPPED_ITEMS, EXPLOSIVE_WEAPONS, FAST_MONSTER_SPEED, FIRST_AID_KIT_CHANCE, FLAME_STAFF_CHANCE, FOODS, GRENADE_CHANCE, GUNS, HARVEST_TOOLS, GUN_MACHINE_CHANCE, HEALING_ITEMS, HOMING_MISSILE_CHANCE, HEAT_PATCH_CHANCE, ICE_STAFF, ICE_STAFF_CHANCE, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, MACHINE_OFFERS, MATCH_MACHINE_CHANCE, MAX_COINS, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_SPEED, NIGHT_MONSTER_HOURS, OPAQUE, PASSIVE_ITEMS, PICKUP_RADIUS, PIGGY_BANK_CHANCE, PLAYER_SPEED, READY_TO_EAT_FOODS, RECIPES, RETURN_ITEMS, RETURN_STAFF_CHANCE, REVIVAL_ITEMS, SEASONS, SEASON_DAYS, SEASON_OFFSETS, SHERIFF_BADGE_CHANCE, SMALL_MONSTER_FOOD_CHANCE, SMALL_MONSTER_FOOD_WEIGHTS, SOLID, SWIFTNESS_RING_CHANCE, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS, VODKA_CHANCE
+from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BODY_TEMPERATURE_RATES, BULLET_BLOCKERS, BURN_SECONDS, CHAINSAW_CHANCE, CHUNK_SIZE, DAY_SECONDS, DEFAULT_VIEWPORT, DEFIBRILLATOR_CHANCE, DRINKS, DROP_DISTANCE, EQUIPPED_ITEMS, EXPLOSIVE_WEAPONS, FAST_MONSTER_SPEED, FIRST_AID_KIT_CHANCE, FLAME_STAFF_CHANCE, FOODS, GRENADE_CHANCE, GUNS, HARVEST_TOOLS, GUN_MACHINE_CHANCE, HEALING_ITEMS, HOMING_MISSILE_CHANCE, HEAT_PATCH_CHANCE, ICE_STAFF, ICE_STAFF_CHANCE, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, LANDMINE_CHANCE, MACHINE_OFFERS, MATCH_MACHINE_CHANCE, MAX_COINS, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_SPEED, NIGHT_MONSTER_HOURS, OPAQUE, PASSIVE_ITEMS, PICKUP_RADIUS, PIGGY_BANK_CHANCE, PLAYER_SPEED, READY_TO_EAT_FOODS, RECIPES, RETURN_ITEMS, RETURN_STAFF_CHANCE, REVIVAL_ITEMS, SEASONS, SEASON_DAYS, SEASON_OFFSETS, SHERIFF_BADGE_CHANCE, SMALL_MONSTER_FOOD_CHANCE, SMALL_MONSTER_FOOD_WEIGHTS, SOLID, SWIFTNESS_RING_CHANCE, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS, VODKA_CHANCE
 from .expansion import DURIAN_CHANCE, EXPANSION_CATEGORIES, EXPANSION_ITEMS, carried_modifier
 from .room_machines import ROOM_MACHINES
 from .geometry import chunk, circle_square, distance, segment_box, tile
 from .models import Controls, GroundItem, Item, Monster, Player, Projectile, encode, item_from, player_from, structure_from
 from .monsters import Monsters
+from .outdoors import Outdoors
+from .wildlife import MONSTER_TYPES, OUTDOOR_FEATURES, SEATS
 from .storage import WorldDelta
 from .terrain import Terrain
 
@@ -25,7 +27,7 @@ def tuples(value):
     return tuple(tuples(element) for element in value) if isinstance(value, list) else value
 
 
-class World(Administration, Actions, Combat, Monsters, Terrain):
+class World(Administration, Outdoors, Actions, Combat, Monsters, Terrain):
     def __init__(self, storage, seed=None, admin=None):
         self.admin = admin_id(admin)
         self.storage = storage
@@ -40,6 +42,8 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
         self._dirty_structures = {}
         self._terrain_dirty = True
         self._campfires = {}
+        self._landmines = {}
+        self._mine_triggers = set()
         self._structure_order = {}
         self._next_structure_order = 0
         self.events = deque(maxlen=256)
@@ -99,6 +103,7 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
         }
 
     def restore(self, state):
+        self._mine_triggers = set()
         self._path_jobs = {}
         self._path_queue = deque()
         self.seed = state["seed"]
@@ -115,6 +120,7 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
             self.structures = {values["id"]: structure_from(values) for values in state["structures"]}
             self.tiles = {(value.x, value.y): value.id for value in self.structures.values()}
             self._campfires = {value.id: value for value in self.structures.values() if value.kind == "campfire"}
+            self._landmines = {value.id: value for value in self.structures.values() if value.kind == "landmine"}
             self._structure_order = {identifier: index for index, identifier in enumerate(self.structures)}
             self._next_structure_order = len(self.structures)
             self._dirty_structures = {}
@@ -224,10 +230,8 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
                 player = Player(player_id, *position)
                 player.inventory[:3] = [Item.create("handgun"), Item.create("axe"), Item.create("lighter")]
                 self.players[player_id] = player
-            elif not self.can_stand(player.x, player.y, player_id=player_id, ignore_monsters=player.temperature < 5):
-                position = self.nearest_walkable(player)
-                if position is None:
-                    raise GameError("spawn_blocked", "No nearby walkable reconnect position")
+            elif ((structure := self.structure_at(tile(player.x), tile(player.y))) is not None and structure.kind in SEATS) or not self.can_stand(player.x, player.y, player_id=player_id, ignore_monsters=player.temperature < 5):
+                position = self.return_destination(player.x, player.y)
                 player.x, player.y = position
             if player.offline_since is not None:
                 player.next_shot = self.elapsed + max(0, player.next_shot - player.offline_since)
@@ -280,7 +284,9 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
                 raise GameError("not_connected", "Join before sending commands")
             if not isinstance(command, dict):
                 raise GameError("invalid_command", "Command must be an object")
-            return self.action(self.players[player_id], self.controls[player_id], command)
+            result = self.action(self.players[player_id], self.controls[player_id], command)
+            self.detonate_mines()
+            return result
 
     def tick(self, seconds):
         with self.lock:
@@ -299,7 +305,9 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
                     self.update_player(player, controls, seconds)
                 previous_monsters = {identifier: (monster.x, monster.y) for identifier, monster in self.monsters.items()}
                 self.update_burning()
+                self.detonate_mines()
                 self.update_monsters(seconds)
+                self.detonate_mines()
                 self._velocities = {identifier: ((monster.x - previous_monsters[identifier][0]) / seconds, (monster.y - previous_monsters[identifier][1]) / seconds) for identifier, monster in self.monsters.items() if identifier in previous_monsters and seconds > 0}
                 self.update_projectiles(seconds)
                 for player_id in list(self.online):
@@ -307,6 +315,7 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
                     self.update_player_attack(player, controls, seconds)
                     self.pickup(player)
                     self.validate_container(player, controls)
+                self.detonate_mines()
                 self.spawn_monster()
                 if self.elapsed >= self.next_save and self._backup is None:
                     self.touch()
@@ -348,6 +357,8 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
                 if delta_y and self.can_stand(body.x, body.y + delta_y / steps, **arguments):
                     body.y += delta_y / steps
                     moved = True
+            if monster_id is not None:
+                self.collect_mine(body)
         return moved
 
     def visible(self, start_x, start_y, end_x, end_y, ignore=None):
@@ -400,7 +411,7 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
         center_x, center_y = tile(player.x), tile(player.y)
         candidates = [(center_x + offset_x, center_y + offset_y) for offset_x in range(-30, 31) for offset_y in range(-30, 31)]
         candidates.sort(key=lambda point: (point[0] - player.x) ** 2 + (point[1] - player.y) ** 2)
-        return next((point for point in candidates if self.can_stand(*point, player_id=player.id, ignore_monsters=player.temperature < 5)), None)
+        return next((point for point in candidates if (self.structure_at(*point) is None or self.structure_at(*point).kind not in SEATS) and self.can_stand(*point, player_id=player.id, ignore_monsters=player.temperature < 5)), None)
 
     def return_destination(self, center_x=0.0, center_y=0.0):
         half = CHUNK_SIZE // 2
@@ -419,7 +430,7 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
                 if best is not None and origin_distance > best[0]:
                     break
                 structure = self.structure_at(horizontal, vertical)
-                if (horizontal, vertical) in monster_tiles or (structure and structure.kind != "floor") or not self.can_stand(horizontal, vertical):
+                if (horizontal, vertical) in monster_tiles or (structure and structure.kind not in {"floor", "landmine"}) or not self.can_stand(horizontal, vertical):
                     continue
                 safety = min(((horizontal - monster_x) ** 2 + (vertical - monster_y) ** 2 for monster_x, monster_y in monster_tiles), default=math.inf)
                 candidate = (origin_distance, -safety, horizontal, vertical)
@@ -490,6 +501,7 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
         if (previous_temperature < 5) != (player.temperature < 5):
             controls.movement_epoch += 1
         if player.temperature < 5:
+            controls.seat = None
             item = player.inventory[player.selected]
             if item is None or item.kind not in HEALING_ITEMS and item.kind not in RETURN_ITEMS and item.kind not in DRINKS:
                 controls.stop_attack()
@@ -536,6 +548,12 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
                     if structure:
                         structures.append({"id": structure.id, "kind": structure.kind, "x": structure.x, "y": structure.y, "lit": structure.lit, "monster_demolition": structure.id in demolitions})
             controls = self.controls[player_id]
+            seat = self.seated_structure(controls)
+            occupants = {control.seat: identifier for identifier, control in self.controls.items() if control.seat}
+            for structure in structures:
+                if structure["kind"] in SEATS:
+                    structure["occupant"] = occupants.get(structure["id"])
+                    structure["ammo"] = self.structures[structure["id"]].ammo
             container = self.structures.get(controls.container)
             visible_chunks = [(horizontal, vertical) for horizontal in range(math.ceil((player.x - 30) / CHUNK_SIZE), math.floor((player.x + 30) / CHUNK_SIZE) + 1) for vertical in range(math.ceil((player.y - 24) / CHUNK_SIZE), math.floor((player.y + 24) / CHUNK_SIZE) + 1) if (horizontal, vertical) in self.chunks]
             return {
@@ -545,11 +563,11 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
                 "fault": self.fault,
                 "movement": {"mode": "client" if controls.client_movement else "server", "epoch": controls.movement_epoch, "teleport_epoch": controls.teleport_epoch},
                 "environment": self.environment(),
-                "you": {**encode(player), "tile": [tile(player.x), tile(player.y)], "offset": [player.x - tile(player.x), player.y - tile(player.y)], "ambient_temperature": self.temperature_at(player), "downed": player.temperature < 5, "is_admin": self.admin is not None and player.id == self.admin},
-                "players": [{"id": other.id, "x": other.x, "y": other.y, "temperature": other.temperature, "hunger": other.hunger, "downed": other.temperature < 5, "move_speed": self.player_speed(other), "velocity_x": self.controls[other_id].velocity_x, "velocity_y": self.controls[other_id].velocity_y, "teleport_epoch": self.controls[other_id].teleport_epoch} for other_id in sorted(self.online) if (other := self.players[other_id]) and abs(other.x - player.x) <= 20 and abs(other.y - player.y) <= 13],
+                "you": {**encode(player), "seated": seat.kind if seat else None, "seat_id": controls.seat, "tile": [tile(player.x), tile(player.y)], "offset": [player.x - tile(player.x), player.y - tile(player.y)], "ambient_temperature": self.temperature_at(player), "downed": player.temperature < 5, "is_admin": self.admin is not None and player.id == self.admin},
+                "players": [{"id": other.id, "x": other.x, "y": other.y, "temperature": other.temperature, "hunger": other.hunger, "downed": other.temperature < 5, "move_speed": self.player_speed(other), "velocity_x": self.controls[other_id].velocity_x, "velocity_y": self.controls[other_id].velocity_y, "teleport_epoch": self.controls[other_id].teleport_epoch, "seated": self.structures[self.controls[other_id].seat].kind if self.controls[other_id].seat in self.structures else None, "seat_direction": (round(math.atan2(self.controls[other_id].aim_y - other.y, self.controls[other_id].aim_x - other.x) / (math.pi / 4)) + 8) % 8 if self.controls[other_id].seat else 0} for other_id in sorted(self.online) if (other := self.players[other_id]) and abs(other.x - player.x) <= 20 and abs(other.y - player.y) <= 13],
                 "structures": structures,
                 "chunks": sorted(visible_chunks),
-                "monsters": [{"id": monster.id, "x": monster.x, "y": monster.y, "big": monster.big, "fast": monster.fast, "hp": monster.hp, "frozen_until": monster.frozen_until, "burning_until": monster.burning_until, "sleeping": (monster.big or monster.fast) and resting, "rising": rising if monster.big else None, "demolition": monster.demolition, "overlap_player": monster.overlap_player, "velocity_x": self._velocities.get(monster.id, (0.0, 0.0))[0], "velocity_y": self._velocities.get(monster.id, (0.0, 0.0))[1]} for monster in self.monsters.values() if abs(monster.x - player.x) <= 20 and abs(monster.y - player.y) <= 13],
+                "monsters": [{"id": monster.id, "x": monster.x, "y": monster.y, "big": monster.big, "fast": monster.fast, "species": monster.kind, "max_hp": MONSTER_TYPES[monster.kind]["hp"], "move_speed": monster.speed, "hp": monster.hp, "frozen_until": monster.frozen_until, "burning_until": monster.burning_until, "sleeping": (monster.big or monster.fast) and resting, "rising": rising if monster.big else None, "demolition": monster.demolition, "overlap_player": monster.overlap_player, "velocity_x": self._velocities.get(monster.id, (0.0, 0.0))[0], "velocity_y": self._velocities.get(monster.id, (0.0, 0.0))[1]} for monster in self.monsters.values() if abs(monster.x - player.x) <= 20 and abs(monster.y - player.y) <= 13],
                 "projectiles": [encode(projectile) for projectile in self.projectiles.values() if (abs(projectile.x - player.x) <= 22 and abs(projectile.y - player.y) <= 15) or (projectile.kind in EXPLOSIVE_WEAPONS and abs(projectile.target_x - player.x) <= 22 and abs(projectile.target_y - player.y) <= 15)],
                 "ground": [encode(ground) for ground in self.ground.values() if abs(ground.x - player.x) <= 20 and abs(ground.y - player.y) <= 13],
                 "container": encode(container) if container else None,
@@ -560,7 +578,7 @@ class World(Administration, Actions, Combat, Monsters, Terrain):
 
     @staticmethod
     def catalog():
-        return {"tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "vending_offers": VENDING_OFFERS, "machine_offers": MACHINE_OFFERS, "room_machines": {kind: {"chance": definition["chance"]} for kind, definition in ROOM_MACHINES.items()}, "currency": {"item": "coin", "player_field": "money", "uses_slots": False, "shared_bank": "piggy_bank", "bank_balance_field": "balance", "max_coins": MAX_COINS}, "body_temperature_rates": BODY_TEMPERATURE_RATES, "monster_coin_drops": MONSTER_COIN_DROPS, "monster_food_drops": {"small": {"chance": SMALL_MONSTER_FOOD_CHANCE, "weights": SMALL_MONSTER_FOOD_WEIGHTS}}, "monster_spawning": {"night_start": NIGHT_MONSTER_HOURS[0], "night_end": NIGHT_MONSTER_HOURS[1], **MONSTER_SPAWN_CHANCES}, "monster_activity": {"rest_start": MONSTER_REST_HOURS[0], "rest_end": MONSTER_REST_HOURS[1], "rise_seconds": MONSTER_RISE_SECONDS}, "terrain": {"version": TERRAIN_VERSION, "vending_machine_chance": VENDING_MACHINE_CHANCE, "match_machine_chance": MATCH_MACHINE_CHANCE, "chest_first_aid_kit_chance": FIRST_AID_KIT_CHANCE, "chest_return_staff_chance": RETURN_STAFF_CHANCE, "chest_ice_staff_chance": ICE_STAFF_CHANCE, "gun_machine_chance": GUN_MACHINE_CHANCE, "chest_grenade_chance": GRENADE_CHANCE, "chest_flame_staff_chance": FLAME_STAFF_CHANCE, "chest_defibrillator_chance": DEFIBRILLATOR_CHANCE, "piggy_bank_chance": PIGGY_BANK_CHANCE, "chest_heat_patch_chance": HEAT_PATCH_CHANCE, "chest_sheriff_badge_chance": SHERIFF_BADGE_CHANCE, "chest_vodka_chance": VODKA_CHANCE, "chest_swiftness_ring_chance": SWIFTNESS_RING_CHANCE, "chest_homing_missile_chance": HOMING_MISSILE_CHANCE, "chest_chainsaw_chance": CHAINSAW_CHANCE, "chest_durian_chance": DURIAN_CHANCE, "room_machine_chances": {kind: definition["chance"] for kind, definition in ROOM_MACHINES.items()}, "chest_expansion_chances": {kind: value["chance"] for kind, value in EXPANSION_ITEMS.items()}, "unexplored_uses_latest": True}, "axe": AXE, "melee_weapons": MELEE_WEAPONS, "harvest_tools": HARVEST_TOOLS, "explosive_weapons": EXPLOSIVE_WEAPONS, "guns": GUNS, "projectiles": {"piercing": True, "range": "viewport_half_diagonal", "default_viewport": list(DEFAULT_VIEWPORT), "blockers": sorted(BULLET_BLOCKERS), "monster_blockers": sorted(MONSTER_BULLET_BLOCKERS)}, "drinks": DRINKS, "passive_items": PASSIVE_ITEMS, "equipped_items": EQUIPPED_ITEMS, "ready_to_eat_foods": sorted(READY_TO_EAT_FOODS), "healing_items": HEALING_ITEMS, "revival_items": REVIVAL_ITEMS, "return_items": RETURN_ITEMS, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "expansion_items": {kind: {"category": EXPANSION_CATEGORIES[value["mechanic"]], "group": value["group"], "chance": value["chance"]} for kind, value in EXPANSION_ITEMS.items()}, "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED, "fast_monster_speed": FAST_MONSTER_SPEED, "frozen_speed_scale": ICE_STAFF["speed_scale"]}, "knockback": KNOCKBACK, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "protocol": 1}
+        return {"tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "vending_offers": VENDING_OFFERS, "machine_offers": MACHINE_OFFERS, "room_machines": {kind: {"chance": definition["chance"]} for kind, definition in ROOM_MACHINES.items()}, "currency": {"item": "coin", "player_field": "money", "uses_slots": False, "shared_bank": "piggy_bank", "bank_balance_field": "balance", "max_coins": MAX_COINS}, "body_temperature_rates": BODY_TEMPERATURE_RATES, "monster_coin_drops": MONSTER_COIN_DROPS, "monster_food_drops": {"small": {"chance": SMALL_MONSTER_FOOD_CHANCE, "weights": SMALL_MONSTER_FOOD_WEIGHTS}}, "monster_spawning": {"night_start": NIGHT_MONSTER_HOURS[0], "night_end": NIGHT_MONSTER_HOURS[1], **MONSTER_SPAWN_CHANCES}, "monster_activity": {"rest_start": MONSTER_REST_HOURS[0], "rest_end": MONSTER_REST_HOURS[1], "rise_seconds": MONSTER_RISE_SECONDS}, "terrain": {"version": TERRAIN_VERSION, "vending_machine_chance": VENDING_MACHINE_CHANCE, "match_machine_chance": MATCH_MACHINE_CHANCE, "chest_first_aid_kit_chance": FIRST_AID_KIT_CHANCE, "chest_return_staff_chance": RETURN_STAFF_CHANCE, "chest_ice_staff_chance": ICE_STAFF_CHANCE, "gun_machine_chance": GUN_MACHINE_CHANCE, "chest_grenade_chance": GRENADE_CHANCE, "chest_flame_staff_chance": FLAME_STAFF_CHANCE, "chest_defibrillator_chance": DEFIBRILLATOR_CHANCE, "piggy_bank_chance": PIGGY_BANK_CHANCE, "chest_heat_patch_chance": HEAT_PATCH_CHANCE, "chest_sheriff_badge_chance": SHERIFF_BADGE_CHANCE, "chest_vodka_chance": VODKA_CHANCE, "chest_swiftness_ring_chance": SWIFTNESS_RING_CHANCE, "chest_homing_missile_chance": HOMING_MISSILE_CHANCE, "chest_chainsaw_chance": CHAINSAW_CHANCE, "chest_landmine_chance": LANDMINE_CHANCE, "chest_durian_chance": DURIAN_CHANCE, "room_machine_chances": {kind: definition["chance"] for kind, definition in ROOM_MACHINES.items()}, "chest_expansion_chances": {kind: value["chance"] for kind, value in EXPANSION_ITEMS.items()}, "unexplored_uses_latest": True}, "axe": AXE, "melee_weapons": MELEE_WEAPONS, "harvest_tools": HARVEST_TOOLS, "explosive_weapons": EXPLOSIVE_WEAPONS, "guns": GUNS, "projectiles": {"piercing": True, "range": "viewport_half_diagonal", "default_viewport": list(DEFAULT_VIEWPORT), "blockers": sorted(BULLET_BLOCKERS), "monster_blockers": sorted(MONSTER_BULLET_BLOCKERS)}, "drinks": DRINKS, "passive_items": PASSIVE_ITEMS, "equipped_items": EQUIPPED_ITEMS, "ready_to_eat_foods": sorted(READY_TO_EAT_FOODS), "healing_items": HEALING_ITEMS, "revival_items": REVIVAL_ITEMS, "return_items": RETURN_ITEMS, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "expansion_items": {kind: {"category": EXPANSION_CATEGORIES[value["mechanic"]], "group": value["group"], "chance": value["chance"]} for kind, value in EXPANSION_ITEMS.items()}, "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED, "fast_monster_speed": FAST_MONSTER_SPEED, "frozen_speed_scale": ICE_STAFF["speed_scale"]}, "knockback": KNOCKBACK, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "monster_types": MONSTER_TYPES, "outdoor_features": OUTDOOR_FEATURES, "protocol": 1}
 
     def close(self):
         with self.lock:

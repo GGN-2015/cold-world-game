@@ -31,7 +31,7 @@ export class CombatEffects {
   clear() { this.active = []; this.poses = null; }
 
   append(event) {
-    const duration = event.type === 'melee' && sweepEffects[event.kind] ? this.definitions[sweepEffects[event.kind]]?.duration || lifetimes.melee : event.type.startsWith('teleport_') ? this.definitions.fx_teleport?.duration || lifetimes[event.type] : event.type === 'heal' ? this.definitions.fx_heal?.duration || lifetimes.heal : event.type === 'death' ? this.definitions[event.kind === 'monster_big' ? 'monster_big_death' : event.kind === 'monster_fast' ? 'monster_fast_death' : 'monster_small_death']?.duration || lifetimes.death : lifetimes[event.type];
+    const duration = event.type === 'melee' && sweepEffects[event.kind] ? this.definitions[sweepEffects[event.kind]]?.duration || lifetimes.melee : event.type.startsWith('teleport_') ? this.definitions.fx_teleport?.duration || lifetimes[event.type] : event.type === 'heal' ? this.definitions.fx_heal?.duration || lifetimes.heal : event.type === 'death' ? this.definitions[`${event.kind === 'monster' ? 'monster_small' : event.kind}_death`]?.duration || lifetimes.death : lifetimes[event.type];
     const direction = heading(event);
     this.active.push({ event, age: 0, duration, direction, directionIndex: (Math.round(direction.angle / (Math.PI / 4)) + 8) % 8 });
     this.poses = null;
@@ -162,7 +162,7 @@ export class CombatEffects {
         const travel = Math.min(1, phase * 2);
         const horizontal = event.x + (event.knockback?.[0] || 0) * travel;
         const vertical = event.y + (event.knockback?.[1] || 0) * travel;
-        this.frame(renderer, big ? 'monster_big_death' : event.kind === 'monster_fast' ? 'monster_fast_death' : 'monster_small_death', horizontal, vertical - (big ? 0.3 : 0.13), big ? 1.6 : 1.1, phase, 0, big ? 1.9 : 1.25, direction.x < 0);
+        this.frame(renderer, `${event.kind === 'monster' ? 'monster_small' : event.kind}_death`, horizontal, vertical - (big ? 0.3 : 0.13), big ? 1.6 : 1.1, phase, 0, big ? 1.9 : 1.25, direction.x < 0);
         if (this.active.length <= 32) this.frame(renderer, 'fx_debris', horizontal, vertical, big ? 1.4 : 1, phase);
       }
     }

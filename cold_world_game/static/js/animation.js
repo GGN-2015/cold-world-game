@@ -50,10 +50,10 @@ export class ActorAnimator {
     const definition = this.definitions[kind];
     if (!definition) return null;
     const motion = this.actors.get(entity.id);
-    const walking = motion?.moving && this.age <= 0.3 && !entity.downed && !pose.reacting;
+    const walking = !entity.seated && motion?.moving && this.age <= 0.3 && !entity.downed && !pose.reacting;
     if (motion) motion.travel = walking ? (motion.travel + displacement) % definition.stride : 0;
     const column = walking ? definition.walk_frames[Math.floor(motion.travel / definition.stride * definition.walk_frames.length)] : definition.idle_frame;
-    const row = Math.max(0, definition.directions.indexOf(pose.direction || motion?.direction || 'down'));
+    const row = Math.max(0, definition.directions.indexOf(pose.direction || entity.seated_direction || motion?.direction || 'down'));
     return { asset: definition.asset, x: column * definition.frame_width, y: row * definition.frame_height, width: definition.frame_width, height: definition.frame_height };
   }
 }

@@ -4,6 +4,7 @@ import time
 from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DRINKS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FOODS, GUNS, HARVEST_TOOLS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, MAX_COINS, MELEE_WEAPONS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS, SOLID
 from .geometry import DIRECTIONS, circle_square, distance, normalized, segment_box, tile
 from .models import GroundItem, Item, Structure
+from .wildlife import SEATS
 
 
 class GameError(Exception):
@@ -53,6 +54,9 @@ class Actions:
                 view_width, view_height = number(viewport[0], "viewport.width", 64), number(viewport[1], "viewport.height", 64)
                 if view_width <= 0 or view_height <= 0:
                     raise GameError("invalid_argument", "viewport dimensions must be positive")
+            if controls.seat and (move_x or move_y):
+                controls.seat = None
+                controls.stop_attack()
             position = command.get("position")
             if controls.client_movement and position is not None:
                 velocity = command.get("velocity", [0, 0])
@@ -61,7 +65,7 @@ class Actions:
                 position_x, position_y = number(position[0], "position.x"), number(position[1], "position.y")
                 velocity_x, velocity_y = number(velocity[0], "velocity.x"), number(velocity[1], "velocity.y")
                 epoch = integer(command.get("movement_epoch"), "movement_epoch", 0, 2 ** 53 - 1)
-                if epoch == controls.movement_epoch and player.temperature >= 5:
+                if epoch == controls.movement_epoch and player.temperature >= 5 and not controls.seat:
                     player.x, player.y = position_x, position_y
                     controls.velocity_x, controls.velocity_y = velocity_x, velocity_y
             if math.hypot(move_x, move_y) > 1:
@@ -71,6 +75,8 @@ class Actions:
             controls.aim_target = target
             controls.view_width, controls.view_height = view_width, view_height
             controls.last_input = time.monotonic()
+        elif kind == "sit":
+            return self.sit(player, controls, command.get("id"))
         elif kind == "select":
             selected = integer(command.get("slot"), "slot", 0, 9)
             if selected != player.selected:
@@ -88,8 +94,14 @@ class Actions:
                 return {"accepted": True}
             if controls.ui:
                 return {"accepted": False}
+            seat = self.seated_structure(controls)
+            if seat and seat.kind == "mounted_gun":
+                controls.held = True
+                return {"accepted": True}
             item = player.inventory[player.selected]
             target = self.structure_at(tile(controls.aim_x), tile(controls.aim_y))
+            if target and target.kind in SEATS:
+                return self.sit(player, controls, target.id)
             if target and target.kind in CONTAINERS and (item is None or item.kind not in EXPLOSIVE_WEAPONS and item.kind not in REVIVAL_ITEMS and item.kind != "homing_missile") and (not shift or target.kind in PANEL_DEMOLITION) and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
                 self.open_container(player, controls, target.id)
                 return {"opened": target.id}
@@ -273,7 +285,7 @@ class Actions:
         if any(circle_square(self.players[player_id].x, self.players[player_id].y, target_x, target_y) for player_id in self.online) or any(circle_square(monster.x, monster.y, target_x, target_y) for monster in self.monsters.values()):
             raise GameError("occupied", "An entity overlaps this tile")
         self.touch()
-        structure = Structure(item.kind, target_x, target_y, slots=[None] * 30 if item.kind == "chest" else [])
+        structure = Structure(item.kind, target_x, target_y, slots=[None] * 30 if item.kind == "chest" else [], owner=player.id if item.kind == "landmine" else None)
         self.add_structure(structure)
         if -7 <= target_x <= 7 and -7 <= target_y <= 7 and not self.origin_spawn_points():
             self.remove_structure(structure)

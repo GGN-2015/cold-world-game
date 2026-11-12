@@ -60,6 +60,10 @@ export function itemGuide(item, catalog) {
     category = 'igniter';
     effect = t('guide.effect.igniter');
     use = t('guide.use.igniter');
+  } else if (kind === 'landmine') {
+    category = 'building';
+    effect = t('guide.effect.landmine');
+    use = t('guide.use.landmine');
   } else if (buildings.has(kind)) {
     category = 'building';
     effect = t(`guide.effect.${kind}`);

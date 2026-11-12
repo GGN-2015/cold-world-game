@@ -1,4 +1,4 @@
-import { assetUrl, containers, distance, errorText, itemDetail, itemName, machines, seasonName } from './catalog.js';
+import { assetUrl, containers, distance, errorText, itemDetail, itemName, machines, seats, seasonName } from './catalog.js';
 import { getLanguage, t } from './i18n.js';
 import { isMobileDevice } from './mobile.js';
 import { StoragePrediction } from './storage.js';
@@ -249,7 +249,14 @@ export class GameUI {
     const melee = this.catalog.melee_weapons?.[equipped?.kind] || (equipped?.kind === 'axe' ? this.catalog.axe : null);
     const harvesting = this.catalog.harvest_tools?.[equipped?.kind] || (equipped?.kind === 'axe');
     let text = '';
-    if (this.catalog.revival_items?.[equipped?.kind]) {
+    const seat = this.state.structures.find(structure => structure.id === this.state.you.seat_id);
+    if (this.state.you.seated === 'mounted_gun') {
+      text = t(isMobileDevice ? 'hint.turretTouch' : 'hint.turret', { ammo: seat?.ammo ?? 0 });
+    } else if (target?.category === 'structure' && seats.has(target.kind)) {
+      text = target.occupant && target.occupant !== this.state.you.id ? t('hint.seatOccupied', { name: itemName(target.kind), player: target.occupant }) : t(isMobileDevice ? 'hint.seatTouch' : 'hint.seat', { name: itemName(target.kind) });
+    } else if (target?.kind === 'landmine') {
+      text = t('hint.landmine');
+    } else if (this.catalog.revival_items?.[equipped?.kind]) {
       text = t(target?.category === 'player' ? 'hint.reviveTarget' : 'hint.defibrillator', { name: target?.id || '', ...this.catalog.revival_items[equipped.kind] });
     } else if (this.catalog.explosive_weapons?.[equipped?.kind]) {
       text = t(equipped.kind === 'coin_launcher' ? 'hint.coinLauncher' : 'hint.grenade', { ...this.catalog.explosive_weapons[equipped.kind], money: this.state.you.money ?? 0 });
@@ -264,7 +271,7 @@ export class GameUI {
       if (containers.has(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${harvesting && distance(this.state.you, target) <= 3 ? t(target.kind === 'piggy_bank' ? 'hint.bankDismantle' : target.kind === 'chest' ? 'hint.chestDismantle' : machines.has(target.kind) ? 'hint.vendingDismantle' : 'hint.fireDismantle') : ''}`;
       else if (harvesting) text = `${itemName(target.kind)} · ${t(target.monster_demolition ? 'hint.busy' : near ? 'hint.gather' : 'hint.nearer')}`;
     } else if (target) {
-      text = `${t(target.big ? 'hint.bigMonster' : target.fast ? 'hint.fastMonster' : 'hint.smallMonster')} · ${target.hp} HP`;
+      text = `${t(['crawler', 'armored', 'stalker'].includes(target.species) ? `hint.${target.species}Monster` : target.big ? 'hint.bigMonster' : target.fast ? 'hint.fastMonster' : 'hint.smallMonster')} · ${target.hp} HP`;
       if (target.sleeping) text += t('hint.sleeping');
       else if (target.rising != null) text += t('hint.rising');
       else if (this.state.elapsed < (target.frozen_until ?? 0)) text += t('hint.frozen');

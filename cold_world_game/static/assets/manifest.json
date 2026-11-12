@@ -1336,6 +1336,156 @@
       "file": "expedition_machine.png",
       "width": 96,
       "height": 96
+    },
+    "monster_crawler": {
+      "file": "monster_crawler.png",
+      "width": 96,
+      "height": 96
+    },
+    "monster_crawler_motion": {
+      "file": "monster_crawler_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "monster_crawler_frozen": {
+      "file": "monster_crawler_frozen.png",
+      "width": 96,
+      "height": 96
+    },
+    "monster_crawler_frozen_motion": {
+      "file": "monster_crawler_frozen_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "monster_crawler_death": {
+      "file": "monster_crawler_death.png",
+      "width": 576,
+      "height": 96
+    },
+    "monster_armored": {
+      "file": "monster_armored.png",
+      "width": 96,
+      "height": 96
+    },
+    "monster_armored_motion": {
+      "file": "monster_armored_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "monster_armored_frozen": {
+      "file": "monster_armored_frozen.png",
+      "width": 96,
+      "height": 96
+    },
+    "monster_armored_frozen_motion": {
+      "file": "monster_armored_frozen_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "monster_armored_death": {
+      "file": "monster_armored_death.png",
+      "width": 576,
+      "height": 96
+    },
+    "monster_stalker": {
+      "file": "monster_stalker.png",
+      "width": 96,
+      "height": 96
+    },
+    "monster_stalker_motion": {
+      "file": "monster_stalker_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "monster_stalker_frozen": {
+      "file": "monster_stalker_frozen.png",
+      "width": 96,
+      "height": 96
+    },
+    "monster_stalker_frozen_motion": {
+      "file": "monster_stalker_frozen_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "monster_stalker_death": {
+      "file": "monster_stalker_death.png",
+      "width": 576,
+      "height": 96
+    },
+    "player_seated": {
+      "file": "player_seated.png",
+      "width": 96,
+      "height": 96
+    },
+    "player_seated_motion": {
+      "file": "player_seated_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "player_other_seated": {
+      "file": "player_other_seated.png",
+      "width": 96,
+      "height": 96
+    },
+    "player_other_seated_motion": {
+      "file": "player_other_seated_motion.png",
+      "width": 480,
+      "height": 384
+    },
+    "landmine": {
+      "file": "landmine.png",
+      "width": 96,
+      "height": 96
+    },
+    "park_bench": {
+      "file": "park_bench.png",
+      "width": 96,
+      "height": 96
+    },
+    "mounted_gun_e": {
+      "file": "mounted_gun_e.png",
+      "width": 96,
+      "height": 96
+    },
+    "mounted_gun": {
+      "file": "mounted_gun.png",
+      "width": 96,
+      "height": 96
+    },
+    "mounted_gun_se": {
+      "file": "mounted_gun_se.png",
+      "width": 96,
+      "height": 96
+    },
+    "mounted_gun_s": {
+      "file": "mounted_gun_s.png",
+      "width": 96,
+      "height": 96
+    },
+    "mounted_gun_sw": {
+      "file": "mounted_gun_sw.png",
+      "width": 96,
+      "height": 96
+    },
+    "mounted_gun_w": {
+      "file": "mounted_gun_w.png",
+      "width": 96,
+      "height": 96
+    },
+    "mounted_gun_nw": {
+      "file": "mounted_gun_nw.png",
+      "width": 96,
+      "height": 96
+    },
+    "mounted_gun_n": {
+      "file": "mounted_gun_n.png",
+      "width": 96,
+      "height": 96
+    },
+    "mounted_gun_ne": {
+      "file": "mounted_gun_ne.png",
+      "width": 96,
+      "height": 96
     }
   },
   "animations": {
@@ -1490,6 +1640,152 @@
         4
       ],
       "stride": 1.0
+    },
+    "monster_crawler": {
+      "asset": "monster_crawler_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stride": 0.8
+    },
+    "monster_crawler_frozen": {
+      "asset": "monster_crawler_frozen_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stride": 0.8
+    },
+    "monster_armored": {
+      "asset": "monster_armored_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stride": 1.1
+    },
+    "monster_armored_frozen": {
+      "asset": "monster_armored_frozen_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stride": 1.1
+    },
+    "monster_stalker": {
+      "asset": "monster_stalker_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stride": 1.1
+    },
+    "monster_stalker_frozen": {
+      "asset": "monster_stalker_frozen_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "stride": 1.1
+    },
+    "player_seated": {
+      "asset": "player_seated_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        0
+      ],
+      "stride": 1.5
+    },
+    "player_other_seated": {
+      "asset": "player_other_seated_motion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "idle_frame": 0,
+      "walk_frames": [
+        0
+      ],
+      "stride": 1.5
     }
   },
   "effects": {
@@ -1825,6 +2121,27 @@
       "frame_height": 96,
       "frames": 6,
       "duration": 0.6
+    },
+    "monster_crawler_death": {
+      "asset": "monster_crawler_death",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.65
+    },
+    "monster_armored_death": {
+      "asset": "monster_armored_death",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.65
+    },
+    "monster_stalker_death": {
+      "asset": "monster_stalker_death",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.65
     }
   }
 }

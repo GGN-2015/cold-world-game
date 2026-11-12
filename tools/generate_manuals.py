@@ -2,14 +2,15 @@ import argparse
 import ast
 import importlib
 from pathlib import Path
+import posixpath
 import re
 import sys
 import types
 
 
 ROOT = Path(__file__).resolve().parents[1]
-NAVIGATION = "[返回项目首页](../README.md) · [手册目录](README.md)"
-CATALOGS = {"food": "foods.md", "tool": "tools.md", "weapon": "weapons.md", "facility": "machines.md"}
+NAVIGATION = "[返回项目首页](../../README.md) · [手册目录](../README.md) · [本组目录](README.md)"
+CATALOGS = {"food": "items/foods.md", "tool": "items/tools.md", "weapon": "items/weapons.md", "facility": "building/machines.md"}
 
 
 def definitions():
@@ -73,7 +74,7 @@ class Manual:
             raise ValueError(f"Duplicate manual entry: {kind}")
         self.seen.add(kind)
         chinese, english = self.names[kind]
-        return [f"### {chinese}", "", f"![{chinese}](../cold_world_game/static/assets/{kind}.png)", "", f"- **名称与标识**：{chinese} / {english} / `{kind}`。", f"- **获取方式**：{acquisition or self.acquisition(kind)}", f"- **效果与数值**：{effect}", f"- **操作方式**：{usage}", f"- **消耗与限制**：{limits}", ""]
+        return [f"### {chinese}", "", f"![{chinese}](../../cold_world_game/static/assets/{kind}.png)", "", f"- **名称与标识**：{chinese} / {english} / `{kind}`。", f"- **获取方式**：{acquisition or self.acquisition(kind)}", f"- **效果与数值**：{effect}", f"- **操作方式**：{usage}", f"- **消耗与限制**：{limits}", ""]
 
     def foods(self):
         rules = self.rules
@@ -131,7 +132,7 @@ class Manual:
 
     def weapons(self):
         rules = self.rules
-        lines = ["# 武器图鉴与使用", "", NAVIGATION, "", "## 通用攻击规则", "", "所有武器按攻击方式归类，条目统一介绍名称与标识、获取方式、效果与数值、操作方式、消耗与限制。必须放入物品栏并选中；倒地不能攻击。伤害作用于怪物血量，玩家没有独立血条。怪物属性与作息见[怪物手册](combat.md)，伤害加成见[警长徽章](tools.md#警长徽章)。", "", "有效攻击受各自冷却限制，每个模拟tick最多发射一次，不补发卡顿期间错过的攻击。除电锯外，有限近战每次有效挥动（含空挥）扣1次；电锯只在一次攻击命中至少一只怪物或完成一次方块拆除时扣1次，空挥及取消采集不扣次，冷却内点击不扣次数；枪械每次射击扣1发，散弹多个弹丸仍只扣1发。最后一次用完后物品消失，已发射投射物仍结算；不能装填或用转移补满次数。", "", "## 弹道、范围与状态", "", "普通玩家子弹从射手坐标发出，不能命中自己，可贯穿多只怪物及其他玩家；每枚弹丸对同一实体至多伤害一次，不衰减。墙和柱子可穿透，树木阻挡；箱子、篝火、存钱罐和所有机器仅阻挡怪物子弹，不阻挡玩家子弹。一次射击对同一玩家最多扣1体温和1饥饿，玩家体温≤0时不再受子弹伤害。", "", "普通子弹在距离射手当前坐标超过当前视野半对角线时消失：`sqrt(视野宽²+视野高²)/2`；32×18格视野约18.36格，手机随实际画布更新，转屏也更新已发射子弹的上限。不是累计路程；射手离线使用最后位置和视野，全员离线暂停。部分枪械收到按下边沿立即产生首发，无须等下一tick；普通子弹仍按实际弹速飞行，在碰撞时结算伤害。", "", "近战以瞄准向量为中线，用物品所列半径和扇形角度群攻，攻击视线须畅通。180°即向前半圆，边缘包含在内；不伤玩家。单击立即播放对应八方向PNG刃光与挥动音效，伤害由服务器确认；长按采集不等于连续攻击。", "", "冰冻使速度×0.5，大怪期间不能发射远程子弹；活动怪物使用蓝色差分，白天倒地怪物仍受伤但不切换冰冻立绘。灼烧每0.5秒跳一次4点基础伤害、不击退，状态结束停止；同状态刷新持续时间、不叠层，冰冻与灼烧可同时存在。休眠倒地怪物不被击退；活动怪物受到直接近战/普通弹击退，快速怪为普通怪的2.5倍，大怪为0.6倍；爆炸与灼烧无击退。", "", "爆炸仅伤怪物，包含白天休眠怪物，不伤玩家和建筑；按爆心欧氏距离结算且不受障碍遮挡。手机投掷可长按场景落点，或瞄准后按住“使用”。", ""]
+        lines = ["# 武器图鉴与使用", "", NAVIGATION, "", "自然空地中的固定机枪不是可携带物品，其200发弹药、占座、安全距离与操作见[户外座位与固定武器](outdoor-facilities.md#固定机枪)；地雷为可放置建筑，见[建造手册](building.md#地雷)。", "", "## 通用攻击规则", "", "所有武器按攻击方式归类，条目统一介绍名称与标识、获取方式、效果与数值、操作方式、消耗与限制。必须放入物品栏并选中；倒地不能攻击。伤害作用于怪物血量，玩家没有独立血条。怪物属性与作息见[怪物手册](combat.md)，伤害加成见[警长徽章](tools.md#警长徽章)。", "", "有效攻击受各自冷却限制，每个模拟tick最多发射一次，不补发卡顿期间错过的攻击。除电锯外，有限近战每次有效挥动（含空挥）扣1次；电锯只在一次攻击命中至少一只怪物或完成一次方块拆除时扣1次，空挥及取消采集不扣次，冷却内点击不扣次数；枪械每次射击扣1发，散弹多个弹丸仍只扣1发。最后一次用完后物品消失，已发射投射物仍结算；不能装填或用转移补满次数。", "", "## 弹道、范围与状态", "", "普通玩家子弹从射手坐标发出，不能命中自己，可贯穿多只怪物及其他玩家；每枚弹丸对同一实体至多伤害一次，不衰减。墙和柱子可穿透，树木阻挡；箱子、篝火、存钱罐和所有机器仅阻挡怪物子弹，不阻挡玩家子弹。一次射击对同一玩家最多扣1体温和1饥饿，玩家体温≤0时不再受子弹伤害。", "", "普通子弹在距离射手当前坐标超过当前视野半对角线时消失：`sqrt(视野宽²+视野高²)/2`；32×18格视野约18.36格，手机随实际画布更新，转屏也更新已发射子弹的上限。不是累计路程；射手离线使用最后位置和视野，全员离线暂停。部分枪械收到按下边沿立即产生首发，无须等下一tick；普通子弹仍按实际弹速飞行，在碰撞时结算伤害。", "", "近战以瞄准向量为中线，用物品所列半径和扇形角度群攻，攻击视线须畅通。180°即向前半圆，边缘包含在内；不伤玩家。单击立即播放对应八方向PNG刃光与挥动音效，伤害由服务器确认；长按采集不等于连续攻击。", "", "冰冻使速度×0.5，大怪期间不能发射远程子弹；活动怪物使用蓝色差分，白天倒地怪物仍受伤但不切换冰冻立绘。灼烧每0.5秒跳一次4点基础伤害、不击退，状态结束停止；同状态刷新持续时间、不叠层，冰冻与灼烧可同时存在。休眠倒地怪物不被击退；活动怪物受到直接近战/普通弹击退，快速怪为普通怪的2.5倍，大怪为0.6倍；爆炸与灼烧无击退。", "", "爆炸仅伤怪物，包含白天休眠怪物，不伤玩家和建筑；按爆心欧氏距离结算且不受障碍遮挡。手机投掷可长按场景落点，或瞄准后按住“使用”。", ""]
         for heading, items in (("枪械与追踪武器", rules.GUNS), ("近战武器", rules.MELEE_WEAPONS), ("投掷与爆炸武器", rules.EXPLOSIVE_WEAPONS)):
             lines += ["## " + heading, ""]
             for kind, settings in items.items():
@@ -221,25 +222,41 @@ class Manual:
 
     def render(self):
         pages = {
-            "foods.md": self.foods(),
-            "tools.md": self.tools(),
-            "weapons.md": self.weapons(),
-            "machines.md": self.facilities(),
+            CATALOGS["food"]: self.foods(),
+            CATALOGS["tool"]: self.tools(),
+            CATALOGS["weapon"]: self.weapons(),
+            CATALOGS["facility"]: self.facilities(),
         }
         expected = set().union(*self.categories.values())
-        if self.seen != expected or expected | {"wood", "coin", "wall", "fence", "floor"} != self.rules.ITEM_KINDS:
+        if self.seen != expected or expected | {"wood", "coin", "wall", "fence", "floor", "landmine"} != self.rules.ITEM_KINDS:
             raise ValueError("Manual categories do not cover every item exactly once")
         return {filename: "\n".join(lines).rstrip() + "\n" for filename, lines in pages.items()}
+
+
+def relative_links(content, filename, root):
+    pages = {path.name: path.relative_to(root / "docs").as_posix() for path in (root / "docs").rglob("*.md") if path.name != "README.md"}
+    pages.update({Path(page).name: page for page in CATALOGS.values()})
+
+    def replace(match):
+        target, anchor = match.groups()
+        page = pages.get(posixpath.basename(target))
+        if page is None or ":" in target:
+            return match.group(0)
+        return "](" + posixpath.relpath(page, posixpath.dirname(filename)) + (anchor or "") + ")"
+
+    return re.sub(r"\]\(([^)#]+\.md)(#[^)]*)?\)", replace, content)
 
 
 def generate(root=ROOT, check=False):
     manual = Manual()
     differences = []
     for filename, content in manual.render().items():
+        content = relative_links(content, filename, root)
         path = root / "docs" / filename
         if not path.exists() or path.read_text(encoding="utf-8") != content:
             differences.append(filename)
             if not check:
+                path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content, encoding="utf-8", newline="\n")
     if check and differences:
         raise SystemExit("Outdated manuals: " + ", ".join(differences))

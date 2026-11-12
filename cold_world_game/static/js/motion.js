@@ -180,7 +180,7 @@ export class SnapshotMotion {
         track.correction.x += previous.x - next.x;
         track.correction.y += previous.y - next.y;
       }
-      track.baseSpeed = entity.fast ? this.speeds.fast_monster_speed : entity.big != null ? this.speeds.monster_speed : entity.move_speed ?? this.speeds.player_speed;
+      track.baseSpeed = entity.move_speed ?? (entity.fast ? this.speeds.fast_monster_speed : entity.big != null ? this.speeds.monster_speed : this.speeds.player_speed);
       track.isPlayer = entity.big == null;
       track.frozenUntil = entity.frozen_until ?? 0;
       track.speed = track.baseSpeed * (state.elapsed < track.frozenUntil ? this.speeds.frozen_speed_scale : 1);
