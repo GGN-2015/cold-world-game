@@ -309,7 +309,7 @@ SQLite 存档格式为第 3 版：`world` 的版本记录为 3，顶层世界字
 - `bank` 命令：`{"type":"bank","id":"容器ID","operation":"deposit","amount":5}`，`operation` 也可为 `withdraw`。必须已打开 2 格内无遮挡的 `piggy_bank`，`amount` 为 1 至 `catalog.currency.max_coins` 的 JSON 整数，不接受浮点数、布尔或负值。响应包含 `operation`、`amount`、最新 `balance` 和玩家 `money`。
 - 打开的 `container.balance` 是所有玩家共享且持久保存的整数余额，缺失默认 0。附近建筑列表不发送余额或内容物，只向实际打开容器的客户端按现有差分同步；双方钱包和共享余额在同一次 SQLite 事务提交。命令串行检查最新余额，不依赖客户端显示值。
 - 存款不足报 `insufficient_money`，取款不足报 `insufficient_bank_balance`，超过整数上限报 `balance_limit`；非空拆除报 `bank_not_empty`。断开、离开距离、关闭窗口等访问限制与箱子一致。持有斧头时通过 `dismantle_container` 长按拆除，不允许把普通物品拖进存钱罐。
-- `catalog.terrain.piggy_bank_chance = 0.05`，`chest_heat_patch_chance = 0.02`，当前地形版本 12；`healing_items.heat_patch = {"duration":0.5,"temperature":36.0}`，无 `hunger` 字段即表示不改变饥饿。使用沿用 `attack` 按下/释放协议；成功后发送 `type: heal, kind: heat_patch` 事件，客户端以小画幅播放已有医疗 PNG。
+- `catalog.terrain.piggy_bank_chance = 0.05`，`chest_heat_patch_chance = 0.02`，当前地形版本 14；`healing_items.heat_patch = {"duration":0.5,"temperature":36.0}`，无 `hunger` 字段即表示不改变饥饿。使用沿用 `attack` 按下/释放协议；成功后发送 `type: heal, kind: heat_patch` 事件，客户端以小画幅播放已有医疗 PNG。
 
 ## 警长徽章、伏特加与物品说明
 
@@ -321,8 +321,26 @@ SQLite 存档格式为第 3 版：`world` 的版本记录为 3，顶层世界字
 
 ## 迅捷戒指与手持移速装备
 
-`catalog.equipped_items.swiftness_ring.speed_multiplier = 3` 表示只有选中物品栏该物品才生效，不属于只需携带的 `passive_items`。`terrain.chest_swiftness_ring_chance = 0.02`，当前地形版本12。戒指沿用普通Item字段，无弹药或次数，不增加玩家持久字段；`select`、数字键/滚轮/点选及原有 `transfer`、`drop` 协议不变。
+`catalog.equipped_items.swiftness_ring.speed_multiplier = 3` 表示只有选中物品栏该物品才生效，不属于只需携带的 `passive_items`。`terrain.chest_swiftness_ring_chance = 0.02`，当前地形版本14。戒指沿用普通Item字段，无弹药或次数，不增加玩家持久字段；`select`、数字键/滚轮/点选及原有 `transfer`、`drop` 协议不变。
 
 服务端 `player_speed` 和客户端 `playerSpeed` 使用相同的体温/饥饿倍率，再乘已选装备倍率，倒地返回0。浏览器使用本地预测选中格，不等 `select` 往返；普通位置更新不增加传送版本或重置运动历史。附近 `players[].move_speed` 给出各玩家当前可用移速供远端有界推算，旧消息缺失该字段时沿用原有基础速度；不发送其他玩家完整背包或物品栏。怪物继续使用原有速度字段，完全不受戒指影响。
 
 高于基础移速的远端玩家，显示纠偏上限为当前移速加基础移速的0.5倍（12格/秒戒指对应最多14格/秒），而非直接把原2.5倍纠偏上限也放大三倍；实际正常行走仍为12格/秒。普通玩家和怪物保持原有纠偏规则，显式传送仍沿用独立版本号。
+
+## 追踪导弹
+
+`catalog.guns.homing_missile` 包含 `ammo:20`、`damage:15`、`interval:0.8`、`speed:18`、`launch_duration:0.12`、`launch_distance:1.2`、`impact_radius:0.9`。`terrain.chest_homing_missile_chance = 0.02`，当前地形版本14。它属于枪械，沿用 `input.aim` 与 `attack.pressed`，非长按连发；不加入枪械机商品，不改变原枪械产出概率。无目标时不消耗弹药/冷却；发射时锁定全体存活怪物中的最近对象，与鼠标所点对象无关。
+
+在途 `Projectile.kind = "homing_missile"`，新增可选持久字段 `target_id`（旧子弹缺省为 `null`），标记唯一锁定怪物ID。沿用 `origin_x/y`、`spawned_at`、`detonates_at`、`target_x/y`，`velocity_x/y` 表示固定初始方向乘18，不是不断同步的转向速度。`x/y` 为当前曲线位置用于视野裁剪，`target_x/y` 为目标最新位置；客户端优先使用已平滑的目标位置计算相同曲线。没有普通 `range_player/range_radius` 限制，不进入直线子弹碰撞/预测通道。飞行中不重新索敌，目标消失时直接移除。
+
+命中只结算锁定对象，广播 `type:explosion, kind:homing_missile, radius:0.9, target:<monster-id>` 小型爆炸事件；这里的radius只控制特效尺寸，不进行范围伤害。伤害/击退/死亡事件仍沿用现有协议；其他玩家和方块不受影响。轨迹、锁定、弹药和伤害通过现有差分/原子存档保存；全员离线或保存故障时暂停。
+
+## 扩展物品与榴莲
+
+`catalog.expansion_items` 提供60项的 `group/category/chance`，详细机制仍在 foods/guns/melee_weapons/explosive_weapons/healing_items/revival_items/return_items/igniters/passive_items/equipped_items。地形目录增加 `chest_expansion_chances` 与 `chest_durian_chance:0.03`，版本14。每项概率0.001～0.02，使用独立随机流，不改变旧普通候选池。
+
+`durian` 食用后在同一 `inventory[selected]` 槽原子替换成新ID的 `durian_peel`。后者属于一次性爆炸武器，沿用现有长按、抛物线与半径3/伤害20结算。新增医疗支持 `uses`、temperature_delta/hunger_delta及supplies；不会超额覆盖饥饿，新物品缺少uses时按当前定义补缺省。
+
+Projectile新增可选持久字段 `weapon_kind:null`，旧子弹缺省null；它关联发射武器的冰冻/灼烧参数，不改变普通 `kind:bullet` 的穿透、伤害和视觉通道。新枪 `automatic` 与 `instant` 控制长按与按下首发，`pellets/spread` 控制散布。近战 `arc_degrees` 参与实际命中，`effect` 指向离线烘焙的八方向PNG，特殊knockback按配置结算。
+
+随身被动无需新增玩家持久字段，同属性只取最强，不叠加；服务端按当前背包/物品栏计算，手持移速沿用已选格即时预测。自然箱极端超过30项时 `slots` 保留实际长度；转移端点以其真实长度验证，客户端已有动态格子渲染。玩家背包/物品栏容量不变，原子回滚与差分协议不变。

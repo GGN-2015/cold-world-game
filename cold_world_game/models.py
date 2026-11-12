@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field, is_dataclass
 from uuid import uuid4
 
-from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, FAST_MONSTER_SPEED, GUNS, IGNITERS, INVENTORY_SLOTS, MELEE_WEAPONS, MONSTER_SPEED, RETURN_ITEMS
+from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, FAST_MONSTER_SPEED, GUNS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MELEE_WEAPONS, MONSTER_SPEED, RETURN_ITEMS
 
 
 def identifier() -> str:
@@ -17,7 +17,7 @@ class Item:
 
     @classmethod
     def create(cls, kind: str) -> "Item":
-        settings = RETURN_ITEMS.get(kind) or MELEE_WEAPONS.get(kind, {})
+        settings = RETURN_ITEMS.get(kind) or MELEE_WEAPONS.get(kind) or HEALING_ITEMS.get(kind, {})
         return cls(kind, ammo=GUNS[kind]["ammo"] if kind in GUNS else None, uses=settings.get("uses", IGNITERS.get(kind)))
 
 
@@ -164,13 +164,15 @@ class Projectile:
     target_x: float | None = None
     target_y: float | None = None
     detonates_at: float | None = None
+    target_id: str | None = None
+    weapon_kind: str | None = None
 
 
 def item_from(data: dict | None) -> Item | None:
     if not data:
         return None
     values = dict(data)
-    settings = RETURN_ITEMS.get(values["kind"]) or MELEE_WEAPONS.get(values["kind"], {})
+    settings = RETURN_ITEMS.get(values["kind"]) or MELEE_WEAPONS.get(values["kind"]) or HEALING_ITEMS.get(values["kind"], {})
     if "uses" in settings and values.get("uses") is None:
         values["uses"] = settings["uses"]
     return Item(**values)

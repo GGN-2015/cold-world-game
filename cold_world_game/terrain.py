@@ -3,7 +3,7 @@ import math
 import random
 from collections import deque
 
-from .constants import CHUNK_SIZE, CONTAINERS, DEFIBRILLATOR_CHANCE, FIRST_AID_KIT_CHANCE, FLAME_STAFF_CHANCE, FOODS, GRENADE_CHANCE, GUN_MACHINE_CHANCE, HEAT_PATCH_CHANCE, ICE_STAFF_CHANCE, IGNITERS, MATCH_MACHINE_CHANCE, PIGGY_BANK_CHANCE, RETURN_STAFF_CHANCE, SHERIFF_BADGE_CHANCE, SOLID, SWIFTNESS_RING_CHANCE, TERRAIN_VERSION, VENDING_MACHINE_CHANCE, VODKA_CHANCE, WORLD_RADIUS
+from .constants import CHUNK_SIZE, COMMON_CHEST_FOODS, COMMON_CHEST_IGNITERS, CONTAINERS, DEFIBRILLATOR_CHANCE, FIRST_AID_KIT_CHANCE, FLAME_STAFF_CHANCE, FOODS, GRENADE_CHANCE, GUN_MACHINE_CHANCE, HEAT_PATCH_CHANCE, HOMING_MISSILE_CHANCE, ICE_STAFF_CHANCE, IGNITERS, MATCH_MACHINE_CHANCE, PIGGY_BANK_CHANCE, RARE_CHEST_ITEMS, RETURN_STAFF_CHANCE, SHERIFF_BADGE_CHANCE, SOLID, SWIFTNESS_RING_CHANCE, TERRAIN_VERSION, VENDING_MACHINE_CHANCE, VODKA_CHANCE, WORLD_RADIUS
 from .geometry import chunk
 from .models import Item, Structure
 
@@ -149,21 +149,21 @@ class Terrain:
             if not (interior & reachable) or any(not any((position[0] + offset_x, position[1] + offset_y) in reachable for offset_x, offset_y in ((1, 0), (-1, 0), (0, 1), (0, -1))) for position in chest_positions):
                 continue
             objects = [Structure("wall", tile_x, tile_y) for tile_x, tile_y in sorted(perimeter | pillars)]
-            objects.extend(Structure("chest", tile_x, tile_y, slots=self.loot(generator, self.feature_generator(f"chest_first_aid_kit:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_return_staff:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_ice_staff:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_grenade:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_flame_staff:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_defibrillator:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_heat_patch:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_sheriff_badge:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_vodka:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_swiftness_ring:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)))) for tile_x, tile_y in chest_positions)
+            objects.extend(Structure("chest", tile_x, tile_y, slots=self.loot(generator, self.feature_generator(f"chest_first_aid_kit:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_return_staff:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_ice_staff:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_grenade:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_flame_staff:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_defibrillator:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_heat_patch:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_sheriff_badge:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_vodka:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_swiftness_ring:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), self.feature_generator(f"chest_homing_missile:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)), {kind: self.feature_generator(f"chest_{kind}:v1:{tile_x}:{tile_y}", chunk(center_x), chunk(center_y)) for kind in RARE_CHEST_ITEMS})) for tile_x, tile_y in chest_positions)
             return objects, sorted(interior)
         raise RuntimeError("Unable to generate a reachable building")
 
     @staticmethod
-    def loot(generator, first_aid_generator=None, return_staff_generator=None, ice_staff_generator=None, grenade_generator=None, flame_staff_generator=None, defibrillator_generator=None, heat_patch_generator=None, sheriff_badge_generator=None, vodka_generator=None, swiftness_ring_generator=None):
+    def loot(generator, first_aid_generator=None, return_staff_generator=None, ice_staff_generator=None, grenade_generator=None, flame_staff_generator=None, defibrillator_generator=None, heat_patch_generator=None, sheriff_badge_generator=None, vodka_generator=None, swiftness_ring_generator=None, homing_missile_generator=None, rare_generators=None):
         items = []
         if generator.random() < 0.5:
             items.extend(Item.create("wood") for count in range(generator.randint(1, 5)))
         if generator.random() < 0.1:
             items.append(Item.create(generator.choices(["handgun", "shotgun", "rifle"], [0.7, 0.2, 0.1])[0]))
         if generator.random() < 0.3:
-            items.extend(Item.create(generator.choice(list(FOODS))) for count in range(generator.randint(1, 5)))
+            items.extend(Item.create(generator.choice(COMMON_CHEST_FOODS)) for count in range(generator.randint(1, 5)))
         if generator.random() < 0.2:
-            items.append(Item.create(generator.choice(list(IGNITERS))))
+            items.append(Item.create(generator.choice(COMMON_CHEST_IGNITERS)))
         if first_aid_generator is not None and first_aid_generator.random() < FIRST_AID_KIT_CHANCE:
             items.append(Item.create("first_aid_kit"))
         if return_staff_generator is not None and return_staff_generator.random() < RETURN_STAFF_CHANCE:
@@ -184,7 +184,12 @@ class Terrain:
             items.append(Item.create("vodka"))
         if swiftness_ring_generator is not None and swiftness_ring_generator.random() < SWIFTNESS_RING_CHANCE:
             items.append(Item.create("swiftness_ring"))
-        slots = items + [None] * (30 - len(items))
+        if homing_missile_generator is not None and homing_missile_generator.random() < HOMING_MISSILE_CHANCE:
+            items.append(Item.create("homing_missile"))
+        for kind, rare_generator in (rare_generators or {}).items():
+            if rare_generator.random() < RARE_CHEST_ITEMS[kind]:
+                items.append(Item.create(kind))
+        slots = items + [None] * max(0, 30 - len(items))
         generator.shuffle(slots)
         return slots
 

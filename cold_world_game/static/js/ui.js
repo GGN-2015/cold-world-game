@@ -319,7 +319,7 @@ export class GameUI {
       byId('panel-title').textContent = itemName(container.kind);
       byId('panel-description').textContent = t(container.kind === 'piggy_bank' ? 'bank.description' : container.kind === 'gun_machine' ? 'gun.description' : machines.has(container.kind) ? 'vending.description' : 'panel.containerDescription');
       if (container.kind === 'chest') {
-        view.chestCount.textContent = t('panel.chestSlots', { count: container.slots.filter(Boolean).length });
+        view.chestCount.textContent = t('panel.chestSlots', { count: container.slots.filter(Boolean).length, capacity: container.slots.length });
         this.updateSlots(view.chestGrid, container.slots, (slot) => ({ kind: 'chest', id: container.id, slot }));
       } else if (container.kind === 'piggy_bank') {
         this.updateBank(view.bank, container);

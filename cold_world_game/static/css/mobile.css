@@ -20,8 +20,8 @@
 .mobile-device .downed-notice{width:min(400px,calc(100% - 20px));text-align:center}
 .mobile-device .inventory-dock{bottom:max(6px,env(safe-area-inset-bottom));width:min(660px,calc(100% - max(16px,env(safe-area-inset-left)) - max(16px,env(safe-area-inset-right))));pointer-events:auto}
 .mobile-device .vitals-row{gap:10px;margin:0 4px 5px;flex-wrap:wrap}
-.mobile-device .vital{flex:1;min-width:85px;width:auto}
-.mobile-device .vital-label,.mobile-device .vital-label strong{font-size:12px}
+.mobile-device .vital{flex:1 1 110px;min-width:110px;width:auto}
+.mobile-device .vital-label,.mobile-device .vital-label strong{font-size:12px;white-space:nowrap}
 .mobile-device .equipped-label{font-size:11px;max-width:36%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mobile-device .hotbar{display:grid;grid-template-columns:repeat(10,minmax(44px,1fr));overflow-x:auto;gap:4px;padding:5px;touch-action:pan-x;overscroll-behavior:contain;scrollbar-width:thin}
 .mobile-device .item-slot{min-width:44px;min-height:44px;padding:4px;touch-action:manipulation;-webkit-touch-callout:none}

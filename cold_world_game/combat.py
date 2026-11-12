@@ -1,8 +1,10 @@
 import math
 
 from .constants import BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, DRINKS, EXPLOSIVE_WEAPONS, FLAME_STAFF, FOODS, GUNS, HEALING_ITEMS, KNOCKBACK, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, PANEL_DEMOLITION, PASSIVE_ITEMS, PROJECTILE_RANGE, READY_TO_EAT_FOODS, RETURN_ITEMS, REVIVAL_ITEMS
+from .expansion import carried_modifier
 from .geometry import distance, normalized, segment_box, segment_circle, tile
 from .models import Item, Projectile, identifier
+from .missiles import homing_position
 
 
 class Combat:
@@ -42,7 +44,7 @@ class Combat:
         if item.kind in EXPLOSIVE_WEAPONS:
             self.use_explosive(player, controls, item, seconds)
         elif item.kind in GUNS:
-            if controls.pending_shot or item.kind == "rifle":
+            if controls.pending_shot or item.kind == "rifle" or GUNS[item.kind].get("automatic", False):
                 self.fire_gun(player, controls, item)
             controls.pending_shot = False
         elif item.kind == "axe":
@@ -57,6 +59,15 @@ class Combat:
         if self.elapsed + 1e-9 < player.next_shot or player.last_shot_tick == self.tick_number:
             return
         direction_x, direction_y = normalized(controls.aim_x - player.x, controls.aim_y - player.y)
+        target = None
+        if item.kind == "homing_missile":
+            target = min((monster for monster in self.monsters.values() if monster.hp > 0), key=lambda monster: ((monster.x - player.x) ** 2 + (monster.y - player.y) ** 2, monster.id), default=None)
+            if target is None:
+                return
+            if direction_x == direction_y == 0:
+                direction_x, direction_y = normalized(target.x - player.x, target.y - player.y)
+                if direction_x == direction_y == 0:
+                    direction_x = 1.0
         if direction_x == direction_y == 0 or not item.ammo:
             return
         self.touch()
@@ -68,11 +79,21 @@ class Combat:
         self.shot_hits[shot] = set()
         angle = math.atan2(direction_y, direction_x)
         self.emit_event("shot", player.id, item.kind, player.x, player.y, direction=[direction_x, direction_y])
-        offsets = (-12, -6, 0, 6, 12) if item.kind == "shotgun" else (0,)
+        pellets = settings.get("pellets", 5 if item.kind == "shotgun" else 1)
+        spread = settings.get("spread", 12 if item.kind == "shotgun" else 0)
+        offsets = tuple(-spread + 2 * spread * index / (pellets - 1) for index in range(pellets)) if pellets > 1 else (0,)
         for offset in offsets:
             heading = angle + math.radians(offset)
             projectile = Projectile(player.x, player.y, math.cos(heading) * settings["speed"], math.sin(heading) * settings["speed"], 0, settings["damage"], player.id, shot=shot, origin_x=player.x, origin_y=player.y, spawned_at=self.elapsed, range_player=player.id)
-            projectile.remaining = self.projectile_range(projectile)
+            projectile.weapon_kind = item.kind
+            if target is not None:
+                projectile.kind = "homing_missile"
+                projectile.target_id = target.id
+                projectile.target_x, projectile.target_y = target.x, target.y
+                projectile.range_player = None
+                projectile.detonates_at = self.elapsed + max(0.45, distance(player, target) / settings["speed"] + settings["launch_duration"])
+            else:
+                projectile.remaining = self.projectile_range(projectile)
             self.projectiles[projectile.id] = projectile
         if item.ammo == 0:
             player.inventory[player.selected] = None
@@ -91,7 +112,7 @@ class Combat:
             self.touch()
             player.hunger += FOODS[item.kind]
             self.emit_event("eat", player.id, item.kind, player.x, player.y)
-            player.inventory[player.selected] = None
+            player.inventory[player.selected] = Item.create("durian_peel") if item.kind == "durian" else None
             controls.stop_attack()
 
     def use_drink(self, player, controls, item, seconds):
@@ -126,7 +147,7 @@ class Combat:
         self.projectiles[projectile.id] = projectile
         self.emit_event("throw", player.id, item.kind, player.x, player.y, target_x=projectile.target_x, target_y=projectile.target_y)
         controls.progress = 0.0
-        if item.kind == "grenade":
+        if settings["coin_cost"] == 0:
             player.inventory[player.selected] = None
             controls.stop_attack()
 
@@ -136,6 +157,7 @@ class Combat:
         self.touch()
         self.emit_event("explosion", projectile.owner, projectile.kind, projectile.target_x, projectile.target_y, radius=settings["radius"], damage=projectile.damage)
         for monster in targets:
+            self.apply_weapon_status(monster, settings, projectile.owner)
             self.hurt_monster(monster, projectile.damage, projectile.owner, projectile.kind, (0.0, 0.0), knockback=False, feedback=False)
         self.projectiles.pop(projectile.id, None)
 
@@ -181,16 +203,34 @@ class Combat:
     def use_healing_item(self, player, controls, item, seconds):
         settings = HEALING_ITEMS[item.kind]
         self.progress(controls, f"heal:{item.id}", seconds)
-        if controls.progress + 1e-9 >= settings["duration"]:
-            self.touch()
-            if player.temperature < 5:
-                controls.movement_epoch += 1
-            player.temperature = settings["temperature"]
-            if "hunger" in settings:
-                player.hunger = max(player.hunger, settings["hunger"])
-            player.inventory[player.selected] = None
-            self.emit_event("heal", player.id, item.kind, player.x, player.y)
+        if controls.progress + 1e-9 < settings["duration"]:
+            return
+        supplies = settings.get("supplies", {})
+        if sum(storage.count(None) for storage in (player.backpack, player.inventory)) + 1 < sum(supplies.values()):
             controls.stop_attack()
+            return
+        self.touch()
+        previous = player.temperature
+        if "temperature" in settings:
+            player.temperature = settings["temperature"]
+        elif "temperature_delta" in settings:
+            player.temperature = min(36.0, player.temperature + settings["temperature_delta"])
+        if "hunger" in settings:
+            player.hunger = max(player.hunger, settings["hunger"])
+        elif "hunger_delta" in settings:
+            player.hunger = max(player.hunger, min(10.0, player.hunger + settings["hunger_delta"]))
+        if previous < 5 <= player.temperature:
+            controls.movement_epoch += 1
+        if item.uses is not None:
+            item.uses -= 1
+        if item.uses is None or item.uses <= 0:
+            player.inventory[player.selected] = None
+        for kind, count in supplies.items():
+            for index in range(count):
+                storage = player.backpack if None in player.backpack else player.inventory
+                storage[storage.index(None)] = Item.create(kind)
+        self.emit_event("unpack" if supplies else "heal", player.id, item.kind, player.x, player.y)
+        controls.stop_attack()
 
     def use_return_item(self, player, controls, item, seconds):
         if not item.uses or item.uses < 0:
@@ -256,19 +296,13 @@ class Combat:
         targets = []
         for monster in self.monsters.values():
             offset_x, offset_y = monster.x - player.x, monster.y - player.y
-            if offset_x * offset_x + offset_y * offset_y <= settings["range"] ** 2 + 1e-9 and offset_x * direction_x + offset_y * direction_y >= -1e-9 and self.visible(player.x, player.y, monster.x, monster.y):
+            if offset_x * offset_x + offset_y * offset_y <= settings["range"] ** 2 + 1e-9 and offset_x * direction_x + offset_y * direction_y >= math.hypot(offset_x, offset_y) * math.cos(math.radians(settings["arc_degrees"] / 2)) - 1e-9 and self.visible(player.x, player.y, monster.x, monster.y):
                 targets.append((monster, offset_x, offset_y))
         self.touch()
         player.next_axe_attack = self.elapsed + settings["interval"]
         self.emit_event("melee", player.id, item.kind, player.x, player.y, direction=[direction_x, direction_y], range=settings["range"], arc_degrees=settings["arc_degrees"], targets=[monster.id for monster, offset_x, offset_y in targets], **({"attack_id": controls.attack_id} if controls.attack_id else {}))
         for monster, offset_x, offset_y in targets:
-            if "freeze_duration" in settings and not self.monster_inactive(monster):
-                monster.frozen_until = max(monster.frozen_until, self.elapsed + settings["freeze_duration"])
-            if "burn_duration" in settings:
-                if monster.next_burn <= 0 or self.elapsed >= monster.burning_until:
-                    monster.next_burn = self.elapsed + settings["burn_interval"]
-                monster.burning_until = self.elapsed + settings["burn_duration"]
-                monster.burn_owner = player.id
+            self.apply_weapon_status(monster, settings, player.id)
             self.hurt_monster(monster, settings["damage"], player.id, item.kind, (offset_x, offset_y))
         if item.uses is not None:
             item.uses -= 1
@@ -276,6 +310,18 @@ class Combat:
                 player.inventory[player.selected] = None
                 controls.stop_attack()
         return True
+
+    def apply_weapon_status(self, monster, settings, owner):
+        if "freeze_duration" not in settings and "burn_duration" not in settings:
+            return
+        self.touch()
+        if "freeze_duration" in settings and not self.monster_inactive(monster):
+            monster.frozen_until = max(monster.frozen_until, self.elapsed + settings["freeze_duration"])
+        if "burn_duration" in settings:
+            if monster.next_burn <= 0 or self.elapsed >= monster.burning_until:
+                monster.next_burn = self.elapsed + settings["burn_interval"]
+            monster.burning_until = max(monster.burning_until, self.elapsed + settings["burn_duration"])
+            monster.burn_owner = owner
 
     def swing_axe(self, player, controls, seconds):
         if self.axe_monster_target(controls) is not None:
@@ -353,7 +399,7 @@ class Combat:
         impacts = self.shot_impacts.setdefault(shot, set()) if shot else None
         if impacts is None or monster.id not in impacts:
             position_x, position_y = monster.x, monster.y
-            strength = KNOCKBACK["axe" if kind in MELEE_WEAPONS else kind] * (KNOCKBACK["big_monster_scale"] if monster.big else KNOCKBACK["fast_monster_scale"] if monster.fast else 1) if knockback else 0
+            strength = (MELEE_WEAPONS[kind].get("knockback", KNOCKBACK["axe"]) if kind in MELEE_WEAPONS else KNOCKBACK[kind]) * (KNOCKBACK["big_monster_scale"] if monster.big else KNOCKBACK["fast_monster_scale"] if monster.fast else 1) if knockback else 0
             if knockback:
                 displacement = self.knock_back(monster, direction, strength, monster_id=monster.id)
             if feedback:
@@ -372,6 +418,9 @@ class Combat:
         self.touch()
         previous = player.temperature
         previous_hunger = player.hunger
+        if source is not None and source not in self.players:
+            amount *= carried_modifier(player, "damage_taken_multiplier", minimum=True)
+            knockback *= carried_modifier(player, "knockback_taken_multiplier", minimum=True)
         player.temperature = max(0.0, player.temperature - amount)
         player.hunger = max(0.0, player.hunger - amount)
         if player.temperature < previous or player.hunger < previous_hunger:
@@ -418,8 +467,27 @@ class Combat:
         projection = offset_x * direction_x + offset_y * direction_y
         return max(0.0, -projection + math.sqrt(max(0.0, projection * projection + radius_squared - distance_squared)))
 
+    def update_homing_missile(self, projectile):
+        target = self.monsters.get(projectile.target_id)
+        if target is None or target.hp <= 0:
+            self.touch()
+            del self.projectiles[projectile.id]
+            return
+        if self.elapsed + 1e-9 >= projectile.detonates_at:
+            self.touch()
+            direction = (target.x - projectile.x, target.y - projectile.y)
+            self.emit_event("explosion", projectile.owner, projectile.kind, target.x, target.y, radius=GUNS[projectile.kind]["impact_radius"], target=target.id)
+            del self.projectiles[projectile.id]
+            self.hurt_monster(target, projectile.damage, projectile.owner, "bullet", direction, shot=projectile.shot)
+            return
+        projectile.target_x, projectile.target_y = target.x, target.y
+        projectile.x, projectile.y = homing_position(projectile, self.elapsed, target.x, target.y)
+
     def update_projectiles(self, seconds):
         for projectile_id, projectile in list(self.projectiles.items()):
+            if projectile.kind == "homing_missile":
+                self.update_homing_missile(projectile)
+                continue
             if projectile.kind in EXPLOSIVE_WEAPONS:
                 if self.elapsed + 1e-9 >= projectile.detonates_at:
                     self.explode(projectile)
@@ -472,6 +540,7 @@ class Combat:
                 elif kind == "monster" and target.id in self.monsters:
                     self.touch()
                     projectile.hit_targets.append(target_key)
+                    self.apply_weapon_status(target, GUNS.get(projectile.weapon_kind, {}), projectile.owner)
                     self.hurt_monster(target, projectile.damage, projectile.owner, "bullet", (projectile.velocity_x, projectile.velocity_y), shot=projectile.shot)
             if blocked or speed * seconds > projectile.remaining + 1e-9:
                 del self.projectiles[projectile_id]

@@ -1,4 +1,5 @@
 import colorsys
+import importlib.util
 import json
 import math
 import random
@@ -831,6 +832,46 @@ def arsenal_equipment():
     save("coin_launcher", image)
 
 
+def homing_missile():
+    image, drawing = canvas()
+    drawing.polygon(((3, 15), (22, 8), (29, 11), (29, 19), (10, 25), (3, 22)), fill=PALETTE["outline"])
+    drawing.polygon(((5, 16), (22, 10), (27, 12), (27, 17), (10, 23), (5, 21)), fill="#899ba0")
+    drawing.line((7, 16, 22, 11), fill="#e3eef0", width=2)
+    drawing.ellipse((22, 11, 29, 19), fill="#263e48", outline="#f59b72")
+    drawing.ellipse((24, 13, 27, 17), fill="#e55047")
+    drawing.rectangle((12, 7, 18, 11), fill=PALETTE["outline"])
+    drawing.line((13, 8, 17, 8), fill="#69d2ca")
+    drawing.polygon(((10, 22), (15, 20), (13, 28), (8, 28)), fill="#586965")
+    drawing.ellipse((4, 3, 11, 10), outline="#e55047")
+    drawing.line((7, 2, 7, 11), fill="#e55047")
+    drawing.line((3, 6, 12, 6), fill="#e55047")
+    save("homing_missile", image)
+    rocket, drawing = canvas()
+    drawing.polygon(((2, 16), (9, 12), (7, 16), (9, 20)), fill="#ffad53")
+    drawing.polygon(((5, 16), (11, 14), (11, 18)), fill="#fff2bb")
+    drawing.polygon(((10, 12), (19, 12), (27, 16), (19, 20), (10, 20)), fill=PALETTE["outline"])
+    drawing.polygon(((11, 13), (19, 13), (24, 16), (19, 19), (11, 19)), fill="#e7eddf")
+    drawing.polygon(((20, 13), (27, 16), (20, 19)), fill="#e55047")
+    drawing.rectangle((12, 14, 18, 14), fill="#ffffff")
+    drawing.polygon(((10, 12), (14, 7), (17, 12)), fill="#dc6156")
+    drawing.polygon(((10, 20), (14, 25), (17, 20)), fill="#dc6156")
+    for index, direction in enumerate(("e", "se", "s", "sw", "w", "nw", "n", "ne")):
+        save(f"missile_{direction}", rocket.rotate(-index * 45, resample=Image.Resampling.NEAREST, center=(16, 16)))
+    sheet = Image.new("RGBA", (32 * 6, 32))
+    for frame in range(6):
+        image, drawing = canvas()
+        radius = (4, 8, 12, 13, 12, 10)[frame]
+        alpha = (255, 255, 245, 205, 135, 50)[frame]
+        drawing.ellipse((16 - radius, 16 - radius, 16 + radius, 16 + radius), outline=(255, 106, 57, alpha), width=2)
+        core = max(1, 10 - frame)
+        drawing.polygon(((16, 16 - core), (19, 13), (16 + core, 16), (19, 19), (16, 16 + core), (13, 19), (16 - core, 16), (13, 13)), fill=(255, 211, 113, alpha))
+        if frame < 3:
+            drawing.ellipse((13, 13, 19, 19), fill=(255, 251, 221, alpha))
+        sheet.alpha_composite(image, (frame * 32, 0))
+    save("fx_missile_explosion", sheet)
+    COMBAT_EFFECTS["fx_missile_explosion"] = {"asset": "fx_missile_explosion", "frame_width": 96, "frame_height": 96, "frames": 6, "duration": 0.65}
+
+
 def flame_tint(image):
     output = image.copy()
     pixels = output.load()
@@ -1035,7 +1076,7 @@ def combat_effects():
         COMBAT_EFFECTS[name] = {"asset": name, "frame_width": 96, "frame_height": 96, "frames": 6, "duration": 0.65}
 
 
-def directional_weapon_sweeps(kind, effect):
+def directional_weapon_sweeps(kind, effect, arc=180):
     source = Image.open(DESTINATION / f"{effect}.png").convert("RGBA")
     weapon = Image.open(DESTINATION / f"{kind}.png").convert("RGBA").resize((8, 8), Image.Resampling.NEAREST)
     directions = ("e", "se", "s", "sw", "w", "nw", "n", "ne")
@@ -1045,7 +1086,7 @@ def directional_weapon_sweeps(kind, effect):
         for frame in range(6):
             image = source.crop((frame * 96, 0, (frame + 1) * 96, 96)).resize((64, 64), Image.Resampling.NEAREST)
             phase = frame / 5
-            swing = -math.pi / 2 + phase * math.pi
+            swing = math.radians(arc) * (phase - .5)
             tool = weapon.rotate(-math.degrees(swing + math.pi / 4), resample=Image.Resampling.NEAREST, expand=True)
             horizontal = round(32 + math.cos(swing) * 5.5 - tool.width / 2)
             vertical = round(29.2 + math.sin(swing) * 5.5 - tool.height / 2)
@@ -1083,6 +1124,7 @@ def main():
     vending_items()
     match_machine()
     arsenal_equipment()
+    homing_missile()
     food()
     effects()
     combat_effects()
@@ -1090,6 +1132,10 @@ def main():
     directional_weapon_sweeps("axe", "fx_axe_sweep")
     directional_weapon_sweeps("ice_staff", "fx_ice_sweep")
     directional_weapon_sweeps("flame_staff", "fx_flame_sweep")
+    specification = importlib.util.spec_from_file_location("expansion_art", Path(__file__).with_name("expansion_assets.py"))
+    expansion_art = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(expansion_art)
+    expansion_art.generate(save, canvas, PALETTE, COMBAT_EFFECTS, directional_weapon_sweeps, DESTINATION)
     (DESTINATION / "manifest.json").write_text(json.dumps({"version": 2, "pixel_art": True, "assets": ASSETS, "animations": ANIMATIONS, "effects": COMBAT_EFFECTS}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Exported {len(ASSETS)} replaceable PNG assets to {DESTINATION}")
 

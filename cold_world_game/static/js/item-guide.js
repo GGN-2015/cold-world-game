@@ -5,7 +5,15 @@ export function itemGuide(item, catalog) {
   if (!item) return null;
   const kind = item.kind;
   let category, effect, use;
-  if (catalog.equipped_items?.[kind]) {
+  if (catalog.expansion_items?.[kind]) {
+    category = catalog.expansion_items[kind].category;
+    effect = t(`guide.effect.${kind}`);
+    use = t(`guide.use.${kind}`);
+  } else if (kind === 'durian' || kind === 'durian_peel') {
+    category = kind === 'durian' ? 'food' : 'explosive';
+    effect = t(`guide.effect.${kind}`);
+    use = t(`guide.use.${kind}`);
+  } else if (catalog.equipped_items?.[kind]) {
     category = 'equipment';
     effect = t(`guide.effect.${kind}`, catalog.equipped_items[kind]);
     use = t('guide.use.equipment');
@@ -24,8 +32,8 @@ export function itemGuide(item, catalog) {
     use = t(ready ? 'guide.use.readyFood' : 'guide.use.cookedFood');
   } else if (catalog.guns?.[kind]) {
     category = 'gun';
-    effect = t(kind === 'shotgun' ? 'guide.effect.shotgun' : 'guide.effect.gun', catalog.guns[kind]);
-    use = t(kind === 'rifle' ? 'guide.use.rifle' : 'guide.use.gun');
+    effect = t(kind === 'homing_missile' ? 'guide.effect.homing_missile' : kind === 'shotgun' ? 'guide.effect.shotgun' : 'guide.effect.gun', catalog.guns[kind]);
+    use = t(kind === 'homing_missile' ? 'guide.use.homing_missile' : kind === 'rifle' ? 'guide.use.rifle' : 'guide.use.gun');
   } else if (catalog.melee_weapons?.[kind]) {
     category = 'melee';
     effect = t(`guide.effect.${kind}`, catalog.melee_weapons[kind]);

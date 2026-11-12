@@ -1,4 +1,10 @@
+import { expansionMessages } from './expansion-data.js';
+
 const messages = {
+  ...expansionMessages,
+  'item.homing_missile': ['追踪导弹', 'Homing missile'],
+  'guide.effect.homing_missile': ['初始 20 发，每发基础伤害 {damage}，冷却 {interval}s（同霰弹枪）。发射时锁定离射手欧氏距离最近的怪物；先沿点击方向飞行 1.2 格，再曲线追踪。只伤锁定目标，穿过所有方块，不伤其他怪物或玩家；命中播放小型爆炸，不造成范围伤害。', 'Starts with 20 rounds; {damage} base damage per shot and a {interval}s cooldown, matching the shotgun. Locks the nearest monster to the shooter by Euclidean distance when fired. Travels 1.2 tiles toward your aim before curving to its target. Ignores all blocks, other monsters and players. A small impact explosion deals no area damage.'],
+  'guide.use.homing_missile': ['选中后单击左键发射；手机瞄准后点“使用”。点击位置只决定初始方向，不决定目标；长按不连发，无怪物时不扣弹药或冷却。目标死亡后导弹消失，不重新索敌；不受视野射程限制。第 20 发后武器消失，不能装填。', 'Equip and click left to fire; aim then tap Use on mobile. Aim sets only the launch direction, never the target. Holding does not repeat. With no monsters, no ammo or cooldown is spent. A dead target cancels its missile without retargeting. No viewport range limit. Disappears after round 20; cannot reload.'],
   'item.swiftness_ring': ['迅捷戒指', 'Swiftness ring'],
   'item.equipped': ['{name} · 选中时移速 ×{speed_multiplier}', '{name} · ×{speed_multiplier} speed while selected'],
   'guide.category.equipment': ['手持装备', 'HELD EQUIPMENT'],
@@ -274,7 +280,7 @@ const messages = {
   'panel.inventoryTitle': ['随身背包与合成', 'Backpack & crafting'],
   'panel.inventoryDescription': ['点击物品查看作用和用法；双击、拖动或点说明卡按钮，在独立的30格背包与10格物品栏之间转移。', 'Select an item to see its effect and use. Double-click, drag or use its guide button to transfer between the separate 30-slot backpack and 10-slot hotbar.'],
   'panel.containerDescription': ['背包、物品栏与容器可互相拖动。点击容器物品取到背包，Shift 点击随身物品快速存入。', 'Drag items between the backpack, hotbar and container. Click container items to take them into the backpack; Shift-click carried items to store them.'],
-  'panel.chestSlots': ['{count} / 30 格 · 物品不堆叠', '{count} / 30 slots · Items do not stack'],
+  'panel.chestSlots': ['{count} / {capacity} 格 · 物品不堆叠', '{count} / {capacity} slots · Items do not stack'],
   'chest.dismantle': ['长按拆除空箱子 · 1.5 秒', 'Hold to dismantle empty chest · 1.5 s'],
   'chest.dismantling': ['正在拆除 · {percent}%', 'Dismantling · {percent}%'],
   'chest.dismantleHint': ['选中斧头，持续按住 1.5 秒，掉落 1 个箱子，可再次放置。松开即取消；失温倒地或怪物正在拆除时不可用。', 'Equip an axe and hold for 1.5 s to recover one chest that can be placed again. Release to cancel. Unavailable while downed or a monster is dismantling it.'],

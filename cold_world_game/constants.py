@@ -1,3 +1,5 @@
+from .expansion import DURIAN_CHANCE, EXPANSION_ITEMS
+
 TICK_RATE = 20
 CHUNK_SIZE = 15
 BODY_RADIUS = 0.35
@@ -16,7 +18,8 @@ BACKPACK_SLOTS = 30
 DROP_DISTANCE = 2.0
 PICKUP_RADIUS = 0.75
 WORLD_RADIUS = 120
-TERRAIN_VERSION = 12
+TERRAIN_VERSION = 14
+HOMING_MISSILE_CHANCE = 0.02
 SWIFTNESS_RING_CHANCE = 0.02
 SHERIFF_BADGE_CHANCE = 0.02
 VODKA_CHANCE = 0.02
@@ -76,6 +79,7 @@ GUNS = {
     "shotgun": {"ammo": 200, "interval": 0.8, "speed": 18, "range": PROJECTILE_RANGE, "damage": 2},
     "rifle": {"ammo": 1000, "interval": 0.15, "speed": 28, "range": PROJECTILE_RANGE, "damage": 5},
 }
+GUNS["homing_missile"] = {"ammo": 20, "interval": GUNS["shotgun"]["interval"], "speed": 18, "damage": GUNS["handgun"]["damage"] * 3, "launch_duration": 0.12, "launch_distance": 1.2, "impact_radius": 0.9}
 TRADING_MACHINES = frozenset({"vending_machine", "match_machine", "gun_machine"})
 PANEL_DEMOLITION = TRADING_MACHINES | {"chest", "campfire", "piggy_bank"}
 BUILDINGS = frozenset({"fence", "wall", "floor", "chest", "campfire", "piggy_bank"}) | TRADING_MACHINES
@@ -112,4 +116,21 @@ GUN_OFFERS = {
     "buy_coin_launcher": {"inputs": {"coin": 10}, "output": "coin_launcher", "count": 1},
 }
 MACHINE_OFFERS = {"vending_machine": VENDING_OFFERS, "match_machine": MATCH_OFFERS, "gun_machine": GUN_OFFERS}
+COMMON_CHEST_FOODS = tuple(FOODS)
+COMMON_CHEST_IGNITERS = tuple(IGNITERS)
+FOODS["durian"] = 3
+READY_TO_EAT_FOODS = READY_TO_EAT_FOODS | {"durian"}
+EXPLOSIVE_WEAPONS["durian_peel"] = {**EXPLOSIVE_WEAPONS["grenade"]}
+RARE_CHEST_ITEMS = {"durian": DURIAN_CHANCE, **{kind: definition["chance"] for kind, definition in EXPANSION_ITEMS.items()}}
+for item_kind, definition in EXPANSION_ITEMS.items():
+    mechanic, settings = definition["mechanic"], definition["settings"]
+    if mechanic == "food":
+        FOODS[item_kind] = settings["hunger"]
+        if settings["ready"]:
+            READY_TO_EAT_FOODS = READY_TO_EAT_FOODS | {item_kind}
+    elif mechanic == "igniter":
+        IGNITERS[item_kind] = settings["uses"]
+    else:
+        {"gun": GUNS, "melee": MELEE_WEAPONS, "explosive": EXPLOSIVE_WEAPONS, "healing": HEALING_ITEMS, "revival": REVIVAL_ITEMS, "return": RETURN_ITEMS, "passive": PASSIVE_ITEMS, "equipment": EQUIPPED_ITEMS}[mechanic][item_kind] = settings
+
 ITEM_KINDS = frozenset({"wood", "coin"}) | BUILDINGS | FOODS.keys() | DRINKS.keys() | PASSIVE_ITEMS.keys() | EQUIPPED_ITEMS.keys() | HEALING_ITEMS.keys() | REVIVAL_ITEMS.keys() | RETURN_ITEMS.keys() | IGNITERS.keys() | GUNS.keys() | MELEE_WEAPONS.keys() | EXPLOSIVE_WEAPONS.keys()

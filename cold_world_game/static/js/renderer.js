@@ -4,6 +4,7 @@ import { ActorAnimator } from './animation.js';
 import { isMobileDevice } from './mobile.js';
 import { CombatEffects } from './effects.js';
 import { SnapshotMotion } from './motion.js';
+import { homingPosition } from './missiles.js';
 import { ClientMovement, CollisionMap } from './movement.js';
 
 export async function loadAssets() {
@@ -268,21 +269,28 @@ export class WorldRenderer {
       context.fillRect(point.x - radius, point.y - radius, radius * 2, radius * 2);
       this.sprite('spark', fire.x + Math.sin(this.elapsed * 2) * 0.12, fire.y - (this.elapsed * 0.8 % 1) - 0.4, 0.3);
     }
-    this.drawProjectiles(state.projectiles.filter((projectile) => !this.catalog.explosive_weapons?.[projectile.kind]).map((projectile) => ({ ...projectile, ...this.motion.sample(projectile) })));
+    this.drawProjectiles(state.projectiles.filter((projectile) => !this.catalog.explosive_weapons?.[projectile.kind] && projectile.kind !== 'homing_missile').map((projectile) => ({ ...projectile, ...this.motion.sample(projectile) })));
     for (const projectile of state.projectiles) {
+      if (projectile.kind === 'homing_missile') {
+        const missileTime = this.motion.time == null ? worldTime : this.motion.time + (state.paused ? 0 : this.motion.delay);
+        const point = homingPosition(projectile, missileTime, this.catalog.guns.homing_missile, this.positions.get(projectile.target_id));
+        if (visible(point)) this.sprite(point.asset, point.x, point.y, 0.8);
+        continue;
+      }
       if (!this.catalog.explosive_weapons?.[projectile.kind]) continue;
       const phase = Math.max(0, Math.min(1, (worldTime - projectile.spawned_at) / (projectile.detonates_at - projectile.spawned_at)));
       const horizontal = projectile.origin_x + (projectile.target_x - projectile.origin_x) * phase;
       const vertical = projectile.origin_y + (projectile.target_y - projectile.origin_y) * phase - 4 * phase * (1 - phase);
-      this.sprite('grenade', horizontal, vertical, 0.5);
+      this.sprite(projectile.kind === 'coin_launcher' ? 'grenade' : projectile.kind, horizontal, vertical, 0.5);
     }
     this.effects.draw(this);
     if (this.state && this.pointer.active && !this.panelOpen) this.drawPointer();
     if (this.state?.interaction.progress > 0) {
       const target = state.structures.find((structure) => `structure:${structure.id}` === state.interaction.target);
+      const held = state.you.inventory[this.selected];
       const returning = state.interaction.target?.startsWith('return:');
       const reviving = state.interaction.target?.startsWith('revive:');
-      const duration = returning ? this.catalog.return_items?.return_staff.duration ?? 1.5 : reviving ? this.catalog.revival_items?.defibrillator.duration ?? 1.5 : target?.kind === 'wall' || containers.has(target?.kind) ? 1.5 : 0.5;
+      const duration = returning ? this.catalog.return_items?.[held?.kind]?.duration ?? 1.5 : reviving ? this.catalog.revival_items?.[held?.kind]?.duration ?? 1.5 : this.catalog.healing_items?.[held?.kind]?.duration ?? this.catalog.explosive_weapons?.[held?.kind]?.duration ?? (target?.kind === 'wall' || containers.has(target?.kind) ? 1.5 : 0.5);
       if (returning) this.effects.frame(this, 'fx_teleport', local.x, local.y - 0.4, 2.6, (this.elapsed * 0.7) % 1);
       this.bar(local.x, local.y + 0.7, Math.min(1, state.interaction.progress / duration), returning ? '#ac9afa' : '#efbb78', 0.9);
     }
@@ -339,7 +347,8 @@ export class WorldRenderer {
       const length = Number.isFinite(projectile.origin_x) && Number.isFinite(projectile.origin_y) ? Math.min(0.8, Math.hypot(projectile.x - projectile.origin_x, projectile.y - projectile.origin_y)) : 0.8;
       const tailX = point.x - projectile.velocity_x / magnitude * this.scale * length;
       const tailY = point.y - projectile.velocity_y / magnitude * this.scale * length;
-      const color = projectile.hostile ? '#ff356d' : '#ff493d';
+      const weapon = this.catalog.guns?.[projectile.weapon_kind];
+      const color = projectile.hostile ? '#ff356d' : weapon?.freeze_duration ? '#63e7ff' : weapon?.burn_duration ? '#ffad43' : '#ff493d';
       context.beginPath();
       context.moveTo(tailX, tailY);
       context.lineTo(point.x, point.y);

@@ -312,6 +312,56 @@
       "width": 96,
       "height": 96
     },
+    "homing_missile": {
+      "file": "homing_missile.png",
+      "width": 96,
+      "height": 96
+    },
+    "missile_e": {
+      "file": "missile_e.png",
+      "width": 96,
+      "height": 96
+    },
+    "missile_se": {
+      "file": "missile_se.png",
+      "width": 96,
+      "height": 96
+    },
+    "missile_s": {
+      "file": "missile_s.png",
+      "width": 96,
+      "height": 96
+    },
+    "missile_sw": {
+      "file": "missile_sw.png",
+      "width": 96,
+      "height": 96
+    },
+    "missile_w": {
+      "file": "missile_w.png",
+      "width": 96,
+      "height": 96
+    },
+    "missile_nw": {
+      "file": "missile_nw.png",
+      "width": 96,
+      "height": 96
+    },
+    "missile_n": {
+      "file": "missile_n.png",
+      "width": 96,
+      "height": 96
+    },
+    "missile_ne": {
+      "file": "missile_ne.png",
+      "width": 96,
+      "height": 96
+    },
+    "fx_missile_explosion": {
+      "file": "fx_missile_explosion.png",
+      "width": 576,
+      "height": 96
+    },
     "instant_noodles": {
       "file": "instant_noodles.png",
       "width": 96,
@@ -581,6 +631,611 @@
       "file": "fx_flame_sweep_ne.png",
       "width": 1152,
       "height": 192
+    },
+    "chocolate_bar": {
+      "file": "chocolate_bar.png",
+      "width": 96,
+      "height": 96
+    },
+    "energy_bar": {
+      "file": "energy_bar.png",
+      "width": 96,
+      "height": 96
+    },
+    "peanut_pack": {
+      "file": "peanut_pack.png",
+      "width": 96,
+      "height": 96
+    },
+    "dried_mango": {
+      "file": "dried_mango.png",
+      "width": 96,
+      "height": 96
+    },
+    "beef_jerky": {
+      "file": "beef_jerky.png",
+      "width": 96,
+      "height": 96
+    },
+    "canned_peaches": {
+      "file": "canned_peaches.png",
+      "width": 96,
+      "height": 96
+    },
+    "canned_beans": {
+      "file": "canned_beans.png",
+      "width": 96,
+      "height": 96
+    },
+    "canned_corn": {
+      "file": "canned_corn.png",
+      "width": 96,
+      "height": 96
+    },
+    "canned_pineapple": {
+      "file": "canned_pineapple.png",
+      "width": 96,
+      "height": 96
+    },
+    "sesame_biscuit": {
+      "file": "sesame_biscuit.png",
+      "width": 96,
+      "height": 96
+    },
+    "rice_cracker": {
+      "file": "rice_cracker.png",
+      "width": 96,
+      "height": 96
+    },
+    "honey_sachet": {
+      "file": "honey_sachet.png",
+      "width": 96,
+      "height": 96
+    },
+    "mixed_nuts": {
+      "file": "mixed_nuts.png",
+      "width": 96,
+      "height": 96
+    },
+    "seaweed_roll": {
+      "file": "seaweed_roll.png",
+      "width": 96,
+      "height": 96
+    },
+    "dried_fish": {
+      "file": "dried_fish.png",
+      "width": 96,
+      "height": 96
+    },
+    "frozen_pizza": {
+      "file": "frozen_pizza.png",
+      "width": 96,
+      "height": 96
+    },
+    "curry_rice": {
+      "file": "curry_rice.png",
+      "width": 96,
+      "height": 96
+    },
+    "oatmeal": {
+      "file": "oatmeal.png",
+      "width": 96,
+      "height": 96
+    },
+    "mushroom_soup": {
+      "file": "mushroom_soup.png",
+      "width": 96,
+      "height": 96
+    },
+    "festival_dumpling": {
+      "file": "festival_dumpling.png",
+      "width": 96,
+      "height": 96
+    },
+    "rust_revolver": {
+      "file": "rust_revolver.png",
+      "width": 96,
+      "height": 96
+    },
+    "compact_pistol": {
+      "file": "compact_pistol.png",
+      "width": 96,
+      "height": 96
+    },
+    "hunting_rifle": {
+      "file": "hunting_rifle.png",
+      "width": 96,
+      "height": 96
+    },
+    "double_barrel": {
+      "file": "double_barrel.png",
+      "width": 96,
+      "height": 96
+    },
+    "nail_gun": {
+      "file": "nail_gun.png",
+      "width": 96,
+      "height": 96
+    },
+    "ice_carbine": {
+      "file": "ice_carbine.png",
+      "width": 96,
+      "height": 96
+    },
+    "ember_pistol": {
+      "file": "ember_pistol.png",
+      "width": 96,
+      "height": 96
+    },
+    "storm_smg": {
+      "file": "storm_smg.png",
+      "width": 96,
+      "height": 96
+    },
+    "crowbar": {
+      "file": "crowbar.png",
+      "width": 96,
+      "height": 96
+    },
+    "machete": {
+      "file": "machete.png",
+      "width": 96,
+      "height": 96
+    },
+    "snow_shovel": {
+      "file": "snow_shovel.png",
+      "width": 96,
+      "height": 96
+    },
+    "shock_baton": {
+      "file": "shock_baton.png",
+      "width": 96,
+      "height": 96
+    },
+    "frost_spear": {
+      "file": "frost_spear.png",
+      "width": 96,
+      "height": 96
+    },
+    "fire_whip": {
+      "file": "fire_whip.png",
+      "width": 96,
+      "height": 96
+    },
+    "tin_bomb": {
+      "file": "tin_bomb.png",
+      "width": 96,
+      "height": 96
+    },
+    "frost_bomb": {
+      "file": "frost_bomb.png",
+      "width": 96,
+      "height": 96
+    },
+    "fire_bottle": {
+      "file": "fire_bottle.png",
+      "width": 96,
+      "height": 96
+    },
+    "cluster_charge": {
+      "file": "cluster_charge.png",
+      "width": 96,
+      "height": 96
+    },
+    "pulse_grenade": {
+      "file": "pulse_grenade.png",
+      "width": 96,
+      "height": 96
+    },
+    "flare_bomb": {
+      "file": "flare_bomb.png",
+      "width": 96,
+      "height": 96
+    },
+    "wool_scarf": {
+      "file": "wool_scarf.png",
+      "width": 96,
+      "height": 96
+    },
+    "down_coat": {
+      "file": "down_coat.png",
+      "width": 96,
+      "height": 96
+    },
+    "snow_boots": {
+      "file": "snow_boots.png",
+      "width": 96,
+      "height": 96
+    },
+    "hiking_cane": {
+      "file": "hiking_cane.png",
+      "width": 96,
+      "height": 96
+    },
+    "pocket_stove": {
+      "file": "pocket_stove.png",
+      "width": 96,
+      "height": 96
+    },
+    "warming_flask": {
+      "file": "warming_flask.png",
+      "width": 96,
+      "height": 96
+    },
+    "thermal_blanket": {
+      "file": "thermal_blanket.png",
+      "width": 96,
+      "height": 96
+    },
+    "glucose_vial": {
+      "file": "glucose_vial.png",
+      "width": 96,
+      "height": 96
+    },
+    "field_supply": {
+      "file": "field_supply.png",
+      "width": 96,
+      "height": 96
+    },
+    "revival_syringe": {
+      "file": "revival_syringe.png",
+      "width": 96,
+      "height": 96
+    },
+    "rescue_beacon": {
+      "file": "rescue_beacon.png",
+      "width": 96,
+      "height": 96
+    },
+    "return_stone": {
+      "file": "return_stone.png",
+      "width": 96,
+      "height": 96
+    },
+    "storm_lighter": {
+      "file": "storm_lighter.png",
+      "width": 96,
+      "height": 96
+    },
+    "firestarter": {
+      "file": "firestarter.png",
+      "width": 96,
+      "height": 96
+    },
+    "tinder_box": {
+      "file": "tinder_box.png",
+      "width": 96,
+      "height": 96
+    },
+    "armor_plate": {
+      "file": "armor_plate.png",
+      "width": 96,
+      "height": 96
+    },
+    "safety_helmet": {
+      "file": "safety_helmet.png",
+      "width": 96,
+      "height": 96
+    },
+    "collector_glove": {
+      "file": "collector_glove.png",
+      "width": 96,
+      "height": 96
+    },
+    "insulated_lunchbox": {
+      "file": "insulated_lunchbox.png",
+      "width": 96,
+      "height": 96
+    },
+    "fuel_pack": {
+      "file": "fuel_pack.png",
+      "width": 96,
+      "height": 96
+    },
+    "durian": {
+      "file": "durian.png",
+      "width": 96,
+      "height": 96
+    },
+    "durian_peel": {
+      "file": "durian_peel.png",
+      "width": 96,
+      "height": 96
+    },
+    "fx_crowbar_sweep": {
+      "file": "fx_crowbar_sweep.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_crowbar_sweep_e": {
+      "file": "fx_crowbar_sweep_e.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_crowbar_sweep_se": {
+      "file": "fx_crowbar_sweep_se.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_crowbar_sweep_s": {
+      "file": "fx_crowbar_sweep_s.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_crowbar_sweep_sw": {
+      "file": "fx_crowbar_sweep_sw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_crowbar_sweep_w": {
+      "file": "fx_crowbar_sweep_w.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_crowbar_sweep_nw": {
+      "file": "fx_crowbar_sweep_nw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_crowbar_sweep_n": {
+      "file": "fx_crowbar_sweep_n.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_crowbar_sweep_ne": {
+      "file": "fx_crowbar_sweep_ne.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_machete_sweep": {
+      "file": "fx_machete_sweep.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_machete_sweep_e": {
+      "file": "fx_machete_sweep_e.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_machete_sweep_se": {
+      "file": "fx_machete_sweep_se.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_machete_sweep_s": {
+      "file": "fx_machete_sweep_s.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_machete_sweep_sw": {
+      "file": "fx_machete_sweep_sw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_machete_sweep_w": {
+      "file": "fx_machete_sweep_w.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_machete_sweep_nw": {
+      "file": "fx_machete_sweep_nw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_machete_sweep_n": {
+      "file": "fx_machete_sweep_n.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_machete_sweep_ne": {
+      "file": "fx_machete_sweep_ne.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_snow_shovel_sweep": {
+      "file": "fx_snow_shovel_sweep.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_snow_shovel_sweep_e": {
+      "file": "fx_snow_shovel_sweep_e.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_snow_shovel_sweep_se": {
+      "file": "fx_snow_shovel_sweep_se.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_snow_shovel_sweep_s": {
+      "file": "fx_snow_shovel_sweep_s.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_snow_shovel_sweep_sw": {
+      "file": "fx_snow_shovel_sweep_sw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_snow_shovel_sweep_w": {
+      "file": "fx_snow_shovel_sweep_w.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_snow_shovel_sweep_nw": {
+      "file": "fx_snow_shovel_sweep_nw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_snow_shovel_sweep_n": {
+      "file": "fx_snow_shovel_sweep_n.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_snow_shovel_sweep_ne": {
+      "file": "fx_snow_shovel_sweep_ne.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_shock_baton_sweep": {
+      "file": "fx_shock_baton_sweep.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_shock_baton_sweep_e": {
+      "file": "fx_shock_baton_sweep_e.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_shock_baton_sweep_se": {
+      "file": "fx_shock_baton_sweep_se.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_shock_baton_sweep_s": {
+      "file": "fx_shock_baton_sweep_s.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_shock_baton_sweep_sw": {
+      "file": "fx_shock_baton_sweep_sw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_shock_baton_sweep_w": {
+      "file": "fx_shock_baton_sweep_w.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_shock_baton_sweep_nw": {
+      "file": "fx_shock_baton_sweep_nw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_shock_baton_sweep_n": {
+      "file": "fx_shock_baton_sweep_n.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_shock_baton_sweep_ne": {
+      "file": "fx_shock_baton_sweep_ne.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_frost_spear_sweep": {
+      "file": "fx_frost_spear_sweep.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_frost_spear_sweep_e": {
+      "file": "fx_frost_spear_sweep_e.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_frost_spear_sweep_se": {
+      "file": "fx_frost_spear_sweep_se.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_frost_spear_sweep_s": {
+      "file": "fx_frost_spear_sweep_s.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_frost_spear_sweep_sw": {
+      "file": "fx_frost_spear_sweep_sw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_frost_spear_sweep_w": {
+      "file": "fx_frost_spear_sweep_w.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_frost_spear_sweep_nw": {
+      "file": "fx_frost_spear_sweep_nw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_frost_spear_sweep_n": {
+      "file": "fx_frost_spear_sweep_n.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_frost_spear_sweep_ne": {
+      "file": "fx_frost_spear_sweep_ne.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_fire_whip_sweep": {
+      "file": "fx_fire_whip_sweep.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_fire_whip_sweep_e": {
+      "file": "fx_fire_whip_sweep_e.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_fire_whip_sweep_se": {
+      "file": "fx_fire_whip_sweep_se.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_fire_whip_sweep_s": {
+      "file": "fx_fire_whip_sweep_s.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_fire_whip_sweep_sw": {
+      "file": "fx_fire_whip_sweep_sw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_fire_whip_sweep_w": {
+      "file": "fx_fire_whip_sweep_w.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_fire_whip_sweep_nw": {
+      "file": "fx_fire_whip_sweep_nw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_fire_whip_sweep_n": {
+      "file": "fx_fire_whip_sweep_n.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_fire_whip_sweep_ne": {
+      "file": "fx_fire_whip_sweep_ne.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_frost_blast": {
+      "file": "fx_frost_blast.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_fire_blast": {
+      "file": "fx_fire_blast.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_pulse_blast": {
+      "file": "fx_pulse_blast.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_food_bite": {
+      "file": "fx_food_bite.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_supply_unpack": {
+      "file": "fx_supply_unpack.png",
+      "width": 576,
+      "height": 96
     }
   },
   "animations": {
@@ -745,6 +1400,13 @@
       "frames": 6,
       "duration": 1.0
     },
+    "fx_missile_explosion": {
+      "asset": "fx_missile_explosion",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.65
+    },
     "fx_slash": {
       "asset": "fx_slash",
       "frame_width": 96,
@@ -888,6 +1550,161 @@
       "frame_height": 96,
       "frames": 6,
       "duration": 0.5
+    },
+    "fx_crowbar_sweep": {
+      "asset": "fx_crowbar_sweep",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.3,
+      "directions": [
+        "fx_crowbar_sweep_e",
+        "fx_crowbar_sweep_se",
+        "fx_crowbar_sweep_s",
+        "fx_crowbar_sweep_sw",
+        "fx_crowbar_sweep_w",
+        "fx_crowbar_sweep_nw",
+        "fx_crowbar_sweep_n",
+        "fx_crowbar_sweep_ne"
+      ],
+      "direction_frame_width": 192,
+      "direction_frame_height": 192,
+      "radius_ratio": 0.46875
+    },
+    "fx_machete_sweep": {
+      "asset": "fx_machete_sweep",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.3,
+      "directions": [
+        "fx_machete_sweep_e",
+        "fx_machete_sweep_se",
+        "fx_machete_sweep_s",
+        "fx_machete_sweep_sw",
+        "fx_machete_sweep_w",
+        "fx_machete_sweep_nw",
+        "fx_machete_sweep_n",
+        "fx_machete_sweep_ne"
+      ],
+      "direction_frame_width": 192,
+      "direction_frame_height": 192,
+      "radius_ratio": 0.46875
+    },
+    "fx_snow_shovel_sweep": {
+      "asset": "fx_snow_shovel_sweep",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.3,
+      "directions": [
+        "fx_snow_shovel_sweep_e",
+        "fx_snow_shovel_sweep_se",
+        "fx_snow_shovel_sweep_s",
+        "fx_snow_shovel_sweep_sw",
+        "fx_snow_shovel_sweep_w",
+        "fx_snow_shovel_sweep_nw",
+        "fx_snow_shovel_sweep_n",
+        "fx_snow_shovel_sweep_ne"
+      ],
+      "direction_frame_width": 192,
+      "direction_frame_height": 192,
+      "radius_ratio": 0.46875
+    },
+    "fx_shock_baton_sweep": {
+      "asset": "fx_shock_baton_sweep",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.3,
+      "directions": [
+        "fx_shock_baton_sweep_e",
+        "fx_shock_baton_sweep_se",
+        "fx_shock_baton_sweep_s",
+        "fx_shock_baton_sweep_sw",
+        "fx_shock_baton_sweep_w",
+        "fx_shock_baton_sweep_nw",
+        "fx_shock_baton_sweep_n",
+        "fx_shock_baton_sweep_ne"
+      ],
+      "direction_frame_width": 192,
+      "direction_frame_height": 192,
+      "radius_ratio": 0.46875
+    },
+    "fx_frost_spear_sweep": {
+      "asset": "fx_frost_spear_sweep",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.3,
+      "directions": [
+        "fx_frost_spear_sweep_e",
+        "fx_frost_spear_sweep_se",
+        "fx_frost_spear_sweep_s",
+        "fx_frost_spear_sweep_sw",
+        "fx_frost_spear_sweep_w",
+        "fx_frost_spear_sweep_nw",
+        "fx_frost_spear_sweep_n",
+        "fx_frost_spear_sweep_ne"
+      ],
+      "direction_frame_width": 192,
+      "direction_frame_height": 192,
+      "radius_ratio": 0.46875
+    },
+    "fx_fire_whip_sweep": {
+      "asset": "fx_fire_whip_sweep",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.3,
+      "directions": [
+        "fx_fire_whip_sweep_e",
+        "fx_fire_whip_sweep_se",
+        "fx_fire_whip_sweep_s",
+        "fx_fire_whip_sweep_sw",
+        "fx_fire_whip_sweep_w",
+        "fx_fire_whip_sweep_nw",
+        "fx_fire_whip_sweep_n",
+        "fx_fire_whip_sweep_ne"
+      ],
+      "direction_frame_width": 192,
+      "direction_frame_height": 192,
+      "radius_ratio": 0.46875
+    },
+    "fx_frost_blast": {
+      "asset": "fx_frost_blast",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.65
+    },
+    "fx_fire_blast": {
+      "asset": "fx_fire_blast",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.65
+    },
+    "fx_pulse_blast": {
+      "asset": "fx_pulse_blast",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.65
+    },
+    "fx_food_bite": {
+      "asset": "fx_food_bite",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.6
+    },
+    "fx_supply_unpack": {
+      "asset": "fx_supply_unpack",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.6
     }
   }
 }

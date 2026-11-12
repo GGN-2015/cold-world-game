@@ -55,6 +55,8 @@ uv run cold-world-game --host 0.0.0.0 --port 5000 --password your-server-passwor
 
 - [迅捷戒指](docs/inventory.md#迅捷戒指)必须放在物品栏并选中，才将当前体温/饥饿下的移速乘3；倒地仍不能移动。新自然箱子独立2%概率，客户端立即响应选中与切换。
 
+追踪导弹：20发、伤害为手枪三倍、0.8秒冷却，自动锁定最近怪物，详见 [武器手册](docs/combat.md#追踪导弹)；榴莲及新增60物品见 [扩展图鉴](docs/expansion.md)。
+
 ## 项目结构
 
 - `cold_world_game/`：Flask 服务端、规则、SQLite 存档与内置网页。

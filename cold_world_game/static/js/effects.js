@@ -1,6 +1,8 @@
-const lifetimes = { shot: 0.15, melee: 0.28, chop: 0.28, break: 0.5, hit: 0.3, hurt: 0.3, death: 0.65, heal: 0.9, teleport_out: 1, teleport_in: 1, explosion: 0.65 };
+import { expansionSweeps, expansionBlasts } from './expansion-data.js';
+
+const lifetimes = { shot: 0.15, melee: 0.28, chop: 0.28, break: 0.5, hit: 0.3, hurt: 0.3, death: 0.65, heal: 0.9, eat: 0.6, unpack: 0.6, teleport_out: 1, teleport_in: 1, explosion: 0.65 };
 const neutralPose = Object.freeze({ x: 0, y: 0, reacting: false, direction: null });
-const sweepEffects = { axe: 'fx_axe_sweep', ice_staff: 'fx_ice_sweep', flame_staff: 'fx_flame_sweep' };
+const sweepEffects = { ...expansionSweeps, axe: 'fx_axe_sweep', ice_staff: 'fx_ice_sweep', flame_staff: 'fx_flame_sweep' };
 
 function poseFor(poses, identifier) {
   if (!poses.has(identifier)) poses.set(identifier, { ...neutralPose });
@@ -147,10 +149,12 @@ export class CombatEffects {
         const target = renderer.positions.get(event.target || event.actor) || event;
         this.frame(renderer, 'fx_impact', target.x, target.y - 0.4, 1.35, phase, direction.angle);
         if (event.type === 'hurt' && event.actor === renderer.state?.you.id) injury = Math.max(injury, 1 - phase);
+      } else if (event.type === 'eat' || event.type === 'unpack') {
+        this.frame(renderer, event.type === 'eat' ? 'fx_food_bite' : 'fx_supply_unpack', actor.x, actor.y - 0.45, 1.4, phase);
       } else if (event.type === 'heal') {
         this.frame(renderer, 'fx_heal', actor.x, actor.y - 0.45, event.kind === 'heat_patch' ? 1.4 : 2.4, phase);
       } else if (event.type === 'explosion') {
-        this.frame(renderer, 'fx_explosion', event.x, event.y, (event.radius ?? 3) * 2, phase);
+        this.frame(renderer, event.kind === 'homing_missile' ? 'fx_missile_explosion' : expansionBlasts[event.kind] || 'fx_explosion', event.x, event.y, (event.radius ?? 3) * 2, phase);
       } else if (event.type.startsWith('teleport_')) {
         this.frame(renderer, 'fx_teleport', event.x, event.y - 0.4, 3, event.type === 'teleport_out' ? 1 - phase : phase);
       } else if (event.type === 'death') {

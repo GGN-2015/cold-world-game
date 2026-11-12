@@ -1,7 +1,7 @@
 import math
 import time
 
-from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DRINKS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FOODS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, MAX_COINS, MELEE_WEAPONS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS, SOLID
+from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DRINKS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FOODS, GUNS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, MAX_COINS, MELEE_WEAPONS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS, SOLID
 from .geometry import DIRECTIONS, circle_square, distance, normalized, segment_box, tile
 from .models import GroundItem, Item, Structure
 
@@ -90,7 +90,7 @@ class Actions:
                 return {"accepted": False}
             item = player.inventory[player.selected]
             target = self.structure_at(tile(controls.aim_x), tile(controls.aim_y))
-            if target and target.kind in CONTAINERS and (item is None or item.kind not in EXPLOSIVE_WEAPONS and item.kind not in REVIVAL_ITEMS) and (not shift or target.kind in PANEL_DEMOLITION) and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
+            if target and target.kind in CONTAINERS and (item is None or item.kind not in EXPLOSIVE_WEAPONS and item.kind not in REVIVAL_ITEMS and item.kind != "homing_missile") and (not shift or target.kind in PANEL_DEMOLITION) and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
                 self.open_container(player, controls, target.id)
                 return {"opened": target.id}
             if player.temperature < 5 and item and item.kind not in FOODS and item.kind not in HEALING_ITEMS and item.kind not in RETURN_ITEMS and item.kind not in REVIVAL_ITEMS and item.kind not in DRINKS:
@@ -104,6 +104,9 @@ class Actions:
                     swing = bool(self.strike_melee(player, controls))
             controls.held = True
             controls.shift = shift
+            if item and item.kind in GUNS and (item.kind == "homing_missile" or GUNS[item.kind].get("instant", False)) and controls.pending_shot:
+                self.fire_gun(player, controls, item)
+                controls.pending_shot = False
             if attack_id is not None:
                 return {"accepted": True, "swing": swing, "attack_id": attack_id}
         elif kind in ("dismantle_chest", "dismantle_container"):
@@ -330,7 +333,7 @@ class Actions:
             if controls.container != structure.id:
                 raise GameError("container_closed", "Open the container before transferring items")
             if kind == "chest" and structure.kind == "chest":
-                return kind, structure, integer(endpoint.get("slot"), "slot", 0, 29)
+                return kind, structure, integer(endpoint.get("slot"), "slot", 0, len(structure.slots) - 1)
             if kind in ("fuel", "igniter") and structure.kind == "campfire":
                 return kind, structure, None
         raise GameError("invalid_endpoint", "Invalid transfer endpoint")
