@@ -258,12 +258,12 @@ export class WorldRenderer {
     const night = (1 - Math.cos((hour - 12) / 24 * Math.PI * 2)) / 2;
     context.fillStyle = `rgba(18,39,57,${0.06 + night * 0.4})`;
     context.fillRect(0, 0, this.width, this.height);
-    for (const fire of state.structures.filter((entity) => entity.lit && visible(entity))) {
+    for (const fire of state.structures.filter((entity) => entity.lit && Math.abs(entity.x - this.camera.x) < halfWidth + 4 && Math.abs(entity.y - this.camera.y) < halfHeight + 4)) {
       const point = this.screenPoint(fire.x, fire.y);
-      const radius = (2.7 + Math.sin(this.elapsed * 9) * 0.09) * this.scale;
+      const radius = (3.5 + Math.sin(this.elapsed * 9) * 0.09) * this.scale;
       const gradient = context.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
       gradient.addColorStop(0, 'rgba(255,181,83,.31)');
-      gradient.addColorStop(0.4, 'rgba(255,175,78,.13)');
+      gradient.addColorStop(0.5, 'rgba(255,175,78,.16)');
       gradient.addColorStop(1, 'rgba(255,175,78,0)');
       context.fillStyle = gradient;
       context.fillRect(point.x - radius, point.y - radius, radius * 2, radius * 2);

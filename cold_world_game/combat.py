@@ -1,6 +1,6 @@
 import math
 
-from .constants import BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, DRINKS, EXPLOSIVE_WEAPONS, FLAME_STAFF, FOODS, GUNS, HEALING_ITEMS, KNOCKBACK, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, PANEL_DEMOLITION, PASSIVE_ITEMS, PROJECTILE_RANGE, READY_TO_EAT_FOODS, RETURN_ITEMS, REVIVAL_ITEMS
+from .constants import BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, DRINKS, EXPLOSIVE_WEAPONS, FLAME_STAFF, FOODS, GUNS, HEALING_ITEMS, KNOCKBACK, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, PANEL_DEMOLITION, PASSIVE_ITEMS, PROJECTILE_RANGE, READY_TO_EAT_FOODS, RETURN_ITEMS, REVIVAL_ITEMS, SMALL_MONSTER_FOOD_CHANCE, SMALL_MONSTER_FOOD_WEIGHTS
 from .expansion import carried_modifier
 from .geometry import distance, normalized, segment_box, segment_circle, tile
 from .models import Item, Projectile, identifier
@@ -399,6 +399,7 @@ class Combat:
         impacts = self.shot_impacts.setdefault(shot, set()) if shot else None
         if impacts is None or monster.id not in impacts:
             position_x, position_y = monster.x, monster.y
+            knockback = knockback and not ((monster.big or monster.fast) and self.monster_activity()[0])
             strength = (MELEE_WEAPONS[kind].get("knockback", KNOCKBACK["axe"]) if kind in MELEE_WEAPONS else KNOCKBACK[kind]) * (KNOCKBACK["big_monster_scale"] if monster.big else KNOCKBACK["fast_monster_scale"] if monster.fast else 1) if knockback else 0
             if knockback:
                 displacement = self.knock_back(monster, direction, strength, monster_id=monster.id)
@@ -411,6 +412,9 @@ class Combat:
             count = self.random.choices([coins for coins, probability in drops], weights=[probability for coins, probability in drops], k=1)[0]
             for index in range(count):
                 self.drop_item(Item.create("coin"), monster.x, monster.y)
+            if not monster.big and not monster.fast and self.random.random() < SMALL_MONSTER_FOOD_CHANCE:
+                food = self.random.choices(list(SMALL_MONSTER_FOOD_WEIGHTS), weights=list(SMALL_MONSTER_FOOD_WEIGHTS.values()), k=1)[0]
+                self.drop_item(Item.create(food), monster.x, monster.y)
             self.emit_event("death", monster.id, "monster_big" if monster.big else "monster_fast" if monster.fast else "monster", impact_x, impact_y, source=actor, target=monster.id, target_type="monster", direction=list(normalized(*direction)), knockback=displacement)
             self.monsters.pop(monster.id, None)
 

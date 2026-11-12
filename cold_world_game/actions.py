@@ -447,6 +447,9 @@ class Actions:
         fire.igniter.uses -= 1
         if fire.igniter.uses == 0:
             fire.igniter = None
+        elif None in player.backpack:
+            player.backpack[player.backpack.index(None)] = fire.igniter
+            fire.igniter = None
         fire.fuel -= 1
         fire.burn_remaining = BURN_SECONDS
         return {"lit": True}

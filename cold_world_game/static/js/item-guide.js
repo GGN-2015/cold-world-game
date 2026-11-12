@@ -23,7 +23,9 @@ export function itemGuide(item, catalog) {
     use = t('guide.use.passive');
   } else if (catalog.drinks?.[kind]) {
     category = 'drink';
-    effect = t(`guide.effect.${kind}`, catalog.drinks[kind]);
+    const drink = catalog.drinks[kind];
+    const recoveryRate = (catalog.body_temperature_rates || [[30, 20], [20, 15]]).find(([minimum]) => drink.felt_temperature >= minimum)?.[1] ?? 0;
+    effect = t(`guide.effect.${kind}`, { ...drink, recovery_rate: recoveryRate });
     use = t('guide.use.drink', catalog.drinks[kind]);
   } else if (Object.hasOwn(catalog.foods || {}, kind)) {
     category = 'food';
