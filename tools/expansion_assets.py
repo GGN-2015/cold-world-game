@@ -340,10 +340,25 @@ def export_text(root, items):
     (root / "cold_world_game/static/js/expansion-data.js").write_text(output, encoding="utf-8")
     manual = ["# 雪原扩展物品图鉴", "", "[返回项目首页](../README.md) · [手册目录](README.md)", "", "本次设计新增20食品、20武器、20道具；它们各自使用独立命名随机流，在每个新生成的自然房屋箱子里判定一次，概率为0.1%～2%，可以同时出现。榴莲与榴莲皮、追踪导弹属于另外的独立需求，不计入这60种。", "", "## 平衡与通用规则", "", "食品的小份即食物较常见，需火的大份餐食较稀有；食品仍只能在饥饿不大于10时吃，但一次进食可超过10。新增武器全都有弹药、次数或一次性限制，没有无限武器，也没有新增装填/复制配方或机器购买途径。强力范围、冰冻、灼烧和回城物品概率更低。", "", "枪械间隔受服务器冷却与每tick最多一枪共同限制；新自动枪也不能因低帧率补发。近战每次有效挥动含空挥耗一次，冷却内点击不扣次数。新投掷物不伤玩家或建筑。警长徽章仍只对小怪/快速怪乘2，同一状态不叠加，只取更晚结束时刻。", "", "所有被动同属性只取最好的一件，不叠加；不同属性可共存。手持装备必须选中才生效，不能与迅捷戒指同时选中叠加。医疗补给饥饿只补至10，保留已有超额值；食品则完整加值。新工具不新增离线消耗。", "", "体温与饥饿仍是原有生存系统，没有额外生命值。每件物品的说明卡同时提供中英文效果和用法。武器与工具耗尽消失；转移、消耗、产出、状态和命中沿用原子存档。", ""]
     for group, title in (("food", "20种食品"), ("weapon", "20种武器"), ("tool", "20种道具")):
+        if group == "weapon":
+            manual += [f"## {title}", "", "二十种有限武器的立绘、概率、伤害、弹药次数和操作统一收录在独立的[武器手册](weapons.md#二十种扩展武器)，此处不重复维护武器表。", ""]
+            continue
         manual += [f"## {title}", "", "| 名称 / English / ID | 独立概率 | 效果 | 操作 |", "| --- | --- | --- | --- |"]
         for kind, definition in items.items():
             if definition["group"] == group:
                 manual.append(f"| {definition['name'][0]} / {definition['name'][1]} / `{kind}` | {definition['chance'] * 100:g}% | {definition['effect'][0]} | {definition['usage'][0]} |")
         manual.append("")
-    manual += ["## 榴莲与榴莲皮", "", "榴莲 `durian` 在新自然房屋箱子中独立有3%概率生成，无需篝火，长按0.5秒食用恢复3饥饿。等于10时仍能吃到13，大于10时不能吃。成功食用后，同一个物品栏格子被一个新的 `durian_peel` 榴莲皮替换；不另找空格，满背包也不会丢皮。未完成、取消或写盘失败不会产出皮或增加饥饿。", "", "榴莲皮选中后长按0.5秒投到指定已探索落点，目标在视野半对角线内；手机直接长按场景或瞄准后长按使用。一次性消耗，抛物线飞行0.45秒后使用手榴弹同一六帧爆炸与音效，半径3格内怪物受20伤害，不伤玩家、方块。它不是食品，不能再次吃。", "", "## 旧世界与资源", "", "当前地图生成版本14；已生成区块、箱子、采集记录与版本不改动。未探索区域始终使用当前生成器。新物品逐项使用 `chest_<item-id>:v1:<x>:<y>` 随机流，旧普通食品与火种使用冻结的旧候选池，避免新增项目改变原物品概率和布局。", "", "自然箱子通常30格；极端情况下多项独立稀有判定同时成功、物品超过30件时，自动保留额外格子而不是丢弃或重抽任何成功产物。额外格可在原容器界面滚动转移，保存重启保留。玩家背包仍30格、物品栏仍10格，玩家制作的箱子仍30格。", "", "新增美术每件一个独立PNG，近战各有独立六帧扇形与八方向预烘焙图集，冰霜/火焰/脉冲爆炸使用共享六帧动画。医疗、传送、枪口、灼烧复用已有动画，不为每只怪物增加独立粒子系统。生成脚本 `tools/generate_assets.py` 同时更新PNG、清单、双语扩展字典及本图鉴；设计源为 `cold_world_game/expansion.py`。", ""]
+    manual += ["## 榴莲与榴莲皮", "", "榴莲 `durian` 在新自然房屋箱子中独立有3%概率生成，无需篝火，长按0.5秒食用恢复3饥饿。等于10时仍能吃到13，大于10时不能吃。成功食用后，同一个物品栏格子被一个新的 `durian_peel` 榴莲皮替换；不另找空格，满背包也不会丢皮。未完成、取消或写盘失败不会产出皮或增加饥饿。", "", "榴莲皮选中后长按0.5秒投到指定已探索落点，目标在视野半对角线内；手机直接长按场景或瞄准后长按使用。一次性消耗，抛物线飞行0.45秒后使用手榴弹同一六帧爆炸与音效，半径3格内怪物受20伤害，不伤玩家、方块。它不是食品，不能再次吃。", "", "## 旧世界与资源", "", "当前地图生成版本见[世界规则](world.md)；已生成区块、箱子、采集记录与版本不改动。未探索区域始终使用当前生成器。新物品逐项使用 `chest_<item-id>:v1:<x>:<y>` 随机流，旧普通食品与火种使用冻结的旧候选池，避免新增项目改变原物品概率和布局。", "", "自然箱子通常30格；极端情况下多项独立稀有判定同时成功、物品超过30件时，自动保留额外格子而不是丢弃或重抽任何成功产物。额外格可在原容器界面滚动转移，保存重启保留。玩家背包仍30格、物品栏仍10格，玩家制作的箱子仍30格。", "", "新增美术每件一个独立PNG，近战各有独立六帧扇形与八方向预烘焙图集，冰霜/火焰/脉冲爆炸使用共享六帧动画。医疗、传送、枪口、灼烧复用已有动画，不为每只怪物增加独立粒子系统。生成脚本 `tools/generate_assets.py` 同时更新PNG、清单、双语扩展字典及本图鉴；设计源为 `cold_world_game/expansion.py`。", ""]
     (root / "docs/expansion.md").write_text("\n".join(manual), encoding="utf-8")
+    weapons_path = root / "docs/weapons.md"
+    weapons = weapons_path.read_text(encoding="utf-8")
+    before, start, remaining = weapons.partition("## 二十种扩展武器\n")
+    overview, end, after = remaining.partition("## 开发与存档\n")
+    if not start or not end:
+        raise ValueError("Weapon manual generation markers are missing")
+    overview = overview.split("| 名称 / English / ID |", 1)[0].strip()
+    table = ["| 名称 / English / ID | 独立概率 | 效果 | 操作 |", "| --- | --- | --- | --- |"]
+    for kind, definition in items.items():
+        if definition["group"] == "weapon":
+            table.append(f"| {definition['name'][0]} / {definition['name'][1]} / `{kind}` | {definition['chance'] * 100:g}% | {definition['effect'][0]} | {definition['usage'][0]} |")
+    weapons_path.write_text(before + start + "\n" + overview + "\n\n" + "\n".join(table) + "\n\n" + end + after, encoding="utf-8")

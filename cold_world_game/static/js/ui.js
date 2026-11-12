@@ -317,7 +317,7 @@ export class GameUI {
       this.renderCraft(view.content);
     } else if (container) {
       byId('panel-title').textContent = itemName(container.kind);
-      byId('panel-description').textContent = t(container.kind === 'piggy_bank' ? 'bank.description' : container.kind === 'gun_machine' ? 'gun.description' : machines.has(container.kind) ? 'vending.description' : 'panel.containerDescription');
+      byId('panel-description').textContent = t(this.catalog.room_machines?.[container.kind] ? 'machine.description' : container.kind === 'piggy_bank' ? 'bank.description' : container.kind === 'gun_machine' ? 'gun.description' : machines.has(container.kind) ? 'vending.description' : 'panel.containerDescription');
       if (container.kind === 'chest') {
         view.chestCount.textContent = t('panel.chestSlots', { count: container.slots.filter(Boolean).length, capacity: container.slots.length });
         this.updateSlots(view.chestGrid, container.slots, (slot) => ({ kind: 'chest', id: container.id, slot }));
@@ -410,7 +410,7 @@ export class GameUI {
   }
 
   renderContainerDemolition(body, container) {
-    const kind = container.kind === 'piggy_bank' ? 'bank' : container.kind === 'chest' ? 'chest' : container.kind === 'campfire' ? 'fire' : container.kind === 'match_machine' ? 'match' : container.kind === 'gun_machine' ? 'gun' : 'vending';
+    const kind = this.catalog.room_machines?.[container.kind] ? 'machine' : container.kind === 'piggy_bank' ? 'bank' : container.kind === 'chest' ? 'chest' : container.kind === 'campfire' ? 'fire' : container.kind === 'match_machine' ? 'match' : container.kind === 'gun_machine' ? 'gun' : 'vending';
     const label = `${kind}.dismantle`;
     const button = element('button', 'chest-demolition', t(label));
     button.type = 'button';
@@ -463,7 +463,7 @@ export class GameUI {
     const locked = this.state.structures.some((structure) => structure.id === container.id && structure.monster_demolition);
     const empty = !(container.slots || []).some(Boolean) && !(container.fuel > 0) && !container.igniter && !(container.balance > 0);
     button.disabled = this.busy || !empty || locked || item?.kind !== 'axe' || this.state.you.downed;
-    const kind = container.kind === 'piggy_bank' ? 'bank' : container.kind === 'chest' ? 'chest' : container.kind === 'campfire' ? 'fire' : container.kind === 'match_machine' ? 'match' : container.kind === 'gun_machine' ? 'gun' : 'vending';
+    const kind = this.catalog.room_machines?.[container.kind] ? 'machine' : container.kind === 'piggy_bank' ? 'bank' : container.kind === 'chest' ? 'chest' : container.kind === 'campfire' ? 'fire' : container.kind === 'match_machine' ? 'match' : container.kind === 'gun_machine' ? 'gun' : 'vending';
     byId(button.getAttribute('aria-describedby')).textContent = t(!empty ? `${kind}.emptyFirst` : locked ? 'panel.monsterWarning' : `${kind}.dismantleHint`);
     const hold = this.demolitionHold;
     if (button.disabled || (hold && (hold.epoch !== this.state.movement?.epoch || hold.slot !== this.controls.selected() || hold.item !== item?.id))) this.cancelDemolition();
@@ -718,6 +718,7 @@ export class GameUI {
     body.append(element('p', 'craft-description', t('vending.balance', { wood: counts.wood || 0, coin: counts.coin || 0 })));
     const list = element('div', 'recipe-list vending-offers');
     const offers = this.catalog.machine_offers?.[container.kind] || (container.kind === 'vending_machine' ? this.catalog.vending_offers : {}) || {};
+    if (this.catalog.room_machines?.[container.kind]) body.append(element('p', 'craft-description', t(`guide.effect.${container.kind}`)));
     for (const [identifier, offer] of Object.entries(offers)) {
       const card = element('button', 'recipe-card');
       card.type = 'button';
@@ -738,7 +739,7 @@ export class GameUI {
       card.onclick = () => this.action('trade', { id: container.id, offer: identifier }, () => t('vending.success', { count: offer.count, name: itemName(offer.output) }));
       list.append(card);
     }
-    body.append(list, element('p', 'bag-description', t(container.kind === 'gun_machine' ? 'gun.capacity' : 'vending.capacity', { item: itemName(container.kind === 'match_machine' ? 'matches' : 'cola') })));
+    body.append(list, element('p', 'bag-description', t(this.catalog.room_machines?.[container.kind] ? 'machine.capacity' : container.kind === 'gun_machine' ? 'gun.capacity' : 'vending.capacity', { item: itemName(container.kind === 'match_machine' ? 'matches' : 'cola') })));
   }
 
   renderFire(body, container) {

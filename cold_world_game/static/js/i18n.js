@@ -1,7 +1,9 @@
 import { expansionMessages } from './expansion-data.js';
+import { roomMachineMessages } from './machine-data.js';
 
 const messages = {
   ...expansionMessages,
+  ...roomMachineMessages,
   'item.homing_missile': ['追踪导弹', 'Homing missile'],
   'guide.effect.homing_missile': ['初始 20 发，每发基础伤害 {damage}，冷却 {interval}s（同霰弹枪）。发射时锁定离射手欧氏距离最近的怪物；先沿点击方向飞行 1.2 格，再曲线追踪。只伤锁定目标，穿过所有方块，不伤其他怪物或玩家；命中播放小型爆炸，不造成范围伤害。', 'Starts with 20 rounds; {damage} base damage per shot and a {interval}s cooldown, matching the shotgun. Locks the nearest monster to the shooter by Euclidean distance when fired. Travels 1.2 tiles toward your aim before curving to its target. Ignores all blocks, other monsters and players. A small impact explosion deals no area damage.'],
   'guide.use.homing_missile': ['选中后单击左键发射；手机瞄准后点“使用”。点击位置只决定初始方向，不决定目标；长按不连发，无怪物时不扣弹药或冷却。目标死亡后导弹消失，不重新索敌；不受视野射程限制。第 20 发后武器消失，不能装填。', 'Equip and click left to fire; aim then tap Use on mobile. Aim sets only the launch direction, never the target. Holding does not repeat. With no monsters, no ammo or cooldown is spent. A dead target cancels its missile without retargeting. No viewport range limit. Disappears after round 20; cannot reload.'],
@@ -409,7 +411,7 @@ const messages = {
   'error.placement_out_of_range': ['只能放置在距离 3 格以内且已生成的区域。', 'Place within 3 tiles in an already generated area.'],
   'error.occupied': ['这个位置已经被占用。', 'This position is already occupied.'],
   'error.blocked': ['中间有障碍物，无法放置。', 'An obstacle blocks this placement.'],
-  'error.adjacent_container': ['箱子、篝火、小猪存钱罐和三种自动交易机之间必须空出一格，包括对角线。', 'Leave a tile between chests, campfires, piggy banks and all three trading machines, including diagonally.'],
+  'error.adjacent_container': ['箱子、篝火、小猪存钱罐和全部自动交易机之间必须空出一格，包括对角线。', 'Leave a tile between chests, campfires, piggy banks and every trading machine, including diagonally.'],
   'error.spawn_blocked': ['这里需要保留出生区的通行空间。', 'A safe route through the spawn area must remain open.'],
   'error.invalid_container': ['这个容器已经不存在，或尚未打开。', 'This container no longer exists or has not been opened.'],
   'error.container_closed': ['请先打开这个容器。', 'Open this container first.'],

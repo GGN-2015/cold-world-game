@@ -6,26 +6,26 @@
 
 | 类别 | 物品 | 主要用途 |
 | --- | --- | --- |
-| 材料 | 木材 `wood` | 配方、篝火燃料和机器交易 |
-| 工具 | 斧头 `axe` | 单击朝瞄准方向进行半径 3 格、180° 扇形群攻，长按采集与拆除，不消耗耐久 |
-| 武器 | 手枪 `handgun`、霰弹枪 `shotgun`、步枪 `rifle` | 自带有限弹药，参数见 [战斗手册](combat.md) |
-| 追踪武器 | 追踪导弹 `homing_missile` | 初始20发，伤害15，0.8秒冷却；锁定最近怪物、曲线飞行、穿过所有障碍，只伤锁定目标；自然箱子独立2%概率，详见 [追踪导弹](combat.md#追踪导弹) |
-| 寒冰武器 | 寒冰法杖 `ice_staff` | 初始 100 次；单击 3 格、180° 群攻，每只伤害 8，活动怪物冰冻减速 50% 持续 4 秒；不能拆除，详见 [寒冰法杖](combat.md#寒冰法杖) |
-| 烈焰武器 | 烈焰法杖 `flame_staff` | 初始 100 次；斧头同范围直伤 4 并灼烧 4 秒，每 0.5 秒伤害 4，持续伤害无击退，详见 [烈焰法杖](combat.md#烈焰法杖) |
-| 复苏医疗 | 除颤器 `defibrillator` | 一次性；2 格内对倒地队友长按 1.5 秒，恢复 36°C 与至少 10 饥饿；自然房屋箱子独立 2% 概率，详见 [队友救援](survival.md#除颤器与队友救援) |
-| 爆炸武器 | 手榴弹 `grenade`、金币榴弹炮 `coin_launcher` | 长按 0.5 秒投向瞄准点；半径 3、伤害 20，只伤怪物；前者一次性，后者每发消耗 1 金币，详见 [爆炸武器](combat.md#手榴弹与金币榴弹炮) |
-| 建筑 | 栅栏 `fence`、木墙 `wall`、木地板 `floor`、箱子 `chest`、篝火 `campfire` | 配方与放置、拆除见 [建造手册](building.md)；柱子本质上是木墙 |
-| 机器 | 自动售货机 `vending_machine`、自助火柴机 `match_machine`、自动枪械机 `gun_machine` | 自然生成，可拆为物品后重新放置；面板交易见 [金币与机器](trading.md) |
-| 共享储蓄 | 小猪存钱罐 `piggy_bank` | 共享整数金币余额，可存取指定数量；取空后可拆除携带，详见 [小猪存钱罐](trading.md#小猪存钱罐) |
-| 手持装备 | 迅捷戒指 `swiftness_ring` | 必须在物品栏并选中，当前体温/饥饿下移速乘3；倒地仍不能移动，不消耗、不叠加；自然箱子独立2%概率 |
-| 被动 | 警长徽章 `sheriff_badge` | 放在背包或物品栏即生效，所有武器对小怪与快速怪伤害翻倍，不叠加、不消耗 |
-| 饮料 | 伏特加 `vodka` | 无需火，长按0.5秒饮用；30秒体感30°C，不增加饥饿，再次饮用刷新时长 |
-| 保暖 | 暖宝宝贴 `heat_patch` | 一次性，无需火，长按 0.5 秒恢复 36°C，饥饿保持原值；自然箱子独立 2% 概率 |
-| 医疗 | 急救包 `first_aid_kit` | 无需火，长按 0.5 秒恢复体温和饥饿，倒地时可用 |
-| 回城 | 回城法杖 `return_staff` | 初始 20 次，长按 1.5 秒传送到原点附近最近空地；倒地时可用，规则见 [生存手册](survival.md#回城法杖) |
+| ![木材](../cold_world_game/static/assets/wood.png) 材料 | 木材 `wood` | 配方、篝火燃料和机器交易 |
+| ![斧头](../cold_world_game/static/assets/axe.png) 工具 | 斧头 `axe` | 单击朝瞄准方向进行半径 3 格、180° 扇形群攻，长按采集与拆除，不消耗耐久 |
+| ![手枪](../cold_world_game/static/assets/handgun.png) ![霰弹枪](../cold_world_game/static/assets/shotgun.png) ![步枪](../cold_world_game/static/assets/rifle.png) 武器 | 手枪 `handgun`、霰弹枪 `shotgun`、步枪 `rifle` | 自带有限弹药，参数见 [武器手册](weapons.md) |
+| ![追踪导弹](../cold_world_game/static/assets/homing_missile.png) 追踪武器 | 追踪导弹 `homing_missile` | 初始20发，伤害15，0.8秒冷却；锁定最近怪物、曲线飞行、穿过所有障碍，只伤锁定目标；自然箱子独立2%概率，详见 [追踪导弹](weapons.md#追踪导弹) |
+| ![寒冰法杖](../cold_world_game/static/assets/ice_staff.png) 寒冰武器 | 寒冰法杖 `ice_staff` | 初始 100 次；单击 3 格、180° 群攻，每只伤害 8，活动怪物冰冻减速 50% 持续 4 秒；不能拆除，详见 [寒冰法杖](weapons.md#寒冰法杖) |
+| ![烈焰法杖](../cold_world_game/static/assets/flame_staff.png) 烈焰武器 | 烈焰法杖 `flame_staff` | 初始 100 次；斧头同范围直伤 4 并灼烧 4 秒，每 0.5 秒伤害 4，持续伤害无击退，详见 [烈焰法杖](weapons.md#烈焰法杖) |
+| ![除颤器](../cold_world_game/static/assets/defibrillator.png) 复苏医疗 | 除颤器 `defibrillator` | 一次性；2 格内对倒地队友长按 1.5 秒，恢复 36°C 与至少 10 饥饿；自然房屋箱子独立 2% 概率，详见 [队友救援](survival.md#除颤器与队友救援) |
+| ![手榴弹](../cold_world_game/static/assets/grenade.png) ![金币榴弹炮](../cold_world_game/static/assets/coin_launcher.png) 爆炸武器 | 手榴弹 `grenade`、金币榴弹炮 `coin_launcher` | 长按 0.5 秒投向瞄准点；半径 3、伤害 20，只伤怪物；前者一次性，后者每发消耗 1 金币，详见 [爆炸武器](weapons.md#手榴弹与金币榴弹炮) |
+| ![木栅栏](../cold_world_game/static/assets/fence.png) ![木墙](../cold_world_game/static/assets/wall.png) ![木地板](../cold_world_game/static/assets/floor.png) ![箱子](../cold_world_game/static/assets/chest.png) ![篝火](../cold_world_game/static/assets/campfire.png) 建筑 | 栅栏 `fence`、木墙 `wall`、木地板 `floor`、箱子 `chest`、篝火 `campfire` | 配方与放置、拆除见 [建造手册](building.md)；柱子本质上是木墙 |
+| ![自动售货机](../cold_world_game/static/assets/vending_machine.png) ![自助火柴机](../cold_world_game/static/assets/match_machine.png) ![自动枪械机](../cold_world_game/static/assets/gun_machine.png) 机器 | 自动售货机 `vending_machine`、自助火柴机 `match_machine`、自动枪械机 `gun_machine` | 自然生成，可拆为物品后重新放置；面板交易见 [金币与机器](trading.md) |
+| ![小猪存钱罐](../cold_world_game/static/assets/piggy_bank.png) 共享储蓄 | 小猪存钱罐 `piggy_bank` | 共享整数金币余额，可存取指定数量；取空后可拆除携带，详见 [小猪存钱罐](trading.md#小猪存钱罐) |
+| ![迅捷戒指](../cold_world_game/static/assets/swiftness_ring.png) 手持装备 | 迅捷戒指 `swiftness_ring` | 必须在物品栏并选中，当前体温/饥饿下移速乘3；倒地仍不能移动，不消耗、不叠加；自然箱子独立2%概率 |
+| ![警长徽章](../cold_world_game/static/assets/sheriff_badge.png) 被动 | 警长徽章 `sheriff_badge` | 放在背包或物品栏即生效，所有武器对小怪与快速怪伤害翻倍，不叠加、不消耗 |
+| ![伏特加](../cold_world_game/static/assets/vodka.png) 饮料 | 伏特加 `vodka` | 无需火，长按0.5秒饮用；30秒体感30°C，不增加饥饿，再次饮用刷新时长 |
+| ![暖宝宝贴](../cold_world_game/static/assets/heat_patch.png) 保暖 | 暖宝宝贴 `heat_patch` | 一次性，无需火，长按 0.5 秒恢复 36°C，饥饿保持原值；自然箱子独立 2% 概率 |
+| ![急救包](../cold_world_game/static/assets/first_aid_kit.png) 医疗 | 急救包 `first_aid_kit` | 无需火，长按 0.5 秒恢复体温和饥饿，倒地时可用 |
+| ![回城法杖](../cold_world_game/static/assets/return_staff.png) 回城 | 回城法杖 `return_staff` | 初始 20 次，长按 1.5 秒传送到原点附近最近空地；倒地时可用，规则见 [生存手册](survival.md#回城法杖) |
 | 食品 | 方便面、饺子、馄饨、猪蹄、牛肉、羊肉、沙丁鱼、金枪鱼、牛肉丸、火锅蔬菜、奥利奥、压缩饼干、可乐 | 全部数值及用火要求见 [生存手册](survival.md) |
 | 火种 | 打火机、汽油、柴油、煤油、火柴 | 放入篝火点燃，剩余次数随物品保存 |
-| 货币 | 硬币 `coin` | 地面/箱中可以是物品，进入玩家随身区域自动计入金币余额，不占格 |
+| ![硬币](../cold_world_game/static/assets/coin.png) 货币 | 硬币 `coin` | 地面/箱中可以是物品，进入玩家随身区域自动计入金币余额，不占格 |
 
 急救包按普通单件物品保存、转移、丢弃与拾取，不能堆叠。旧存档不需要重建背包或更换物品 ID 就能获得新物品。
 
@@ -36,6 +36,9 @@
 制作和交易等产出操作在检查空间后整次提交：所需材料扣除、产物与金额、来源/目标物品状态一起生效或一起回退。空间不足不会先吃掉材料。普通自动拾取只进入 30 格背包，要求距离不超过 0.75 米；物品栏有空位不代表背包未满，硬币则不受物品格容量限制。丢弃方向、2 格落点和受阻回退见 [建造与掉落](building.md)。
 
 ## 背包与箱子
+
+![箱子](../cold_world_game/static/assets/chest.png)
+
 玩家拥有两个独立存储区域：10 格物品栏和 30 格背包，各格均只能放一件物品，不能堆叠。物品栏用数字键、滚轮或点击选中，只有选中的物品栏物品可以直接攻击、进食或放置。按 B 同时显示背包与合成界面，I 保留为兼容快捷键。可以拖动物品在两个区域之间转移；单击随身物品显示说明，双击背包物品或点说明卡“移到物品栏”移入首个空格，未打开容器时 Shift 点击在两个区域的首个空格间转移。打开箱子或篝火时，背包同时显示，Shift 点击任一区域的随身物品改为存入容器；点击容器物品优先取到背包，或直接拖到指定物品栏空格。两个区域均独立保存并保留物品的全部状态；旧存档原 10 格物品栏保持不变（硬币按上述规则转入余额），新增背包初始化为 30 个空格。
 
 空箱子可以在箱子窗口中长按拆除，得到一个箱子物品，而不是木材。非空的箱子不能被破坏。箱子内物品也不能堆叠，一个箱子中至多可以放 30 个物品。
@@ -56,6 +59,8 @@
 
 ## 迅捷戒指
 
+![迅捷戒指](../cold_world_game/static/assets/swiftness_ring.png)
+
 迅捷戒指（`swiftness_ring`）在每个新生成自然房屋箱子中有 **2%独立概率** 出现。它不是随身被动徽章：必须放入10格物品栏并选中这一格，才将已计入体温与饥饿减速的移动速度乘 **3**。只放在30格背包、未选中的物品栏格子、箱子或地上都无效。
 
 | 状态 | 普通移速（格/秒） | 选中戒指（格/秒） |
@@ -71,6 +76,8 @@
 
 ## 雪原扩展与榴莲
 
-新增20食品、20限量武器、20工具，每种自然箱内独立生成概率0.1%～2%；完整107种物品均有中英说明卡。名称、ID、概率、具体用法及数值见 [扩展图鉴](expansion.md)。榴莲另有3%独立概率，无需火、加3饥饿，食用后原物品栏格生成一片可投掷爆炸的榴莲皮。
+![榴莲](../cold_world_game/static/assets/durian.png)
+
+新增20食品、20限量武器、20工具，每种自然箱内独立生成概率0.1%～2%；含十类新房屋机器在内的117种物品均有中英说明卡。名称、ID、概率、具体用法及数值见 [扩展图鉴](expansion.md) 和 [机器手册](machines.md)。榴莲另有3%独立概率，无需火、加3饥饿，食用后原物品栏格生成一片可投掷爆炸的榴莲皮。
 
 普通自然箱子与玩家制作的箱子仍30格；极端稀有判定同时成功超过容量时，自然箱保留额外格子，避免丢弃、重抽物品，界面可滚动取用。玩家的30格背包与10格物品栏不扩容。

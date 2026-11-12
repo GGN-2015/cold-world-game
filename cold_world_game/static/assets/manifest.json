@@ -1236,6 +1236,56 @@
       "file": "fx_supply_unpack.png",
       "width": 576,
       "height": 96
+    },
+    "ration_dispenser": {
+      "file": "ration_dispenser.png",
+      "width": 96,
+      "height": 96
+    },
+    "food_dehydrator": {
+      "file": "food_dehydrator.png",
+      "width": 96,
+      "height": 96
+    },
+    "medical_dispenser": {
+      "file": "medical_dispenser.png",
+      "width": 96,
+      "height": 96
+    },
+    "rescue_dispenser": {
+      "file": "rescue_dispenser.png",
+      "width": 96,
+      "height": 96
+    },
+    "fuel_packer": {
+      "file": "fuel_packer.png",
+      "width": 96,
+      "height": 96
+    },
+    "ignition_dispenser": {
+      "file": "ignition_dispenser.png",
+      "width": 96,
+      "height": 96
+    },
+    "building_supply_machine": {
+      "file": "building_supply_machine.png",
+      "width": 96,
+      "height": 96
+    },
+    "salvage_machine": {
+      "file": "salvage_machine.png",
+      "width": 96,
+      "height": 96
+    },
+    "outfitter_machine": {
+      "file": "outfitter_machine.png",
+      "width": 96,
+      "height": 96
+    },
+    "expedition_machine": {
+      "file": "expedition_machine.png",
+      "width": 96,
+      "height": 96
     }
   },
   "animations": {

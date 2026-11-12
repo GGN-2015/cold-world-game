@@ -1,4 +1,5 @@
 from .expansion import DURIAN_CHANCE, EXPANSION_ITEMS
+from .room_machines import ROOM_MACHINES
 
 TICK_RATE = 20
 CHUNK_SIZE = 15
@@ -18,7 +19,7 @@ BACKPACK_SLOTS = 30
 DROP_DISTANCE = 2.0
 PICKUP_RADIUS = 0.75
 WORLD_RADIUS = 120
-TERRAIN_VERSION = 14
+TERRAIN_VERSION = 15
 HOMING_MISSILE_CHANCE = 0.02
 SWIFTNESS_RING_CHANCE = 0.02
 SHERIFF_BADGE_CHANCE = 0.02
@@ -80,7 +81,7 @@ GUNS = {
     "rifle": {"ammo": 1000, "interval": 0.15, "speed": 28, "range": PROJECTILE_RANGE, "damage": 5},
 }
 GUNS["homing_missile"] = {"ammo": 20, "interval": GUNS["shotgun"]["interval"], "speed": 18, "damage": GUNS["handgun"]["damage"] * 3, "launch_duration": 0.12, "launch_distance": 1.2, "impact_radius": 0.9}
-TRADING_MACHINES = frozenset({"vending_machine", "match_machine", "gun_machine"})
+TRADING_MACHINES = frozenset({"vending_machine", "match_machine", "gun_machine"}) | ROOM_MACHINES.keys()
 PANEL_DEMOLITION = TRADING_MACHINES | {"chest", "campfire", "piggy_bank"}
 BUILDINGS = frozenset({"fence", "wall", "floor", "chest", "campfire", "piggy_bank"}) | TRADING_MACHINES
 CONTAINERS = frozenset({"chest", "campfire", "piggy_bank"}) | TRADING_MACHINES
@@ -89,6 +90,7 @@ OPAQUE = frozenset({"tree", "wall"})
 BULLET_BLOCKERS = frozenset({"tree"})
 MONSTER_BULLET_BLOCKERS = BULLET_BLOCKERS | CONTAINERS
 DEMOLITION = {"tree": 0.5, "fence": 0.5, "wall": 1.5, "floor": 0.5, "chest": 1.5, "campfire": 1.5, "piggy_bank": 1.5, "vending_machine": 1.5, "match_machine": 1.5, "gun_machine": 1.5}
+DEMOLITION.update({kind: 1.5 for kind in ROOM_MACHINES})
 MONSTER_DEMOLITION = {"fence": 1.0, "wall": 3.0}
 RECIPES = {
     "fence": {"inputs": {"wood": 1}, "output": "fence", "count": 2},
@@ -116,6 +118,7 @@ GUN_OFFERS = {
     "buy_coin_launcher": {"inputs": {"coin": 10}, "output": "coin_launcher", "count": 1},
 }
 MACHINE_OFFERS = {"vending_machine": VENDING_OFFERS, "match_machine": MATCH_OFFERS, "gun_machine": GUN_OFFERS}
+MACHINE_OFFERS.update({kind: definition["offers"] for kind, definition in ROOM_MACHINES.items()})
 COMMON_CHEST_FOODS = tuple(FOODS)
 COMMON_CHEST_IGNITERS = tuple(IGNITERS)
 FOODS["durian"] = 3

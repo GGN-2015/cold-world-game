@@ -196,6 +196,8 @@
 
 ## 篝火供暖范围
 
+![篝火](../cold_world_game/static/assets/campfire.png)
+
 服务端 `you.ambient_temperature` 根据玩家所在格子与最近已点燃篝火的曼哈顿距离结算：1–3 格为 30°C，4–6 格为 20°C，7–9 格为 10°C，超过 9 格恢复世界环境温度。前两档均按现实每分钟 10°C 恢复体温，最高 36°C；10°C 档仅保温。多个篝火不叠加，熄灭的篝火不生效，墙壁不阻挡供暖。
 
 仅热效应范围扩大三倍；需要火的食品仍要求曼哈顿距离 1–3 格，容器交互仍为欧氏距离 2 格，燃烧耗材与时长不变。无新增存档字段，不改动地图生成版本或已生成区块；旧篝火加载后立即使用新规则。桌面、手机与其他客户端均以快照温度为准，不自行重复结算恢复。
@@ -249,6 +251,8 @@
 
 ## 回城法杖与传送事件
 
+![回城法杖](../cold_world_game/static/assets/return_staff.png)
+
 `/api/info` 的 `return_items.return_staff` 给出 `duration: 1.5`、`uses: 20`；`terrain.chest_return_staff_chance` 为 `0.02`。`return_staff` 属于工具物品而不是食品、火种或建筑，沿用物品 `uses` 字段保存剩余次数。旧数据缺失次数时默认 20，已有剩余值（包括 0）不会被补满。
 
 选中法杖发送 `attack pressed:true` 持续 1.5 秒，每个按下最多成功一次；取消动作沿用现有释放、切换、面板和 stop 协议。`interaction.target` 为 `return:<item-id>`，`progress` 为累计秒数。失温玩家也可使用，但不治疗。最近空地按整数格中心到原点的平方欧氏距离排序，同距时最大化到最近怪物格子的距离，最后按 x、y 稳定排序；阻挡性建筑或树木占格、怪物占格与人物碰撞不合法的位置均排除，木地板视为空地允许传送。
@@ -258,6 +262,8 @@
 快照 `movement.teleport_epoch` 与附近 `players[].teleport_epoch` 为会话级计数，旧快照缺失视为 0；每次传送递增，同时递增既有 `movement.epoch`。客户端遇到传送计数改变时立即重置本机/远端角色轨迹，即使传送距离不足 2 格也不平滑经过障碍。旧位置的迟到上报因 movement epoch 不符被丢弃；普通击退仍保留平滑修正。计数不持久化，重连以首帧坐标重建。保存失败不发布成功事件，位置、次数、生成区块全部回滚。
 
 ## 寒冰法杖与冰冻状态
+
+![寒冰法杖](../cold_world_game/static/assets/ice_staff.png)
 
 `/api/info.melee_weapons` 返回 `axe` 与 `ice_staff`。寒冰法杖沿用斧头的 `range:3`、`arc_degrees:180`、`interval:0.5`，另有 `damage:8`、`uses:100`、`freeze_duration:4.0`、`speed_scale:0.5`；`terrain.chest_ice_staff_chance` 为 `0.02`，`movement.frozen_speed_scale` 为 `0.5`。物品剩余次数保存在已有的 `uses` 字段，缺失时补 100，已有值（包括 0）不补满。`ice_staff` 不是食品、火种、建筑或回城道具，无制作配方。
 
@@ -278,6 +284,8 @@
 持久化包含在途炸弹、灼烧相位及来源。暂停不推进，重启继续；发射扣款/扣物品与在途炸弹原子保存，爆炸或灼烧的 HP、死亡掉落、随机状态和移除也原子保存。失败不发布成功事件，恢复不会重复扣钱、生成或爆炸。`terrain` 新增 `gun_machine_chance`、`chest_grenade_chance`、`chest_flame_staff_chance`，均为 0.02，使用独立命名随机流，新区域记录版本 8。
 
 ## 管理员与除颤器
+
+![除颤器](../cold_world_game/static/assets/defibrillator.png)
 
 `state.you.is_admin` 是本次启动配置计算的布尔值，旧客户端可忽略，不作为持久玩家字段。未配置 `--admin` 时所有玩家均为 false。管理员通过 `{type:"admin", command:"give 小雪 defibrillator", seq:123}` 提交命令，成功 ack 的 `result.output` 为英文文本，错误的 `message` 同样为英文。每次请求按当前已认证连接的玩家 ID 校验；普通玩家伪造命令会返回 `admin_forbidden`，不可用客户端提供的管理员标记授权。全部命令见 [管理员命令手册](admin.md)。
 
@@ -306,12 +314,16 @@ SQLite 存档格式为第 3 版：`world` 的版本记录为 3，顶层世界字
 
 ## 共享存钱罐与暖宝宝贴
 
+![暖宝宝贴](../cold_world_game/static/assets/heat_patch.png)
+
 - `bank` 命令：`{"type":"bank","id":"容器ID","operation":"deposit","amount":5}`，`operation` 也可为 `withdraw`。必须已打开 2 格内无遮挡的 `piggy_bank`，`amount` 为 1 至 `catalog.currency.max_coins` 的 JSON 整数，不接受浮点数、布尔或负值。响应包含 `operation`、`amount`、最新 `balance` 和玩家 `money`。
 - 打开的 `container.balance` 是所有玩家共享且持久保存的整数余额，缺失默认 0。附近建筑列表不发送余额或内容物，只向实际打开容器的客户端按现有差分同步；双方钱包和共享余额在同一次 SQLite 事务提交。命令串行检查最新余额，不依赖客户端显示值。
 - 存款不足报 `insufficient_money`，取款不足报 `insufficient_bank_balance`，超过整数上限报 `balance_limit`；非空拆除报 `bank_not_empty`。断开、离开距离、关闭窗口等访问限制与箱子一致。持有斧头时通过 `dismantle_container` 长按拆除，不允许把普通物品拖进存钱罐。
 - `catalog.terrain.piggy_bank_chance = 0.05`，`chest_heat_patch_chance = 0.02`，当前地形版本 14；`healing_items.heat_patch = {"duration":0.5,"temperature":36.0}`，无 `hunger` 字段即表示不改变饥饿。使用沿用 `attack` 按下/释放协议；成功后发送 `type: heal, kind: heat_patch` 事件，客户端以小画幅播放已有医疗 PNG。
 
 ## 警长徽章、伏特加与物品说明
+
+![警长徽章](../cold_world_game/static/assets/sheriff_badge.png) ![伏特加](../cold_world_game/static/assets/vodka.png)
 
 `catalog.passive_items.sheriff_badge` 提供 `damage_multiplier:2`、`monster_kinds:["small","fast"]`、`stackable:false`；`catalog.drinks.vodka` 提供 `duration:0.5`、`effect_duration:30.0`、`felt_temperature:30.0`。`catalog.ready_to_eat_foods` 是无需篝火的食品列表，伏特加独立归于饮料而非 `foods`。`terrain.chest_sheriff_badge_chance` 与 `chest_vodka_chance` 均为0.02，当前 `TERRAIN_VERSION` 为12。
 
@@ -321,6 +333,8 @@ SQLite 存档格式为第 3 版：`world` 的版本记录为 3，顶层世界字
 
 ## 迅捷戒指与手持移速装备
 
+![迅捷戒指](../cold_world_game/static/assets/swiftness_ring.png)
+
 `catalog.equipped_items.swiftness_ring.speed_multiplier = 3` 表示只有选中物品栏该物品才生效，不属于只需携带的 `passive_items`。`terrain.chest_swiftness_ring_chance = 0.02`，当前地形版本14。戒指沿用普通Item字段，无弹药或次数，不增加玩家持久字段；`select`、数字键/滚轮/点选及原有 `transfer`、`drop` 协议不变。
 
 服务端 `player_speed` 和客户端 `playerSpeed` 使用相同的体温/饥饿倍率，再乘已选装备倍率，倒地返回0。浏览器使用本地预测选中格，不等 `select` 往返；普通位置更新不增加传送版本或重置运动历史。附近 `players[].move_speed` 给出各玩家当前可用移速供远端有界推算，旧消息缺失该字段时沿用原有基础速度；不发送其他玩家完整背包或物品栏。怪物继续使用原有速度字段，完全不受戒指影响。
@@ -328,6 +342,8 @@ SQLite 存档格式为第 3 版：`world` 的版本记录为 3，顶层世界字
 高于基础移速的远端玩家，显示纠偏上限为当前移速加基础移速的0.5倍（12格/秒戒指对应最多14格/秒），而非直接把原2.5倍纠偏上限也放大三倍；实际正常行走仍为12格/秒。普通玩家和怪物保持原有纠偏规则，显式传送仍沿用独立版本号。
 
 ## 追踪导弹
+
+![追踪导弹](../cold_world_game/static/assets/homing_missile.png)
 
 `catalog.guns.homing_missile` 包含 `ammo:20`、`damage:15`、`interval:0.8`、`speed:18`、`launch_duration:0.12`、`launch_distance:1.2`、`impact_radius:0.9`。`terrain.chest_homing_missile_chance = 0.02`，当前地形版本14。它属于枪械，沿用 `input.aim` 与 `attack.pressed`，非长按连发；不加入枪械机商品，不改变原枪械产出概率。无目标时不消耗弹药/冷却；发射时锁定全体存活怪物中的最近对象，与鼠标所点对象无关。
 
@@ -337,6 +353,8 @@ SQLite 存档格式为第 3 版：`world` 的版本记录为 3，顶层世界字
 
 ## 扩展物品与榴莲
 
+![榴莲](../cold_world_game/static/assets/durian.png)
+
 `catalog.expansion_items` 提供60项的 `group/category/chance`，详细机制仍在 foods/guns/melee_weapons/explosive_weapons/healing_items/revival_items/return_items/igniters/passive_items/equipped_items。地形目录增加 `chest_expansion_chances` 与 `chest_durian_chance:0.03`，版本14。每项概率0.001～0.02，使用独立随机流，不改变旧普通候选池。
 
 `durian` 食用后在同一 `inventory[selected]` 槽原子替换成新ID的 `durian_peel`。后者属于一次性爆炸武器，沿用现有长按、抛物线与半径3/伤害20结算。新增医疗支持 `uses`、temperature_delta/hunger_delta及supplies；不会超额覆盖饥饿，新物品缺少uses时按当前定义补缺省。
@@ -344,3 +362,9 @@ SQLite 存档格式为第 3 版：`world` 的版本记录为 3，顶层世界字
 Projectile新增可选持久字段 `weapon_kind:null`，旧子弹缺省null；它关联发射武器的冰冻/灼烧参数，不改变普通 `kind:bullet` 的穿透、伤害和视觉通道。新枪 `automatic` 与 `instant` 控制长按与按下首发，`pellets/spread` 控制散布。近战 `arc_degrees` 参与实际命中，`effect` 指向离线烘焙的八方向PNG，特殊knockback按配置结算。
 
 随身被动无需新增玩家持久字段，同属性只取最强，不叠加；服务端按当前背包/物品栏计算，手持移速沿用已选格即时预测。自然箱极端超过30项时 `slots` 保留实际长度；转移端点以其真实长度验证，客户端已有动态格子渲染。玩家背包/物品栏容量不变，原子回滚与差分协议不变。
+
+## 房屋功能机器与第15版
+
+目录新增 `room_machines`，以十种建筑ID映射到 `chance`；`terrain.room_machine_chances` 提供同一独立概率表，当前地形版本15。完整价格仍由 `machine_offers[kind][offer]` 提供，新增29份配方均为现有 `{inputs, output, count}` 结构。客户端使用服务器价格判断材料和空格，不另维护可被篡改的支付结果。
+
+交互沿用 `open`、`trade`、`dismantle_container` 和 `place`，不新增命令，不改变协议版本。新机器也是普通 `Structure`，没有库存、补货时间或余额扩展；旧SQLite无需新持久字段。方块拆除仍在原子事务里移除建筑并生成同种物品，交易只在全部材料和空间足够时提交。机器快照沿用原建筑差分，无逐帧服务或全图机器扫描。

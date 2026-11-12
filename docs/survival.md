@@ -4,6 +4,8 @@
 
 ## 急救包与医疗动画
 
+![急救包](../cold_world_game/static/assets/first_aid_kit.png)
+
 - 急救包（`first_aid_kit`）是一次性医疗物品，无需篝火，也不受“饥饿大于 10 不能吃食物”的限制；失温倒地时也能使用。
 - 每个自然生成的房屋箱子独立有 2% 概率获得一个急救包，生成后随箱内物品与空格一起打乱。不是每次开箱重新抽取；玩家制作放置的空箱子不会生成物资。暂无制作或机器兑换配方。
 - 将急救包移至物品栏并选中，关闭背包/容器界面后长按鼠标左键 0.5 秒；手机按住“使用”按钮。建议对准空地，避免点击附近容器优先打开面板。
@@ -15,6 +17,8 @@
 
 ## 除颤器与队友救援
 
+![除颤器](../cold_world_game/static/assets/defibrillator.png)
+
 - 除颤器（`defibrillator`）是一次性医疗物品；每个自然生成的房屋箱子独立有 **2%** 概率出现一个，与急救包、法杖和其他物品的生成判定互不影响，生成后和空格一起打乱，不会反复开箱补充。
 - 将除颤器放入物品栏并选中，对准 **2 格以内**、体温**小于 5°C** 的其他在线玩家，长按鼠标左键 **1.5 秒**。目标必须可见、两人之间不能隔着不透明墙或树。手机可直接长按目标人物，也可先点选目标，再长按“使用”。
 - 成功时目标恢复到 **36°C、至少 10 点饥饿**，若饥饿已经超过 10 则保留；立即恢复站立，出现医疗光圈与红色十字号。除颤器消失一次，持续按住不会连用。
@@ -23,6 +27,8 @@
 - 除颤器与急救包用途不同：前者救他人、后者恢复自己。暂无普通制作或机器购买配方；管理员可通过 [give 命令](admin.md#give) 发放。
 
 ## 回城法杖
+
+![回城法杖](../cold_world_game/static/assets/return_staff.png)
 
 - 回城法杖（`return_staff`）初始可用 **20 次**。放进物品栏选中，关闭面板后朝空地长按左键 **1.5 秒**；手机长按“使用”。施法中有紫青色法阵、符文和上升星光，完成时原位置收束、落点绽放传送光效，附近玩家也可看见。
 - 每次成功使用只减少 1 次，用尽后法杖消失。长按完成一次后不会自动重复，需松开再按。松开、切换物品、打开界面、失焦、断线会取消未完成的施法，不扣次数。持有次数在背包、物品栏、容器与地面之间转移、丢弃、重连或重启均不重置。
@@ -39,27 +45,27 @@
 
 | 食品 | 协议标识 | 恢复饥饿 | 是否需要火 |
 | --- | --- | --- | --- |
-| 方便面 | `instant_noodles` | 2.5 | 是 |
-| 饺子 | `dumplings` | 4 | 是 |
-| 馄饨 | `wontons` | 3 | 是 |
-| 猪蹄 | `pork_trotters` | 4 | 是 |
-| 牛肉 | `beef` | 5 | 是 |
-| 羊肉 | `lamb` | 5 | 是 |
-| 沙丁鱼 | `sardines` | 3 | 是 |
-| 金枪鱼 | `tuna` | 3 | 是 |
-| 牛肉丸 | `beef_balls` | 5 | 是 |
-| 火锅蔬菜 | `hotpot_vegetables` | 2 | 是 |
-| 奥利奥 | `oreos` | 1.5 | 否 |
-| 压缩饼干 | `compressed_biscuits` | 4 | 否 |
-| 可乐 | `cola` | 2 | 否 |
+| ![方便面](../cold_world_game/static/assets/instant_noodles.png) 方便面 | `instant_noodles` | 2.5 | 是 |
+| ![速冻饺子](../cold_world_game/static/assets/dumplings.png) 饺子 | `dumplings` | 4 | 是 |
+| ![速冻馄饨](../cold_world_game/static/assets/wontons.png) 馄饨 | `wontons` | 3 | 是 |
+| ![冷冻猪蹄](../cold_world_game/static/assets/pork_trotters.png) 猪蹄 | `pork_trotters` | 4 | 是 |
+| ![冷冻牛肉](../cold_world_game/static/assets/beef.png) 牛肉 | `beef` | 5 | 是 |
+| ![冷冻羊肉](../cold_world_game/static/assets/lamb.png) 羊肉 | `lamb` | 5 | 是 |
+| ![沙丁鱼罐头](../cold_world_game/static/assets/sardines.png) 沙丁鱼 | `sardines` | 3 | 是 |
+| ![金枪鱼罐头](../cold_world_game/static/assets/tuna.png) 金枪鱼 | `tuna` | 3 | 是 |
+| ![撒尿牛丸](../cold_world_game/static/assets/beef_balls.png) 牛肉丸 | `beef_balls` | 5 | 是 |
+| ![速冻火锅涮菜](../cold_world_game/static/assets/hotpot_vegetables.png) 火锅蔬菜 | `hotpot_vegetables` | 2 | 是 |
+| ![奥利奥](../cold_world_game/static/assets/oreos.png) 奥利奥 | `oreos` | 1.5 | 否 |
+| ![压缩饼干](../cold_world_game/static/assets/compressed_biscuits.png) 压缩饼干 | `compressed_biscuits` | 4 | 否 |
+| ![可乐](../cold_world_game/static/assets/cola.png) 可乐 | `cola` | 2 | 否 |
 
 | 火种 | 协议标识 | 全新物品可用次数 |
 | --- | --- | --- |
-| 打火机 | `lighter` | 20 |
-| 汽油 | `gasoline` | 5 |
-| 柴油 | `diesel` | 5 |
-| 煤油 | `kerosene` | 5 |
-| 火柴 | `matches` | 1 |
+| ![打火机](../cold_world_game/static/assets/lighter.png) 打火机 | `lighter` | 20 |
+| ![汽油](../cold_world_game/static/assets/gasoline.png) 汽油 | `gasoline` | 5 |
+| ![柴油](../cold_world_game/static/assets/diesel.png) 柴油 | `diesel` | 5 |
+| ![煤油](../cold_world_game/static/assets/kerosene.png) 煤油 | `kerosene` | 5 |
+| ![火柴](../cold_world_game/static/assets/matches.png) 火柴 | `matches` | 1 |
 
 火种需放入篝火火种槽并通过面板点火，每次点火消耗一次使用次数；木材燃料另算。完整燃烧和建造规则见 [采集、制作与建造](building.md)。
 
@@ -105,6 +111,8 @@
 
 ## 暖宝宝贴
 
+![暖宝宝贴](../cold_world_game/static/assets/heat_patch.png)
+
 暖宝宝贴（`heat_patch`）是一次性保暖物品，每个自然生成房屋箱子独立有 **2%** 概率生成一个，与其他战利品概率独立；不是反复开箱抽取，玩家制作的空箱子不生成。移至物品栏并选中，关闭面板，对空地长按鼠标左键 **0.5 秒**；手机按住“使用”按钮。无需篝火，倒地时也可使用，饥饿大于 10 时不受禁食限制。
 
 完成后消耗一贴，体温直接恢复到上限 **36°C**，**饥饿值保持使用前原值**（即使为 0 或大于 10 也不变），不会像急救包一样补充饥饿。使用本身不改变饥饿，正常随时间消耗仍照常结算。播放一次小型扩散医疗光圈和红色十字，复用预渲染 PNG、画幅 1.4 格，避免额外实时粒子计算。松开、换物品、打开面板或受击会取消未完成的使用，不消耗物品；一直按住也不会连用下一件。
@@ -113,6 +121,8 @@
 
 ## 伏特加与亢奋
 
+![伏特加](../cold_world_game/static/assets/vodka.png)
+
 伏特加（`vodka`）是一次性饮料，每个新自然房屋箱子独立有2%概率出现。移入物品栏并选中，对空地长按鼠标左键 **0.5秒**；手机瞄准空地后按住“使用”。松手提前取消，不消耗。无需篝火，饥饿超过10或倒地时也可喝；它不属于补充饥饿的食品，不改变饥饿值。
 
 成功饮用后30秒处于“亢奋”：用于计算体温的**体感温度恒为30°C**，与季节、实际气温和篝火无关。按原有每现实分钟恢复10°C的规则升温，体温上限36°C，所以30秒最多升温5°C，并非立即满体温。顶部显示中英双语状态和剩余整秒；效果结束立即恢复实际环境/篝火温度规则，同一次tick跨越截止点时按两段时间分别结算。
@@ -120,6 +130,8 @@
 重复饮用将剩余时长刷新至30秒，不累加。效果按该玩家在线模拟秒数计时，个人离线或全员离线、服务器关闭期间不递减；保存重启继续剩余时长。旧存档缺少 `excitement_remaining` 默认为0，不会凭空获得效果。饮料消耗和状态开始在同一事务保存，失败全部回退。
 
 ## 迅捷戒指与移动速度
+
+![迅捷戒指](../cold_world_game/static/assets/swiftness_ring.png)
 
 [迅捷戒指](inventory.md#迅捷戒指)仅在物品栏选中时，使当前体温和饥饿状态下的移速乘3；不会消除低温、饥饿减速，也不会使倒地玩家移动。正常/一种减速/两种减速下分别为12/6/3格每秒，倒地为0。体温恢复后重新按当前状态计算；戒指本身不恢复体温或饥饿，怪物移速不变。
 

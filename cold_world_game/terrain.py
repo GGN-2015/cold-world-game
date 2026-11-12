@@ -6,6 +6,7 @@ from collections import deque
 from .constants import CHUNK_SIZE, COMMON_CHEST_FOODS, COMMON_CHEST_IGNITERS, CONTAINERS, DEFIBRILLATOR_CHANCE, FIRST_AID_KIT_CHANCE, FLAME_STAFF_CHANCE, FOODS, GRENADE_CHANCE, GUN_MACHINE_CHANCE, HEAT_PATCH_CHANCE, HOMING_MISSILE_CHANCE, ICE_STAFF_CHANCE, IGNITERS, MATCH_MACHINE_CHANCE, PIGGY_BANK_CHANCE, RARE_CHEST_ITEMS, RETURN_STAFF_CHANCE, SHERIFF_BADGE_CHANCE, SOLID, SWIFTNESS_RING_CHANCE, TERRAIN_VERSION, VENDING_MACHINE_CHANCE, VODKA_CHANCE, WORLD_RADIUS
 from .geometry import chunk
 from .models import Item, Structure
+from .room_machines import ROOM_MACHINES
 
 
 def flood(start_points, blocked, bounds):
@@ -74,6 +75,8 @@ class Terrain:
             self.populate_match_machine(objects, interior, chunk_x, chunk_y)
             self.populate_machine(objects, interior, chunk_x, chunk_y, "gun_machine", "gun_machine:v1", GUN_MACHINE_CHANCE)
             self.populate_machine(objects, interior, chunk_x, chunk_y, "piggy_bank", "piggy_bank:v1", PIGGY_BANK_CHANCE)
+            for kind, definition in ROOM_MACHINES.items():
+                self.populate_machine(objects, interior, chunk_x, chunk_y, kind, f"room_machine:{kind}:v1", definition["chance"], preserve_paths=True)
             for structure in objects:
                 self.add_structure(structure)
             if (chunk_x, chunk_y) == (0, 0):
@@ -96,7 +99,7 @@ class Terrain:
     def populate_match_machine(self, objects, interior, chunk_x, chunk_y):
         self.populate_machine(objects, interior, chunk_x, chunk_y, "match_machine", "match_machine:v1", MATCH_MACHINE_CHANCE)
 
-    def populate_machine(self, objects, interior, chunk_x, chunk_y, kind, feature, chance):
+    def populate_machine(self, objects, interior, chunk_x, chunk_y, kind, feature, chance, preserve_paths=False):
         generator = self.feature_generator(feature, chunk_x, chunk_y)
         if generator.random() >= chance:
             return
@@ -104,12 +107,19 @@ class Terrain:
         bounds = center_x - 8, center_x + 8, center_y - 8, center_y + 8
         blocked = {(structure.x, structure.y) for structure in objects if structure.kind in SOLID}
         containers = [(structure.x, structure.y) for structure in objects if structure.kind in CONTAINERS]
+        interior = set(interior)
+        protected = interior & flood([(bounds[0], bounds[2])], blocked, bounds) if preserve_paths else set()
+        passages = {position for position in interior if any((position[0] + offset_x, position[1] + offset_y) not in interior and (position[0] + offset_x, position[1] + offset_y) not in blocked for offset_x, offset_y in ((1, 0), (-1, 0), (0, 1), (0, -1)))} if preserve_paths else set()
         candidates = sorted(set(interior) - blocked)
         generator.shuffle(candidates)
         for position in candidates:
+            if position in passages:
+                continue
             if any(max(abs(position[0] - target[0]), abs(position[1] - target[1])) <= 1 for target in containers):
                 continue
             reachable = flood([(bounds[0], bounds[2])], blocked | {position}, bounds)
+            if preserve_paths and not (protected - {position}) <= reachable:
+                continue
             if not (set(interior) & reachable) or any(not any((target[0] + offset_x, target[1] + offset_y) in reachable for offset_x, offset_y in ((1, 0), (-1, 0), (0, 1), (0, -1))) for target in [*containers, position]):
                 continue
             objects.append(Structure(kind, *position))
