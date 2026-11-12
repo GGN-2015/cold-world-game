@@ -4,7 +4,7 @@ import time
 from collections import deque
 from functools import lru_cache
 
-from .constants import BODY_RADIUS, CHUNK_SIZE, DAY_SECONDS, ICE_STAFF, KNOCKBACK, MONSTER_DEMOLITION, MONSTER_LIMIT, MONSTER_PROJECTILE_SPEED, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, NIGHT_MONSTER_HOURS, SOLID
+from .constants import BODY_RADIUS, CHUNK_SIZE, DAY_SECONDS, ICE_STAFF, KNOCKBACK, MONSTER_DEMOLITION, MONSTER_LIMIT, MONSTER_LIMIT_DOUBLING_DISTANCE, MONSTER_PROJECTILE_SPEED, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_XRAY_CHANCE, NIGHT_MONSTER_HOURS, SOLID
 from .geometry import DIRECTIONS, distance, normalized, tile
 from .models import Monster, Projectile
 from .wildlife import MONSTER_TYPES
@@ -53,8 +53,15 @@ class Monsters:
         start, end = NIGHT_MONSTER_HOURS
         return MONSTER_SPAWN_CHANCES["night" if hour >= start or hour < end else "day"]
 
+    def monster_spawn_available(self):
+        population = len(self.monsters)
+        if population < MONSTER_LIMIT:
+            return True
+        farthest = max((math.hypot(player.x, player.y) for player in self.players.values()), default=0.0)
+        return farthest / MONSTER_LIMIT_DOUBLING_DISTANCE >= math.log2((population + 1) / MONSTER_LIMIT)
+
     def spawn_monster(self):
-        if len(self.monsters) >= MONSTER_LIMIT:
+        if not self.online or not self.monster_spawn_available():
             return
         stream = self.event_random("spawn")
         player = self.players[stream.choice(sorted(self.online))]
@@ -78,6 +85,7 @@ class Monsters:
                 species = candidate
                 break
         monster = Monster(position_x, position_y, id=f"m:{self.tick_number}", big=species == "big", fast=species == "fast", species=species if species not in {"big", "fast"} else "small", hp=MONSTER_TYPES[species]["hp"])
+        monster.xray = self.event_random("monster-xray", monster.id).random() < MONSTER_XRAY_CHANCE
         self.monsters[monster.id] = monster
 
     def update_monsters(self, seconds):
@@ -96,21 +104,21 @@ class Monsters:
         if cursor in self.monsters:
             pivot = identifiers.index(cursor) + 1
             identifiers = identifiers[pivot:] + identifiers[:pivot]
-        due = [identifier for identifier in identifiers if identifier not in inactive and identifier not in self._path_jobs and self.monsters[identifier].next_plan <= self.elapsed and (self.monsters[identifier].target in standing_players or any(distance(self.monsters[identifier], player) <= 32 for player in standing_players.values()))]
+        due = [identifier for identifier in identifiers if identifier not in inactive and identifier not in self._path_jobs and self.monsters[identifier].next_plan <= self.elapsed and (self.monsters[identifier].target in standing_players or self.monsters[identifier].xray and bool(standing_players) or any(distance(self.monsters[identifier], player) <= 32 for player in standing_players.values()))]
         planning = set(due[:PATH_PLANS_PER_TICK])
         if planning:
             self._path_cursor = due[min(len(due), PATH_PLANS_PER_TICK) - 1]
         for monster_id, monster in list(self.monsters.items()):
-            if all(distance(monster, self.players[player_id]) > 120 for player_id in self.online):
+            if not monster.xray and all(distance(monster, self.players[player_id]) > 120 for player_id in self.online):
                 del self.monsters[monster_id]
                 continue
             if monster_id in inactive:
                 continue
             target = standing_players.get(monster.target)
-            if target is None or target.temperature < 5 or distance(monster, target) > 40:
+            if target is None or target.temperature < 5 or not monster.xray and distance(monster, target) > 40:
                 self.clear_target(monster)
                 target = None
-            can_see = target is not None and self.visible(monster.x, monster.y, target.x, target.y)
+            can_see = target is not None and (monster.xray or self.visible(monster.x, monster.y, target.x, target.y))
             if can_see:
                 monster.seen_x, monster.seen_y = target.x, target.y
                 monster.last_seen = self.elapsed
@@ -118,7 +126,7 @@ class Monsters:
                 self.clear_target(monster)
                 target = None
             if target is None:
-                candidates = [player for player in standing_players.values() if player.temperature >= 5 and distance(monster, player) <= 32 and self.visible(monster.x, monster.y, player.x, player.y)]
+                candidates = [player for player in standing_players.values() if monster.xray or distance(monster, player) <= 32 and self.visible(monster.x, monster.y, player.x, player.y)]
                 if candidates:
                     target = min(candidates, key=lambda player: (distance(monster, player), player.id))
                     monster.target = target.id
@@ -139,7 +147,8 @@ class Monsters:
                 monster.demolition_progress = 0.0
                 monster.next_plan = 0
             separation = distance(monster, target)
-            if can_see and separation <= 1:
+            attack_visible = can_see and separation <= 12 and (not monster.xray or self.visible(monster.x, monster.y, target.x, target.y))
+            if attack_visible and separation <= 1:
                 if self.elapsed + 1e-9 >= monster.next_attack:
                     previous_x, previous_y = target.x, target.y
                     self.emit_event("melee", monster.id, f"monster_{monster.kind}", monster.x, monster.y, target=target.id, target_x=target.x, target_y=target.y)
@@ -153,7 +162,7 @@ class Monsters:
                             monster.overlap_player = None
                 if target.temperature < 5 or not self.allows_player_overlap(monster, target.id):
                     continue
-            if monster.big and can_see and 1 < separation <= 12 and self.elapsed >= monster.frozen_until and self.elapsed + 1e-9 >= monster.next_attack:
+            if monster.big and attack_visible and 1 < separation <= 12 and self.elapsed >= monster.frozen_until and self.elapsed + 1e-9 >= monster.next_attack:
                 direction_x, direction_y = normalized(target.x - monster.x, target.y - monster.y)
                 projectile = Projectile(monster.x, monster.y, direction_x * MONSTER_PROJECTILE_SPEED, direction_y * MONSTER_PROJECTILE_SPEED, 0, 5, monster.id, hostile=True, weapon_kind="monster_big", origin_x=monster.x, origin_y=monster.y, spawned_at=self.elapsed, range_player=target.id)
                 projectile.remaining = self.projectile_range(projectile)
@@ -264,6 +273,10 @@ class Monsters:
     def search_path(self, monster, allow_demolition):
         start = tile(monster.x), tile(monster.y)
         goal_x, goal_y = monster.seen_x, monster.seen_y
+        span = max(abs(goal_x - start[0]), abs(goal_y - start[1]))
+        if monster.xray and span > 32:
+            goal_x = start[0] + (goal_x - start[0]) * 32 / span
+            goal_y = start[1] + (goal_y - start[1]) * 32 / span
         occupied = set()
         bodies = [other for other in self.monsters.values() if other.id != monster.id]
         bodies.extend(self.players[player_id] for player_id in self.online if self.players[player_id].temperature >= 5 and (monster.big or player_id != monster.target) and monster.id not in self.controls[player_id].ghost_monsters)

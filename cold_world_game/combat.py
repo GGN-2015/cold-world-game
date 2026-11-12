@@ -428,13 +428,19 @@ class Combat:
                 self.drop_item(Item.create("coin"), monster.x, monster.y)
             if monster.kind == "small" and self.event_random("food-drop", monster.id).random() < SMALL_MONSTER_FOOD_CHANCE:
                 food = self.event_random("food-kind", monster.id).choices(list(SMALL_MONSTER_FOOD_WEIGHTS), weights=list(SMALL_MONSTER_FOOD_WEIGHTS.values()))[0]
-                self.drop_item(Item.create(food), monster.x, monster.y)
+                self.drop_monster_food(monster, food)
             if monster.kind == "crawler" and self.event_random("food-drop", monster.id).random() < 0.05:
-                self.drop_item(Item.create("oreos"), monster.x, monster.y)
+                self.drop_monster_food(monster, "oreos")
             if monster.kind == "stalker" and self.event_random("wood-drop", monster.id).random() < 0.15:
                 self.drop_item(Item.create("wood"), monster.x, monster.y)
             self.emit_event("death", monster.id, f"monster_{monster.kind}", impact_x, impact_y, source=actor, target=monster.id, target_type="monster", direction=list(normalized(*direction)), knockback=displacement)
             self.monsters.pop(monster.id, None)
+
+    def drop_monster_food(self, monster, kind):
+        if monster.big and (kind not in FOODS or kind in READY_TO_EAT_FOODS or FOODS[kind] > 4):
+            return False
+        self.drop_item(Item.create(kind), monster.x, monster.y)
+        return True
 
     def hurt_player(self, player, amount, source=None, direction=None, knockback=0.0):
         self.touch()

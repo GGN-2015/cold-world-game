@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from .actions import Actions, GameError
 from .admin import Administration, admin_id
 from .combat import Combat
+from .constants import STARVATION_AMBIENT, STARVATION_HUNGER, STARVATION_TEMPERATURE
 from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BODY_TEMPERATURE_RATES, BULLET_BLOCKERS, BURN_SECONDS, CHAINSAW_CHANCE, CHUNK_SIZE, DAY_SECONDS, DEFAULT_VIEWPORT, DEFIBRILLATOR_CHANCE, DRINKS, DROP_DISTANCE, EQUIPPED_ITEMS, EXPLOSIVE_WEAPONS, FAST_MONSTER_SPEED, FIRST_AID_KIT_CHANCE, FLAME_STAFF_CHANCE, FOODS, GRENADE_CHANCE, GUNS, HARVEST_TOOLS, GUN_MACHINE_CHANCE, HEALING_ITEMS, HOMING_MISSILE_CHANCE, HEAT_PATCH_CHANCE, ICE_STAFF, ICE_STAFF_CHANCE, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, LANDMINE_CHANCE, MACHINE_OFFERS, MATCH_MACHINE_CHANCE, MAX_COINS, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_SPEED, NIGHT_MONSTER_HOURS, OPAQUE, PASSIVE_ITEMS, PICKUP_RADIUS, PIGGY_BANK_CHANCE, PLAYER_SPEED, READY_TO_EAT_FOODS, RECIPES, RETURN_ITEMS, RETURN_STAFF_CHANCE, REVIVAL_ITEMS, SEASONS, SEASON_DAYS, SEASON_OFFSETS, SHERIFF_BADGE_CHANCE, SMALL_MONSTER_FOOD_CHANCE, SMALL_MONSTER_FOOD_WEIGHTS, SOLID, SWIFTNESS_RING_CHANCE, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS, VODKA_CHANCE
 from .expansion import DURIAN_CHANCE, EXPANSION_CATEGORIES, EXPANSION_ITEMS, carried_modifier
 from .room_machines import ROOM_MACHINES
@@ -479,6 +480,8 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
         return {"year": day // (SEASON_DAYS * len(SEASONS)) + 1, "season": SEASONS[season], "day": day % SEASON_DAYS + 1, "hour": hour, "ambient_temperature": spring + SEASON_OFFSETS[season]}
 
     def temperature_at(self, player):
+        if player.hunger <= STARVATION_HUNGER and player.temperature > STARVATION_TEMPERATURE:
+            return STARVATION_AMBIENT
         if player.excitement_remaining > 0:
             return DRINKS["vodka"]["felt_temperature"]
         return self.actual_temperature_at(player) + carried_modifier(player, "ambient_bonus", 0.0)
@@ -514,16 +517,26 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
     def body_temperature_rate(ambient):
         return next((rate for minimum, rate in BODY_TEMPERATURE_RATES if ambient >= minimum), -10)
 
+    def change_body_temperature(self, player, ambient, seconds):
+        starving = player.hunger <= STARVATION_HUNGER
+        if starving and player.temperature > STARVATION_TEMPERATURE:
+            rate = self.body_temperature_rate(STARVATION_AMBIENT)
+            cooling_seconds = min(seconds, (player.temperature - STARVATION_TEMPERATURE) * 60 / -rate)
+            player.temperature = max(STARVATION_TEMPERATURE, player.temperature + rate * cooling_seconds / 60)
+            seconds -= cooling_seconds
+        if seconds > 0:
+            ceiling = STARVATION_TEMPERATURE if starving else 36.0
+            player.temperature = max(0.0, min(ceiling, player.temperature + self.body_temperature_rate(ambient) * seconds / 60))
+
     def update_player(self, player, controls, seconds):
         previous_temperature = player.temperature
         excited_seconds = min(seconds, player.excitement_remaining)
         if excited_seconds > 0:
-            player.temperature = min(36.0, player.temperature + self.body_temperature_rate(DRINKS["vodka"]["felt_temperature"]) * excited_seconds / 60)
+            self.change_body_temperature(player, DRINKS["vodka"]["felt_temperature"], excited_seconds)
             player.excitement_remaining = max(0.0, player.excitement_remaining - seconds)
         if seconds > excited_seconds:
             ambient = self.actual_temperature_at(player) + carried_modifier(player, "ambient_bonus", 0.0)
-            rate = self.body_temperature_rate(ambient)
-            player.temperature = max(0.0, min(36.0, player.temperature + rate * (seconds - excited_seconds) / 60))
+            self.change_body_temperature(player, ambient, seconds - excited_seconds)
         player.hunger = max(0.0, player.hunger - seconds / 60 * carried_modifier(player, "hunger_drain_multiplier", minimum=True))
         if (previous_temperature < 5) != (player.temperature < 5):
             controls.movement_epoch += 1

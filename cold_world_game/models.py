@@ -139,6 +139,7 @@ class Monster:
     next_burn: float = 0.0
     burn_owner: str | None = None
     species: str = "small"
+    xray: bool = False
 
     @property
     def kind(self):

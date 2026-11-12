@@ -94,7 +94,7 @@ class Manual:
         lines += ["## 状态饮料", ""]
         drink = rules.DRINKS["vodka"]
         rate = next(rate for minimum, rate in rules.BODY_TEMPERATURE_RATES if drink["felt_temperature"] >= minimum)
-        lines += self.entry("vodka", f"饮用后{drink['effect_duration']:g}秒处于亢奋，体感温度恒为{drink['felt_temperature']:g}°C，按每现实分钟{rate:g}°C回复体温，{drink['effect_duration']:g}秒最多恢复{rate * drink['effect_duration'] / 60:g}°C；不直接补满、不增加饥饿。", "放入物品栏并选中，长按左键或手机“使用”0.5秒；无需篝火，倒地及饥饿大于10时可用。", "一次性；再次饮用刷新为30秒，不累加。保暖装备不再额外提高亢奋时的体感温度；离线与停机暂停个人状态计时。")
+        lines += self.entry("vodka", f"饮用后{drink['effect_duration']:g}秒处于亢奋，通常体感温度恒为{drink['felt_temperature']:g}°C，按每现实分钟{rate:g}°C回复体温，{drink['effect_duration']:g}秒最多恢复{rate * drink['effect_duration'] / 60:g}°C；不直接补满、不增加饥饿。", "放入物品栏并选中，长按左键或手机“使用”0.5秒；无需篝火，倒地及饥饿大于10时可用。", "一次性；再次饮用刷新为30秒，不累加。保暖装备不再额外提高亢奋时的体感温度；不能抵消饥饿≤1时高于18°C的强制降温，详见生存规则。离线与停机暂停个人状态计时。")
         return lines
 
     def tools(self):
