@@ -1,5 +1,5 @@
 .touch-only{display:none}
-.mobile-device{--mobile-viewport-height:100dvh;--mobile-header-bottom:110px;--touch-dock-height:96px;--touch-stick-size:clamp(84px,24vw,112px)}
+.mobile-device{--mobile-viewport-height:100dvh;--mobile-header-bottom:110px;--touch-dock-height:calc(var(--inventory-dock-height,82px) + 14px);--touch-stick-size:clamp(84px,24vw,112px)}
 .mobile-device #app{height:var(--mobile-viewport-height);max-height:100%;position:relative}
 .mobile-device #world-view{inset:0;width:100%;height:100%;transform:none}
 .mobile-device #world{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
@@ -19,10 +19,9 @@
 .mobile-device .connection-banner,.mobile-device .downed-notice{top:calc(var(--mobile-header-bottom) + 21px);font-size:12px;max-width:calc(100% - 20px);width:max-content;padding:9px 12px;white-space:normal}
 .mobile-device .downed-notice{width:min(400px,calc(100% - 20px));text-align:center}
 .mobile-device .inventory-dock{bottom:max(6px,env(safe-area-inset-bottom));width:min(660px,calc(100% - max(16px,env(safe-area-inset-left)) - max(16px,env(safe-area-inset-right))));pointer-events:auto}
-.mobile-device .vitals-row{gap:10px;margin:0 4px 5px;flex-wrap:wrap}
-.mobile-device .vital{flex:1 1 110px;min-width:110px;width:auto}
+.mobile-device .vitals-row{gap:10px;margin:0 4px}
 .mobile-device .vital-label,.mobile-device .vital-label strong{font-size:12px;white-space:nowrap}
-.mobile-device .equipped-label{font-size:11px;max-width:36%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mobile-device .equipped-label{font-size:11px}
 .mobile-device .hotbar{display:grid;grid-template-columns:repeat(10,minmax(44px,1fr));overflow-x:auto;gap:4px;padding:5px;touch-action:pan-x;overscroll-behavior:contain;scrollbar-width:thin}
 .mobile-device .item-slot{min-width:44px;min-height:44px;padding:4px;touch-action:manipulation;-webkit-touch-callout:none}
 .mobile-device .item-slot .slot-key,.mobile-device .item-slot .item-count{font-size:10px}
@@ -37,7 +36,7 @@
 .mobile-device .touch-action{min-height:48px;color:#eef8f4;font-family:inherit;font-size:12px;font-weight:600;border:1px solid #bfdcdbb0;border-radius:12px;background:#18383dd9;pointer-events:auto;touch-action:none;padding:4px;-webkit-touch-callout:none}
 .mobile-device #touch-use{background:#965047e8;border-color:#f2c1ab}
 .mobile-device .touch-action.active,.mobile-device .touch-stick.active{background:#557e78e8;border-color:#ffe0a2}
-.mobile-device .context-hint{bottom:calc(var(--touch-dock-height) + var(--touch-stick-size) + 14px + env(safe-area-inset-bottom));max-width:calc(100% - 20px);font-size:12px;white-space:normal;text-align:center;padding:7px 10px;pointer-events:none}
+.mobile-device .context-hint{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + max(var(--touch-stick-size),101px) + 24px);width:max-content;font-size:12px;white-space:normal;padding:7px 10px;pointer-events:none}
 .mobile-device .side-panel{z-index:5;top:calc(var(--mobile-header-bottom) + 18px);bottom:calc(var(--touch-dock-height) + env(safe-area-inset-bottom));left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));width:auto;padding:14px;max-width:none;overscroll-behavior:contain;touch-action:pan-y}
 .mobile-device .panel-heading h2{font-size:18px}
 .mobile-device .side-panel>.panel-heading{position:sticky;top:-14px;z-index:2;background:#18383df5;margin:-14px -14px 8px;padding:8px 12px;border-bottom:1px solid #789d9b70}
@@ -76,7 +75,7 @@
 .mobile-device .toast{font-size:13px}
 @media(orientation:portrait){.mobile-device .header-actions{width:100%;justify-content:flex-end}.mobile-device .game-header{row-gap:5px}}
 @media(orientation:landscape){
-  .mobile-device{--touch-stick-size:84px;--touch-dock-height:88px}
+  .mobile-device{--touch-stick-size:84px;--touch-dock-height:calc(var(--inventory-dock-height,74px) + 14px)}
   .mobile-device .world-heading .eyebrow,.mobile-device .brand-snow,.mobile-device .heading-divider{display:none}
   .mobile-device .game-header{flex-wrap:nowrap}
   .mobile-device .touch-actions{grid-template-columns:repeat(4,54px)}
@@ -86,7 +85,7 @@
   .mobile-device .panel-description,.mobile-device .panel-footer,.mobile-device .panel-kicker{display:none}
   .mobile-device .touch-transfer-tools{margin:6px 0 10px;padding:6px 10px}
   .mobile-device #touch-transfer-status{display:inline;margin-left:10px}
-  .mobile-device .context-hint{bottom:calc(var(--touch-dock-height) + 58px + env(safe-area-inset-bottom));max-width:48%}
+  .mobile-device .context-hint{bottom:calc(100% + 58px);max-width:48%}
   .mobile-device .help-grid{grid-template-columns:1fr 1fr}
   .mobile-device .landing-story{display:none}
   .mobile-device .landing-content{padding:0}

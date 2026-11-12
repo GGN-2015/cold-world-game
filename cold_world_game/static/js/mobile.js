@@ -43,10 +43,6 @@ export class MobileControls {
       const bounds = document.querySelector('.game-header').getBoundingClientRect();
       document.documentElement.style.setProperty('--mobile-header-bottom', `${bounds.bottom + 6}px`);
     }).observe(document.querySelector('.game-header'));
-    new ResizeObserver(() => {
-      const height = document.querySelector('.inventory-dock').getBoundingClientRect().height;
-      if (height) document.documentElement.style.setProperty('--touch-dock-height', `${Math.ceil(height) + 14}px`);
-    }).observe(document.querySelector('.inventory-dock'));
     this.resize();
     this.sync();
   }

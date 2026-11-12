@@ -34,6 +34,10 @@ export class GameUI {
     this.guideExpanded = false;
     this.guideHotbarKey = null;
     this.transfers = new StoragePrediction(catalog);
+    new ResizeObserver(([entry]) => {
+      const height = Math.ceil(entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height);
+      if (height) document.documentElement.style.setProperty('--inventory-dock-height', `${height}px`);
+    }).observe(document.querySelector('.inventory-dock'));
     connection.addEventListener('command', ({ detail }) => {
       if (detail.type === 'transfer' && this.transfers.enqueue(detail.seq, detail.payload)) this.update(this.state);
     });
