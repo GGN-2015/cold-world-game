@@ -2,7 +2,7 @@
 
 [返回项目首页](../../README.md) · [手册目录](../README.md) · [本组目录](README.md)
 
-自然空地中的固定机枪不是可携带物品，其200发弹药、占座、安全距离与操作见[户外座位与固定武器](../building/outdoor-facilities.md#固定机枪)；地雷为可放置建筑，见[建造手册](../building/building.md#地雷)。
+自然空地中的固定机枪不是可携带物品，其5000发弹药、占座、安全距离与操作见[户外座位与固定武器](../building/outdoor-facilities.md#固定机枪)；地雷为可放置建筑，见[建造手册](../building/building.md#地雷)。
 
 ## 通用攻击规则
 

@@ -9,6 +9,6 @@ MONSTER_TYPES = {
 
 OUTDOOR_FEATURES = {
     "park_bench": {"chance": 0.02, "stream": "open_park_bench:v1"},
-    "mounted_gun": {"chance": 0.01, "stream": "open_mounted_gun:v1", "ammo": 200},
+    "mounted_gun": {"chance": 0.01, "stream": "open_mounted_gun:v1", "ammo": 5000},
 }
 SEATS = frozenset(OUTDOOR_FEATURES)
