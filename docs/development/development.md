@@ -17,6 +17,7 @@
 | 确定性地图与稀疏覆盖 | `cold_world_game/procedural.py`、`cold_world_game/terrain_stream.py` | 固定生成算法、版本配置、格子初始内容、区块订阅，见[地图实现](terrain.md) |
 | 浏览器地图缓存 | `cold_world_game/static/js/terrain-worker.js`、`terrain-cache.js` | 后台生成、校验、IndexedDB、订阅合并与故障回退 |
 | 同图性能回放 | `tools/benchmark_terrain.py` | 临时世界、两种协议的处理耗时/字节与SQLite体积；不替代实际浏览器延迟测试 |
+| 战斗传输与同帧回放 | `cold_world_game/wire.py`、`cold_world_game/static/js/wire.js`、`tools/benchmark_sync.py` | 紧凑二进制、子弹轨迹、格子差分及同一批权威帧的字节/编码耗时对照 |
 | 基础界面双语 | `cold_world_game/static/js/i18n.js` | 每键中文/English，同步修改两种语言 |
 | PNG与清单 | `tools/generate_assets.py` 及其绘图模块 | 独立资源及离线预烘焙动画，见[美术](assets.md) |
 | WAV与清单 | `tools/generate_audio.py` | 见[音效](audio.md) |

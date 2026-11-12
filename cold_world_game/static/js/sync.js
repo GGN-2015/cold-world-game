@@ -1,8 +1,19 @@
-const collections = ['structures', 'players', 'monsters', 'projectiles', 'ground', 'events'];
+const collections = ['structures', 'players', 'monsters', 'projectiles', 'ground', 'events', 'structure_states'];
 const objects = ['you', 'environment', 'movement', 'interaction', 'container'];
 
 function applyFields(original, patch) {
   const value = { ...original, ...patch.fields };
+  for (const [field, changes] of Object.entries(patch.slot_changes || {})) {
+    if (!['inventory', 'backpack', 'slots'].includes(field) || !Array.isArray(original[field])) throw new Error('invalid_slot_patch');
+    const slots = [...original[field]];
+    const changed = new Set();
+    for (const [index, item] of changes) {
+      if (!Number.isInteger(index) || index < 0 || index >= slots.length || changed.has(index)) throw new Error('invalid_slot_index');
+      changed.add(index);
+      slots[index] = item;
+    }
+    value[field] = slots;
+  }
   for (const field of patch.unset || []) delete value[field];
   return value;
 }
@@ -11,7 +22,7 @@ export class StateSync {
   reset(state, revision = 0) {
     this.state = state;
     this.revision = revision;
-    this.entities = new Map(collections.map((name) => [name, new Map(state[name].map((entity) => [entity.id, entity]))]));
+    this.entities = new Map(collections.map((name) => [name, new Map((state[name] || []).map((entity) => [entity.id, entity]))]));
   }
 
   apply(message) {

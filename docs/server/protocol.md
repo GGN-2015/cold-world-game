@@ -16,7 +16,7 @@
 10秒内发送首条消息：
 
 ```json
-{"type":"join","player_id":"玩家甲","password":"服务器口令","quiet_inputs":true,"client_movement":true,"state_deltas":true,"procedural_terrain":1,"player_roster":true}
+{"type":"join","player_id":"玩家甲","password":"服务器口令","quiet_inputs":true,"client_movement":true,"state_deltas":true,"compact_state":1,"procedural_terrain":1,"player_roster":true}
 ```
 
 成功返回 `welcome`，含 `player_id`、`protocol:1`、附近完整 `state` 和差分基线 `state_revision:0`。玩家ID为1～64字符，不全为空白、不含控制字符；身份绑定连接，后续不能指定他人。错误口令、同名在线或无法出生时发错误并关闭。默认只允许同源浏览器，额外Origin须服务端显式允许；非浏览器可不带Origin。
@@ -31,9 +31,29 @@
 
 `structure_states`只传点燃、占座、机枪弹药与怪物拆除等动态外观；容器实际内容仍从服务端交互状态读取，不由默认地图推算。浏览器异步加载区块后更新渲染与碰撞索引，不用空基底接受权威修改。实现与缓存故障回退见[确定性地图](../development/terrain.md)。
 
-每条消息最多32768字节JSON文本，拒绝NaN/Infinity。每连接持续60命令/秒、突发120；超限断开。带 `seq` 的请求收到对应 `ack` 或 `error`，错误含机器码与英文消息，浏览器按代码翻译。连接级无 `seq` 错误通常随后关闭。`ping` 返回当前 `elapsed`。断线重新握手拿完整状态，不重放物品修改命令。
+客户端上行每条消息最多32768字节JSON文本，拒绝NaN/Infinity；下行状态可协商二进制。每连接持续60命令/秒、突发120；超限断开。带 `seq` 的请求收到对应 `ack` 或 `error`，错误含机器码与英文消息，浏览器按代码翻译。连接级无 `seq` 错误通常随后关闭。`ping` 返回当前 `elapsed`。断线重新握手拿完整状态，不重放物品修改命令。
 
 可选能力均只作用当前连接：`quiet_inputs` 省略不带seq的input/stop成功回执；`client_movement` 启用本机算移动、服务器汇总坐标；`state_deltas` 启用差分；`player_roster` 订阅名单。未协商的客户端仍有完整状态和服务端移动模式。
+
+## 紧凑状态传输
+
+`compact_state:1`要求同时开启`state_deltas:true`，可与种子地图独立协商。握手、确认和错误仍是JSON；成功握手额外返回`wire_config`，之后状态与名单增量使用MessagePack二进制帧。浏览器设置`binaryType='arraybuffer'`；未返回配置时继续使用JSON，解码或修订失败时重新握手回退，不重放交易命令。
+
+二进制包是`[1, reset, added, payload]`。配置的`fields`表把对象字段名映射为从0开始的整数；未知字符串字段保留原名。`references`指定可压缩的ID字段，字符串引用编码为`-index-1`，非负事件序号保持原值；`added`按索引顺序追加UTF-8字符串。引用表达到16,384条时，下一个包的`reset`清空表；已解码的客户端状态保留原始ID，不受重置影响。地图种子仍是字符串，金币、次数、弹药和修订号保留整数精度。
+
+`scales`指定数值的通信倍率，编码取整、解码除以倍率。远端坐标与速度精度为1/256格，时间为1毫秒，方向向量为1/4096；不修改数据库、服务器坐标或碰撞判定。自己的坐标保留完整浮点精度，避免碰撞边界被量化到障碍物内；自己的体温、饥饿也保持精确，用于本机移动与使用条件。附近玩家血条按0.1度更新，世界时钟显示按游戏分钟更新。
+
+紧凑状态保留普通差分的`base/revision`约束，并增加以下语义：
+
+| 数据 | 传输方式 |
+| --- | --- |
+| 物品栏、背包、容器 | `slot_changes:{inventory:[[index,item]],backpack:[...],slots:[...]}`只替换变更格；空格值为`null`，整包验证后原子应用 |
+| 建筑动态外观 | `entities.structure_states`按ID增删与字段更新，不因一个火堆变化重发整组 |
+| 普通子弹 | 首次可见发送轨迹锚点`x/y/flight_at`、速度和发射信息，客户端按世界时间推导位置；离开范围、碰撞终止或消失时移除 |
+| 战斗事件 | `state.events`只含上次状态之后新增的附近事件；客户端按时间结束动画，不为过期事件发送删除列表 |
+| 玩家名单 | 初始`roster`完整；之后`roster_delta`含独立`base/revision`、`server_time`、`entries:[{id,fields}]`和`remove`，未变账号不重发；仅排序变化时附短ID的`order`列表，保持在线优先与离线登录时间排序 |
+
+普通子弹不公开`hit_targets`、伤害账本等内部结算信息。追踪弹与投掷物仍同步其必要目标和轨迹信息；伤害、穿透、冷却、弹药、掉落和阻挡统一由服务器计算。首次加入或重连补足当前活动子弹，不补播此前战斗事件。客户端始终按顺序解码全部差分，只把同一绘制帧前的多次画面发布合并；其间的新事件一起保留，不能丢弃有基线依赖的消息。
 
 ## 规则目录
 
@@ -57,6 +77,8 @@
 ## 连续输入与界面命令
 
 `input` 包含移动向量 `move`、世界坐标 `aim`、可选 `target_id`；本机移动模式还上报 `position`、`velocity`、`movement_epoch`。数组长度和数值须有效，移动修正序号须非负安全整数。服务器不对本机模式重复积分或做速度反作弊。约50毫秒合并上报，攻击/放置/丢弃前立即上报最终位置与瞄准。
+
+紧凑连接省略未变的方向、瞄准、目标和视口；静止无变化时约250毫秒发送一次完整输入心跳。位置、速度与移动修正序号作为一组上报，不能只发位置而省略修正序号。移动中仍按约50毫秒上报；关键命令后清空输入缓存，不让省流影响停止、转屏或长按操作。
 
 `viewport:[width,height]` 单位为世界格，不是像素，有限正数且各≤64；缺省沿用本连接值，首次32×18。转屏/缩放随输入更新，用于普通子弹消失边界。
 
@@ -129,7 +151,7 @@
 
 ## 投射物状态
 
-普通子弹标记 `owner`、`hostile`、`origin_x/y`、`spawned_at`；原点等于射手坐标。`hit_targets` 记录已伤害的玩家/怪物，shot_hits/shot_impacts去重一次射击的玩家伤害与反馈。`range_player/range_x/range_y/range_radius` 表示跟随玩家的视野半对角线销毁圆，越界飞行段先截断再判伤害；remaining为到圆边界的剩余距离。
+普通子弹标记 `owner`、`hostile`、`origin_x/y`、`spawned_at`；原点等于射手坐标。服务端`hit_targets`记录已伤害的玩家/怪物，shot_hits/shot_impacts去重一次射击的玩家伤害与反馈；紧凑连接不传这些账本。`range_player/range_x/range_y/range_radius` 表示跟随玩家的视野半对角线销毁圆，越界飞行段先截断再判伤害；普通JSON状态的remaining为到圆边界的剩余距离，紧凑连接由客户端推导显示值。
 
 树挡双方普通弹，全部容器与机器仅挡hostile弹，墙可穿透；以 `projectiles.blockers/monster_blockers` 为准。`weapon_kind` 关联武器冰冻/灼烧参数；旧字段缺省不改变保存的飞行位置和速度。投掷物通过起点、目标和引爆时间显示抛物线，伤害只在服务器爆炸时结算。
 
@@ -154,7 +176,7 @@
 
 名单约1Hz独立发送 `roster`，含服务器Unix真实时间和每个账号id/online/hunger/temperature/money/last_login_at，不进入10Hz世界状态。在线优先；离线按最后成功登录倒序，未知记录为null。客户端用server_time加单调时钟计算“刚刚/整分钟/整小时/整天”，不依赖本机日期，详见[玩家列表](../guide/controls.md#玩家列表)。
 
-`you.admin` 仅在当前启动指定的管理员ID登录时为true，目录与接口不接受客户端自报管理员身份。管理员使用 `admin` 请求，命令字符串语法与英文错误见[专用手册](admin.md)；治疗和传送复用同类事件及移动修正。访问限制仍在服务端执行，隐藏按钮不是权限校验。
+`you.is_admin` 仅在当前启动指定的管理员ID登录时为true，目录与接口不接受客户端自报管理员身份。管理员使用 `admin` 请求，命令字符串语法与英文错误见[专用手册](admin.md)；治疗和传送复用同类事件及移动修正。访问限制仍在服务端执行，隐藏按钮不是权限校验。
 
 ## 嵌入与存档边界
 

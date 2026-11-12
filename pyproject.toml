@@ -9,6 +9,7 @@ dependencies = [
     "flask-sock>=0.7,<1",
     "simple-websocket>=1.1,<2",
     "filelock>=3.16,<4",
+    "msgpack>=1.1,<2",
 ]
 
 [project.scripts]
@@ -21,4 +22,4 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "cold_world_game"
 module-root = ""
-source-include = ["docs/**", "tools/benchmark_terrain.py", "tools/generate_assets.py", "tools/expansion_assets.py", "tools/machine_assets.py", "tools/outdoor_assets.py", "tools/manual_assets.py", "tools/generate_manuals.py", "tools/generate_audio.py", "tools/generate_music.py", "tools/music/**", "uv.lock"]
+source-include = ["docs/**", "tools/benchmark_sync.py", "tools/benchmark_terrain.py", "tools/generate_assets.py", "tools/expansion_assets.py", "tools/machine_assets.py", "tools/outdoor_assets.py", "tools/manual_assets.py", "tools/generate_manuals.py", "tools/generate_audio.py", "tools/generate_music.py", "tools/music/**", "uv.lock"]

@@ -12,6 +12,7 @@ from simple_websocket import ConnectionClosed
 from .actions import GameError
 from .server import GameServer, send
 from .sync import state_delta
+from .wire import CompactSync
 
 
 LOGGER = logging.getLogger(__name__)
@@ -90,6 +91,7 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
             quiet_inputs = message.get("quiet_inputs") is True
             wants_roster = message.get("player_roster") is True
             wants_deltas = message.get("state_deltas") is True
+            compact = CompactSync() if message.get("compact_state") == 1 and wants_deltas else None
             wants_terrain = message.get("procedural_terrain") == 1 and wants_deltas
             terrain_previous = {}
             if wants_terrain:
@@ -99,7 +101,11 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
             state_revision = 0
             processed_sequence = 0
             state["command_sequence"] = processed_sequence
+            if compact:
+                state = compact.welcome(state)
             welcome = {"type": "welcome", "player_id": player_id, "protocol": 1, "state": state}
+            if compact:
+                welcome["wire_config"] = compact.encoder.config()
             if wants_terrain:
                 welcome["terrain_config"] = server.world.terrain_bootstrap()
                 welcome["terrain"] = terrain_changes
@@ -108,6 +114,8 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
             previous_state = state
             if wants_roster:
                 welcome["roster"] = server.world.player_roster()
+                if compact:
+                    compact.reset_roster(welcome["roster"])
             send(websocket, welcome)
             next_state = time.monotonic() + 0.1
             next_roster = time.monotonic() + 1
@@ -142,10 +150,13 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
                             terrain_changes, terrain_previous = server.world.terrain_updates(player_id, terrain_previous)
                     state["command_sequence"] = processed_sequence
                     if wants_deltas:
-                        update = state_delta(previous_state, state, state_revision)
+                        update = compact.delta(state) if compact else state_delta(previous_state, state, state_revision)
                         if wants_terrain and (terrain_changes["add"] or terrain_changes["remove"]):
                             update["terrain"] = terrain_changes
-                        send(websocket, update)
+                        if compact:
+                            websocket.send(compact.encoder.encode(update))
+                        else:
+                            send(websocket, update)
                         state_revision += 1
                         previous_state = state
                     else:
@@ -153,7 +164,13 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
                     now = time.monotonic()
                     next_state += (int((now - next_state) / 0.1) + 1) * 0.1
                 if wants_roster and now >= next_roster:
-                    send(websocket, {"type": "roster", **server.world.player_roster()})
+                    roster = server.world.player_roster()
+                    if compact:
+                        update = compact.roster_delta(roster)
+                        if update:
+                            websocket.send(compact.encoder.encode(update))
+                    else:
+                        send(websocket, {"type": "roster", **roster})
                     next_roster = time.monotonic() + 1
         except GameError as error:
             try:
