@@ -1,370 +1,145 @@
-# 后端协议 v1
+# 后端协议
 
 [返回项目首页](../README.md) · [手册目录](README.md)
 
-内置浏览器客户端由 `GET /` 提供，PNG 与 JavaScript/CSS 位于 `/static/`，无需独立前端服务器。原服务信息 JSON 位于 `GET /api/server`；`/api/info` 与 `/health` 保持原有用途。
+本册按接口职责组织，不按物品加入批次组织。玩法数值以 `/api/info` 为准；物品和机器的用户说明分别见[食品](foods.md)、[武器](weapons.md)、[工具](tools.md)、[设施](machines.md)。
 
-## 连接和身份
+## HTTP与连接生命周期
 
-连接服务器的 `/ws`（随站点使用 `ws` 或 `wss`）。10 秒内发送首条消息：
+| 路径 | 用途 |
+| --- | --- |
+| `GET /` | 内置浏览器游戏与登录页 |
+| `GET /api/server` | 服务信息 |
+| `GET /api/info` | 规则目录、协议标识、配方与价格 |
+| `GET /health` | 健康状态；存档故障暂停时HTTP 503 |
+| `/static/` | 同源PNG、WAV、JavaScript与CSS |
+| `/ws` | 实时WebSocket，HTTPS站点用WSS |
+
+10秒内发送首条消息：
 
 ```json
-{"type":"join","player_id":"玩家甲","password":"服务器口令"}
+{"type":"join","player_id":"玩家甲","password":"服务器口令","quiet_inputs":true,"client_movement":true,"state_deltas":true,"player_roster":true}
 ```
 
-成功响应 `{"type":"welcome","player_id":"玩家甲","protocol":1,"state":{...}}`。口令错误、同 ID 已在线或出生点暂时被怪物占用时，发送 `error` 并断开。ID 为 1～64 个字符，不能全为空白或包含控制字符。身份绑定到该连接，后续命令不能指定其他玩家。每个窗口建立独立连接；断线重连需要重新握手，不重新发放初始装备。
+成功返回 `welcome`，含 `player_id`、`protocol:1`、附近完整 `state` 和差分基线 `state_revision:0`。玩家ID为1～64字符，不全为空白、不含控制字符；身份绑定连接，后续不能指定他人。错误口令、同名在线或无法出生时发错误并关闭。默认只允许同源浏览器，额外Origin须服务端显式允许；非浏览器可不带Origin。
 
-浏览器默认只允许同源连接。开发独立前端时用服务端 `--allowed-origin` 明确允许其 Origin。非浏览器客户端可以不发送 Origin。每条消息为最多 32768 字节的 JSON 文本；拒绝 NaN 和 Infinity。每连接最多持续 60 条命令/秒，突发容量 120 条，超限断开。
+每条消息最多32768字节JSON文本，拒绝NaN/Infinity。每连接持续60命令/秒、突发120；超限断开。带 `seq` 的请求收到对应 `ack` 或 `error`，错误含机器码与英文消息，浏览器按代码翻译。连接级无 `seq` 错误通常随后关闭。`ping` 返回当前 `elapsed`。断线重新握手拿完整状态，不重放物品修改命令。
 
-内置客户端按当前页面选择 WS/WSS，约每 50 毫秒发送输入，高频摇杆和键盘重复事件合并为下一次上报，本地仍每帧响应；攻击、放置和拖到场景前立即上报当前位置与瞄准，失焦时先上报最终位置再发送 `stop`。断线采用退避重连，重新接收完整快照，不重放物品变更命令。无 `seq` 的连接级 `error` 表示即将断开，浏览器收到后发起正常关闭握手；带 `seq` 的操作错误通常不关闭连接。
+可选能力均只作用当前连接：`quiet_inputs` 省略不带seq的input/stop成功回执；`client_movement` 启用本机算移动、服务器汇总坐标；`state_deltas` 启用差分；`player_roster` 订阅名单。未协商的客户端仍有完整状态和服务端移动模式。
 
-`join` 可附 `"quiet_inputs": true`，此时服务器只省略无 `seq` 的 `input`、`stop` 成功回执，避免给连续输入发送无用的小包；带 `seq` 的命令和其他类型命令仍返回 `ack`，所有错误仍返回 `error`。缺省为关闭，兼容原有客户端。内置浏览器启用此选项，玩法及存档事务不变。
+## 规则目录
 
-内置浏览器还发送 `"client_movement": true`，启用本机逐帧计算移动和碰撞、服务端汇总坐标的模式。服务器不再对该连接的玩家重复积分或校验移动速度，仍检查消息类型、数组长度和数值有效性。缺省为关闭，旧客户端和旧协议脚本继续由服务器根据 `move` 移动。模式只属于当前连接，不写入存档；重连需要重新协商，玩家原有存档坐标不变。
+目录只加载一次，不随10Hz世界状态重复发送。以下字段按机制分组：
 
-### 差分世界同步
+| 字段 | 内容 |
+| --- | --- |
+| `movement`、`storage` | 速度、碰撞半径、10格物品栏/30格背包、丢弃和拾取距离 |
+| `recipes` | 制作配方：`inputs`、`output`、`count` |
+| `foods`、`ready_to_eat_foods`、`drinks` | 饥饿增量、即食集合、状态饮料参数 |
+| `guns`、`melee_weapons`、`explosive_weapons`、`axe` | 弹药、次数、伤害、半径、扇形角、冷却及状态参数 |
+| `healing_items`、`revival_items`、`return_items` | 自用恢复、队友救援、回城的长按时长和次数 |
+| `igniters`、`passive_items`、`equipped_items` | 点火次数、携带被动和选中装备倍率 |
+| `machine_offers`、`vending_offers` | 全机器兑换表及售货机兼容字段，统一配方结构 |
+| `room_machines`、`terrain` | 自然设施与各箱内稀有物品的独立概率 |
+| `currency`、`knockback`、`projectiles` | 金钱上限、击退系数、弹道阻挡与视野射程规则 |
+| `expansion_items` | 物品分类/概率的补充索引，实际机制读取上面对应目录，不形成另一套玩法 |
 
-内置客户端在 `join` 中附 `"state_deltas":true`。首次 `welcome` 仍包含完整的附近世界状态和 `state_revision:0`，后续约 10Hz 发送 `{"type":"delta","base":0,"revision":1,"state":{...},"objects":{...},"entities":{...}}`，不重复发送未变化的建筑、物品和历史动作事件。未协商此选项的旧客户端继续收到完整 `state`，协议版本仍为 1。
+`guns` 中 `automatic` 控制持续按住，`instant` 表示按下边沿立即产生首发（子弹仍按弹速飞行），`pellets/spread` 为散布；`melee_weapons` 的 `arc_degrees`、`range` 决定实际扇形，`effect` 指向离线PNG。恢复物品无 `hunger` 即不改饥饿，`temperature_delta/hunger_delta` 表示增量，`supplies` 表示拆包产物；`uses` 表示有限次数。目录与服务端定义一致，客户端不能自报交易价格或产物。
 
-`state` 仅包含变化的顶层字段；`objects` 为 `you`、`environment`、`movement`、`interaction`、`container` 的字段补丁，格式为 `{"fields":{...},"unset":[...]}`，未改变的背包等数组沿用。对象从空值变为对象或反向变化时，通过 `state` 完整替换。`entities` 对 `structures`、`players`、`monsters`、`projectiles`、`ground`、`events` 分别提供 `add`、`update`、`remove`：新增给完整实体，修改给 `{"id":"实体ID","fields":{...},"unset":[...]}`，移除给 ID 列表。事件使用数字 ID；事件只新增和过期移除，命中表现仍按 `event_sequence` 去重。区块列表也只在附近已生成区块变化时发送。
+## 连续输入与界面命令
 
-每份差分仅能应用到 `base` 指定的上一份状态，应用完整份差分后再向游戏发布，不能把一次物品转移显示为半份更新。版本不连续或实体缺失时客户端关闭连接并重新握手取得完整基线，不重放制作、转移、射击等命令。服务器在世界锁内取得附近状态，在锁外计算并编码该连接的差分；客户端复用未变的建筑数组和碰撞网格。远端玩家、怪物仍使用各自 ID 的连续运动历史，而不是把每份差分当成新出生实体。
+`input` 包含移动向量 `move`、世界坐标 `aim`、可选 `target_id`；本机移动模式还上报 `position`、`velocity`、`movement_epoch`。数组长度和数值须有效，移动修正序号须非负安全整数。服务器不对本机模式重复积分或做速度反作弊。约50毫秒合并上报，攻击/放置/丢弃前立即上报最终位置与瞄准。
 
-### 本机挥斧反馈
+`viewport:[width,height]` 单位为世界格，不是像素，有限正数且各≤64；缺省沿用本连接值，首次32×18。转屏/缩放随输入更新，用于普通子弹消失边界。
 
-`attack` 可附 1～64 个可打印字符的 `attack_id`，服务器接受一次挥斧时在结果中返回 `swing:true`，并在 `melee` 事件中原样带回此标记。冷却等原因未挥斧时返回 `swing:false`；打开容器等其他响应不表示挥斧成功。缺省不带标记时保持旧行为。
+| 命令 | 参数与行为 |
+| --- | --- |
+| `select` | `slot:0..9`，换格取消长按、不重置冷却 |
+| `attack` | `pressed:true/false` 按下/松开边沿，非自动武器不能重复按下模拟连发 |
+| `stop` | 失焦、转屏等立即停止移动与长按 |
+| `ui` | `open:true/false`，菜单打开取消长按，UI点击不再攻击场景 |
+| `open`、`close` | 按设施 `id` 打开，或关闭；超距/视线阻挡自动关闭 |
+| `dismantle_container` | 打开同一空设施、选斧头，`pressed:true` 开始，`false` 取消；连续1.5秒回收同种方块 |
 
-本机点击合法挥斧目标时，立即播放八方向 PNG 动画和刀风声，不等待往返；收到同标记事件只确认、不重复播。拒绝、断线、保存失败时取消尚未播完的本地预览。伤害、击退、掉落、消耗、冷却裁定与其他玩家的表现仍以保存成功后的服务端结果为准；动画方向取最近的八方向，实际命中仍按连续的瞄准向量计算。
+`dismantle_chest` 是只针对空箱子的兼容别名。全部设施统一窗口拆除，篝火燃料和火种须空，存钱罐余额须0；普通 `attack` 不能绕开。受击、换格、关窗、倒地、超距或重新放入内容物取消进度。`interaction.target/progress` 用于显示长按，不替换正在按住的按钮。
 
-### 玩家名单订阅
+食品、医疗、饮料、回城、救援与投掷均复用 `attack` 边沿和目录时长，不为每个物品增加命令。救援目标通过瞄准及 `target_id` 识别其他在线倒地玩家，持续校验距离/视线。状态饮料不受食品饥饿门槛限制，倒地允许恢复、救援与回城但不能攻击。
 
-`join` 附 `"player_roster": true` 时，`welcome.roster` 返回当前完整玩家名单，之后服务器独立约每秒发送一次 `{"type":"roster","server_time":1794268800.0,"players":[{"id":"玩家甲","online":true,"hunger":10.0,"temperature":36.0,"money":0,"last_login_at":1794268700.0}]}`。缺省不订阅，旧客户端不接收额外消息。名单不放入 10Hz 的世界 `state`，不要求客户端轮询或额外发送心跳命令。
-
-名单覆盖本世界全部已创建账号，仅公开名称 ID、在线状态、饥饿、体温、金币和最后成功登录时间，不公开离线坐标或随身物品。在线优先；在线按名字排序，离线按最后登录时间倒序，缺少记录的账号放在最后。同时间按名字稳定排序。`last_login_at` 使用持久化的 Unix 真实时间秒，在登录保存成功时更新，退出不重写；不是现有按世界时间计的 `offline_since`。旧存档缺少该字段时读为 `null`，界面显示暂无记录；下次成功登录后正常记录。保存失败时登录记录、账号及在线状态一起回滚。
-
-客户端用 `server_time` 加收包后的单调时钟间隔计算离线账号的“距上次登录”，不依赖本机系统日期。`<=300s` 显示刚刚，之后 `<3600s` 显示 `floor(seconds/60)` min，`<86400s` 显示 `floor(seconds/3600)` 小时，其余显示 `floor(seconds/86400)` 天。世界暂停和服务器停机仍计入真实时间；未来时间差钳为 0，不显示负数或浮点数。折叠名单不创建卡片，展开后复用既有卡片并仅更新变化文字；连接丢失时明确标记为上次已知状态。
-
-`/api/info` 的 `movement` 提供 `player_speed: 4.0` 与 `monster_speed: 1.2`，单位为世界坐标单位/秒。饥饿值下限为 0，不设 10 点上限；当前饥饿值大于 10 时禁止进食，等于 10 时仍可吃，食物完整加值。客户端不得把服务器快照中的饥饿值截断到 10。
-
-`axe` 提供斧头攻击参数：`range: 3`、`interval: 0.5`、`damage: 4`、`arc_degrees: 180`。范围为玩家与怪物中心的欧氏距离，朝向为玩家到 aim 的向量；点积非负（夹角 ≤90°）且视线可达的所有范围内怪物均命中，间隔单位为世界运行秒数。
-
-`knockback` 提供命中击退距离（格）：`axe: 0.7`、`bullet: 0.4`（玩家子弹对怪物）、`monster_melee: 0.65`、`monster_big_melee: 1.0`、`monster_bullet: 0.9`、`player_bullet: 0.3`（玩家子弹对玩家），以及大怪受击距离系数 `big_monster_scale: 0.6`。服务器统一结算击退及其逐段碰撞，递增受击玩家的移动版本号；客户端收到新版位置后立即以它为后续移动起点，显示误差按 80 毫秒时间常数平滑消除，纠偏速度不超过玩家全速的 1.5 倍。非传送误差即使超过 2 格也不直接跳过去，旧输入仍不能覆盖击退。远端角色使用独立历史插值与有界推算，推算不超过该角色正常速度，显示追赶不超过其 2.5 倍；真正传送由 `teleport_epoch` 明确标识，不将普通包间位置差误认为传送。
-
-`storage` 提供 `inventory_slots: 10`、`backpack_slots: 30`、`drop_distance: 2.0`、`pickup_radius: 0.75`。每格按 1 米计；距离均为中心之间的欧氏距离，`drop_distance` 是丢弃距离上限，受阻时实际距离缩短。
-
-`vending_offers` 提供 `sell_wood`（10 木材换 1 硬币）、`buy_wood`（1 硬币换 10 木材）、`buy_cola`（1 硬币换 1 可乐），每项使用与制作配方一致的 `inputs`、`output`、`count`。新增物品种类为 `vending_machine`、`coin`、`cola`，`foods.cola: 2`；售货机是可放置、阻挡移动与子弹的一格建筑，不是制作配方。
-
-`machine_offers` 按机器种类返回固定项目：`vending_machine` 与原 `vending_offers` 一致，`match_machine` 提供相同的 `sell_wood`、`buy_wood`，以及 `buy_matches`（1 硬币换 1 盒 `matches`，`uses: 1`）。保留 `vending_offers` 供旧客户端读取，不能将一个机器的专属项目用于另一种机器。`match_machine` 是可采集和重新放置的一格建筑，不是制作配方，也没有容器储物格。
-
-`terrain` 提供 `version:10` 与售货机、火柴机、枪械机、急救包、回城/寒冰/烈焰法杖、手榴弹、除颤器及暖宝宝贴各自的 0.02 概率，另含小猪存钱罐的 0.05 概率，`unexplored_uses_latest:true`。三种机器分别按每个建筑区块独立判定，包括出生房屋，不重刷旧区域；机器随机流分别为 `vending_machine:v1`、`match_machine:v1`、`gun_machine:v1`。间距检查不消耗箱内物品的随机数，三种机器可共存；新生成的机器必须与箱子、篝火及其他机器保持八邻域间距，并保留交互与出生通路，没有合法位置时不强行生成。
-
-## 瞬时动作反馈
-
-`/api/info.healing_items.first_aid_kit` 提供 `duration: 0.5`、`temperature: 36.0`、`hunger: 10.0`。它不是 `foods` 项，不需要火且允许倒地玩家使用；按住 `attack` 满时消耗选中物品，将体温设为 36、饥饿设为 `max(当前值, 10)`。松开、切换、打开界面或输入超时会取消进度；恢复倒地玩家时递增 `movement_epoch`，避免旧移动状态阻止站起。物品与属性整次保存后才发布 `heal`，失败全部回退。
-
-自然房屋每个箱子以独立特征流 `chest_first_aid_kit:v1:<箱子x>:<箱子y>` 抽取一次 2% 急救包，不使用原物资的随机流，之后统一打乱物品及空格。`terrain.chest_first_aid_kit_chance` 公开该概率。旧区块不补发，尚未生成的区块使用第 5 版；不新增医疗持久字段，物品沿用既有 `Item` 保存格式。
-
-快照额外包含 `event_sequence` 和 `events`。`event_sequence` 是当前服务进程内的全局递增序号；`events` 是最近 1.5 秒、当前玩家附近的动作列表，最多保留 256 条，不是持久操作日志。例如：
+## 制作、放置、点火与丢弃
 
 ```json
-{"id":42,"type":"shot","actor":"玩家甲","kind":"rifle","x":1.0,"y":2.0,"time":123.4}
-```
-
-`time` 使用世界累计运行秒数。事件在对应事务成功后才发布；事务包含持久状态变更时先保存再发布，失败回滚不发布事件。各类型语义如下：
-
-| `type` | `actor` / `kind` | 附加信息与播放规则 |
-| --- | --- | --- |
-| `shot` | 射手 ID / 枪械种类，大怪为 `monster` | `direction: [dx, dy]` 为单位射击方向；霰弹枪五枚弹丸合计只发布一条 |
-| `eat`、`place` | 玩家 ID / 食物或建筑种类 | 只在操作实际成功后发布 |
-| `heal` | 玩家 ID / `first_aid_kit` | 成功使用并原子保存后发布；播放约 0.9 秒扩散光圈和上浮红色医疗加号，并复用 `eat` 使用音效；不作为属性或物品变更依据 |
-| `melee` | 攻击者 ID / `axe`、`monster`、`monster_fast` 或 `monster_big` | 斧击携带单位 `direction`、`range`、`arc_degrees: 180` 和本次 `targets` ID 数组（空挥为空），坐标为挥斧中心，一次群攻仅一个事件；怪物近战保留 `target`、`target_x`、`target_y` |
-| `chop` | 拆除者 ID / 玩家为建筑种类，怪物为 `monster` | `target`、`target_x`、`target_y` 为建筑及位置；有效持续拆除每 0.3 秒最多一条 |
-| `break` | 拆除者 ID / 建筑种类 | `target` 为已移除建筑 ID，`x`、`y` 为建筑位置；只在拆除完成时发布 |
-| `hit` | 攻击者 ID / `axe` 或 `bullet` | `target` 为受伤怪物 ID，`target_type: "monster"`；霰弹枪一次射击对同一怪物只发布一条 |
-| `hurt` | 受伤玩家 ID / `player` | `target` 为该玩家 ID，`target_type: "player"`，`source` 为攻击者 ID；怪物近战、怪物子弹和玩家子弹共用，一次霰弹射击对同一玩家只发布一条 |
-| `death` | 死亡怪物 ID / `monster` 或 `monster_big` | `target` 为该怪物 ID，`target_type: "monster"`，`source` 为攻击者 ID；每只怪物只发布一次，实体在同次结算立即移除 |
-
-`hit`、`hurt`、`death` 还携带单位攻击方向 `direction: [dx, dy]` 与受阻后实际击退位移 `knockback: [dx, dy]`，坐标 `x`、`y` 为该次结算击退前的位置。无物理攻击来源的 `hurt` 可使用 `source: null`、零方向与零位移。客户端用这些字段绘制受击和独立死亡特效，不要求目标仍在快照中；死亡动画约 0.65 秒，不能延缓移除或继续阻挡怪物。一次致死攻击可依次产生 `melee`（或 `shot`）、`hit`、`death`，分别对应攻击、命中与死亡，不应当成三次伤害。霰弹枪的多个弹丸仍可分别伤害怪物，但同一次射击对同一怪物只击退和播放命中反馈一次。
-
-同一事件会出现在多份快照中。客户端应按序号去重，并推进到快照的全局 `event_sequence`，避免走近时补播旧事件；首次登录或重连时以 welcome 快照的序号为基线，不播放历史事件，后台恢复也不补播旧声音或动画。内置客户端仅接收距快照时间不超过 0.6 秒的新事件；同时特效最多 96 个，死亡实体不会因播放而重新进入场景。事件不写入存档，服务器重启会重新计数。它们只用于音效和动画表现，不能作为背包变化或伤害结算的依据。
-
-## 返回消息
-
-- `welcome`：登录完成，附完整的当前可见状态。
-- `state`：正常每 0.1 秒按固定时间点推送当前玩家附近的完整快照；处理过慢时跳过错过的推送，不补发旧快照。不是增量补丁，离开快照的实体应从客户端移除。
-- `ack`：`{"type":"ack","seq":12,"result":{...}}`。物品变更已经原子保存；输入类 ack 仅表示已接收意图，实际效果看后续 state。
-- `error`：`{"type":"error","seq":12,"code":"out_of_range","message":"..."}`，该操作没有成功。
-
-命令可以附带非负安全整数 `seq`，只用于匹配响应，不是持久幂等键。ack 丢失时，应以重连后的快照确认结果，不要盲目重复制作或转移命令。转移可附 `item_id` 防止来源格子变化后误取另一物品。
-
-`state` 包含 `tick`、累计世界运行秒数 `elapsed`、`environment`（`year` 为从 1 开始的年份，另有季节、季节内第几天、游戏小时、室外温度）、`you`（完整物品栏、背包和玩家状态）、附近的 `players`、`structures`、`monsters`、`projectiles`、`ground`、已生成 `chunks`、当前打开的 `container` 和 `interaction` 进度。`you.inventory` 为独立的 10 格物品栏，`you.backpack` 为独立的 30 格背包，`you.selected` 仅索引物品栏，背包物品必须先转入物品栏才能使用。旧存档缺少 `backpack` 时初始化 30 个空格，不移动原物品栏物品。坐标为世界坐标；`you.tile` 与 `you.offset` 表示格子中心和格内偏移。其他玩家只包含公开状态，不暴露物品栏或背包；离线玩家不出现在快照中。木墙和柱子的 `kind` 均为 `wall`，不另发 `pillar`。
-
-`environment.year = floor(elapsed / (day_seconds * season_days * 4)) + 1`，每年四季、当前每季 4 天。它是现有累计运行时间的派生字段，不单独写入存档，旧世界加载后沿用已经历的年数；离线暂停和重启不补算现实时间。年份与其他环境信息取最新快照，不等待运动插值缓冲。
-
-结构的 `monster_demolition` 标记表示怪物正在拆除；篝火结构的 `lit` 表示燃烧。打开的容器快照包含箱子 `slots` 或篝火的 `fuel`、`igniter`、`burn_remaining`。`burn_remaining` 为当前燃烧单位剩余的现实运行秒数。每格是 `null` 或 `{kind,id,ammo,uses}`；物品不堆叠，木材缓冲区除外。
-
-## 客户端运动与位置汇总
-
-`state.movement` 包含 `mode: "client" | "server"` 和非负整数 `epoch`。客户端模式下，本机位置与镜头每帧更新，不使用低频快照替换本机正在行走的位置；普通快照只更新体温、物品和环境。身体半径取 `/api/info.radius`，每段移动最多 0.15 格，先尝试双轴移动，受阻时依次沿 X、Y 轴滑动；已生成区块、实体障碍与原服务端碰撞规则相同。移动速度及冷饿减速沿用现有规则，不另设新速度。
-
-客户端输入增加 `position: [x,y]`、实际移动速度 `velocity: [vx,vy]`、`movement_epoch`。三个字段和瞄准先校验再整体应用；未启用客户端模式时忽略它们。版本相同且玩家未倒地时接受位置；版本过时则不更新位置和速度，等待新快照校正。击退和倒地/恢复切换递增 `epoch`，避免已在途的旧输入抵消强制位移。客户端校正实际位置后，用独立显示偏移平滑过渡；重连、暂停、长断流或大幅跳变直接重建。最终位置随周期存档、物品事务、退出及关闭一起保存，不引入新的持久字段。
-
-附近的 `players`、`monsters` 包含 `velocity_x`、`velocity_y`；怪物速度来自本次世界更新的实际位移，不把受阻时的移动意图当作速度。远端角色每个实体最多保留 32 份带 `elapsed` 的位置样本，按缓冲时间线逐帧插值，避免直接采用每包瞬时速度引起停走交替。最近 40 份到达抖动决定 120～280 毫秒的目标缓冲，最近 64 份最小时间偏差估计世界时钟，时钟只以小幅速率调整，不跳回或瞬间追赶。插值后的实际显示速度用于四向朝向与跑动帧。短暂缺样时使用最近两份位置的平均速度外推 300 毫秒，之后渐减至最多额外 420 毫秒路程；新样本造成的预测误差按约 90 毫秒时间常数消除，500 毫秒无快照时冻结。重连、暂停、倒地切换、长断流或位置大幅跳变时重建轨迹，移除实体不延迟。
-
-子弹走独立即时显示通道，不等待角色插值缓冲；估计消息年龄最多补偿 300 毫秒，并连续消除位置误差，断流 300～500 毫秒时减速停止。远端角色尊重静态障碍；双方子弹可穿墙与柱子，树木仍阻挡双方；箱子、篝火及三种交易机器只阻挡怪物子弹，玩家子弹可穿透，双方仍受剩余距离限制。所有显示推演均不产生伤害、物品或掉落，本机超过 1 秒无状态则停止并在恢复时同步，不补跑后台时间。
-
-每枚 `projectiles` 实体的 `owner` 为发射者 ID，服务器排除其本人碰撞；玩家子弹仍会命中其他在线玩家。新子弹附带 `origin_x`、`origin_y`（发射瞬间角色坐标）和 `spawned_at`（世界时间），实体初始 `x/y` 与原点相等，无枪口偏移。首次出现且发射不超过 0.5 秒的新子弹从原点开始绘制，再连续追上飞行位置；首次加载/重连不回放历史发射。旧存档缺少这三个字段时均为 `null`，继续使用保存的飞行位置。大怪新发射的子弹速度为每秒 2.25 格，现存子弹不改速度。
-
-### 子弹穿透与视野距离
-
-`input` 可附 `viewport: [width,height]`，单位为世界格数，不是 CSS 或物理像素。两数必须有限、大于 0 且不超过 64；与移动、位置和瞄准一起先完整校验，任一非法值拒绝整次输入。缺省沿用本连接上次视野，首次缺省为 32×18。浏览器每次输入从实际画布宽高除以世界缩放比例获得视野，手机转屏或窗口变化自动更新，不依赖全屏或解除方向锁定。
-
-所有子弹均可穿过 `wall`（包括柱子）。`tree` 阻挡双方子弹；`chest`、`campfire`（包括燃烧中）、`vending_machine`、`match_machine` 和 `gun_machine` 仅阻挡 `hostile: true` 的怪物子弹，玩家子弹可穿透这五类建筑。`/api/info.projectiles.blockers` 返回玩家子弹阻挡物，`monster_blockers` 返回怪物子弹阻挡物。浏览器逐帧预测保留每枚子弹的 `hostile` 属性，使用相同分类，不在穿过箱子时错误停顿。其他移动/视线规则不变。服务端按弹道交点顺序结算阻挡物之前的全部目标，命中角色后子弹不消失、伤害不衰减。`hit_targets` 为每枚弹丸已经伤害过的 `player:<id>` / `monster:<id>` 列表，缺省为空并持久化；每枚弹丸对同一目标至多伤害一次，避免连续 tick、击退后重叠和保存重启重复伤害。霰弹枪弹丸仍分别伤害怪物，原 `shot_hits` 保持每次射击对同一玩家至多一次，`shot_impacts` 保持每次射击对同一怪物至多一次击退与命中反馈。命中去重、伤害、死亡、随机掉落和随机状态共同保存，保存失败共同回退。
-
-`range_player` 为距离圆心对应的玩家 ID，玩家子弹绑定发射者，怪物子弹绑定发射时的目标；`range_x`、`range_y` 为该玩家最新坐标，`range_radius` 为其视野半对角线 `hypot(width,height)/2`。弹道不跟踪目标，只有销毁边界跟随圆心；每 tick 重新计算，超过圆的子弹在命中前销毁，跨越边界的飞行段先截断，边界之外不能结算伤害。`remaining` 改为当前位置沿飞行方向到该圆边界的剩余距离，不再是武器固定射程；`guns.*.range` 仅保留电脑默认 32×18 视野下的兼容参考值。`/api/info.projectiles` 提供 `piercing`、`range: "viewport_half_diagonal"`、`default_viewport` 和 `blockers`。旁观者不影响其他玩家的子弹；绑定玩家离线时保留最后位置与视野，全员离线仍冻结子弹。
-
-旧存档缺少上述新字段时，`hit_targets` 缺省空列表，其余缺省 `null`，不删除原实体、位置或速度。首次模拟时，玩家子弹按 `owner` 找圆心，怪物子弹优先按发射怪物的目标、其次最近在线玩家确定圆心；仍无玩家时使用已保存圆心或发射原点（原点缺失则使用当前子弹位置），半径缺省电脑视野。重新保存后保留距离参考和命中记录。此更新不改变地形生成器版本，不刷新已生成区域。
-
-跑动帧按逐帧显示位移推进。背包、容器、体温、伤害和命令确认不等待运动显示；攻击、放置和丢弃前先发送本机位置与瞄准，服务器以最新汇总坐标执行共同玩法。怪物 AI、命中、死亡、随机掉落和物品事务仍只有一个服务端结算来源，不因多客户端推演重复执行。已消失的实体立即从轨迹中删除；动作事件继续按序号去重。旧客户端兼容、旧地图生成与存档事务不变。
-
-## 连续输入和鼠标操作
-
-至少每 250 毫秒（建议 10～20Hz）更新一次输入，输入停止超过 1 秒时服务器停止移动和长按操作。WebSocket 的 ping 不代替输入心跳。
-
-```json
-{"type":"input","move":[1,0],"aim":[10.5,-2],"target_id":null,"seq":1}
-{"type":"input","move":[1,0],"position":[1.25,0.5],"velocity":[4,0],"movement_epoch":0,"aim":[10.5,-2],"target_id":null,"viewport":[32,18]}
-{"type":"select","slot":0,"seq":2}
-{"type":"attack","pressed":true,"shift":false,"seq":3}
-{"type":"attack","pressed":false,"seq":4}
-```
-
-- `move` 各分量在 [-1,1]，超过单位长度时归一化；旧模式使用它执行服务器移动，客户端模式使用位置上报，不再额外移动一次。`aim` 是鼠标对应的世界坐标，`position` 与 `velocity` 必须是有限数值，`movement_epoch` 必须是非负安全整数。
-- `target_id` 可指定斧头目标怪物/结构的 ID，`null` 时按鼠标位置判定。更新目标时应一并更新 aim；射击始终按 aim 定向。
-- `select.slot` 为 0～9。切换物品取消长按，不重置射击冷却。
-- 内置桌面客户端选中建筑后单击左键发送一次 `place`，不发送攻击按下、不长按连放，右键不再放置；普通左键指向容器仍优先发送打开意图，其他非建筑物品保留原有左键操作。手机继续使用独立“放置”按钮。
-- `attack` 必须对应鼠标按下和松开边沿；手枪/霰弹枪长按不连发，步枪由服务器持续连发，不要循环发送“按下”模拟自动枪。
-- 斧头在 `pressed:true` 的首次按下边沿朝 aim 立即尝试半径 3 格、180° 扇形群攻，空地或怪物均可触发，距离、前向点积和视线均由服务器校验；先筛选再击退，不等待下一 tick，也不要求长按。点击结构保留原交互/采集优先级，零长度朝向不挥斧。每次挥斧（包括空挥）间隔至少 0.5 秒，冷却内点击丢弃，不补打；连续重复 `pressed:true` 或保持长按不会再次攻击。砍树和拆除结构仍按服务器累计的连续长按时间判定，松开或换目标后重新计时。
-- 对箱子/篝火/售货机/火柴机普通或 Shift 按下均优先打开窗口，不再使用场景攻击长按拆除。进食时瞄准空地并长按 0.5 秒；`cola`、`oreos`、`compressed_biscuits` 无需篝火，其他食品仍要求玩家所在格子与已点燃篝火的曼哈顿距离为 1–3 格。所有食品都保留当前饥饿值大于 10 时禁止进食、等于 10 时允许进食并完整加值的规则。
-- 箱子/篝火/售货机/火柴机/枪械机窗口内长按按钮发送 `{"type":"dismantle_container","id":"结构ID","pressed":true}`；松开发送 `{"type":"dismantle_container","pressed":false}`。必须已打开同一结构、在 2 格交互范围内、视线可达、选中斧头、未失温倒地且没有怪物同时拆除；箱子必须为空，篝火须 `fuel == 0` 且 `igniter == null`。连续累计 1.5 秒后移除结构并掉落一个对应建筑物品，不掉木材：箱子为 `chest`，篝火为 `campfire`，售货机为 `vending_machine`，火柴机为 `match_machine`。空篝火燃烧中也可拆除，剩余燃烧时间作废；重新放置时无燃料、无火种、已熄灭。背包满则物品留在地面；移除、供暖变化与掉落同一事务保存，失败整次回滚。保留 `dismantle_chest` 作为只允许空箱子的旧命令别名。普通 `attack` 不能绕过窗口拆除这五种结构。重复按下不叠加进度，松开、关窗、换物品、受击、失焦或条件失效即取消。燃烧倒计时和物品显示刷新不替换拆除按钮、不打断长按；他人存入物品会立即取消进度。`interaction.target/progress` 用于按钮进度，不影响面板持续打开和输入心跳。
-- `{"type":"stop"}` 用于窗口失焦或手机可视区域/方向改变，立即停止移动和长按。重新聚焦或调整方向后必须重新按下攻击键/触屏按钮。
-- `{"type":"ui","open":true}` 打开制作/背包等界面并取消长按；`open:false` 关闭。UI 点击不应再发送世界攻击消息。
-- `{"type":"open","id":"结构ID"}` 打开容器；`{"type":"close"}` 关闭。走远或被墙挡住时服务器自动关闭容器窗口。
-
-失温玩家不能移动、射击、砍树或拆除，但可以操作物品、进食、制作和放置篝火；所有客户端预览均以服务器最终判定为准。
-
-`you.downed` 与其他玩家的 `downed` 统一按体温小于 5 度判定。大小怪不会索敌、追击、近战或射击倒地玩家；目标倒地后立即清空该目标、路线和拆除进度，旧存档残留的无效目标也会在登录/模拟时清除。游荡方向仅以未倒地的在线玩家为偏置参考，全员倒地时各合法方向等权。怪物子弹（`hostile: true`）跳过倒地玩家的碰撞和伤害，包括倒地前已发射的子弹；同一 tick 内每次攻击或子弹命中都使用玩家最新体温，防止倒地后继续结算伤害、击退或受击事件。体温达到 5 度重新站起后恢复正常怪物交互。玩家子弹的规则不变：排除发射者与体温小于等于 0 的玩家，仍可伤害其他体温大于 0 的玩家。不修改怪物生成、清除范围或全员离线暂停规则，倒地标记仍由体温派生。
-
-### 小怪目标格与贴身重叠
-
-小怪 A* 将最后看见的目标玩家所在格作为终点，规划占格时仅排除它的目标玩家，不排除其他玩家、怪物或静态障碍；仍禁止斜穿阻挡格。已在目标格但尚未到近战距离时，按最后可见的小数坐标继续接近，不把空路径当成停止移动的理由。大怪保留原近战目标格集合和拆除路线。
-
-怪物持久数据和附近 `monsters` 快照增加可空字段 `overlap_player`，值为临时允许重叠的目标玩家 ID，旧存档缺省 `null`。只有小怪实际近战命中、目标仍未倒地且 0.65 格击退受阻时设置；不足完整距离的部分击退也算受阻。此后小怪在攻击冷却期间继续接近，进入目标格后停在离最后可见坐标约 0.05 格处，避免零方向抖动。该例外只作用于此小怪与该玩家的身体碰撞，其他身体、建筑、视线、未生成区块以及大怪规则不变。目标离开 1.65 格近身范围、完整击退后双方距离达到 0.7 格、目标失效或倒地时清空；`clear_target` 同时清空此许可，但不清空 `next_attack`。
-
-浏览器仅对 `!big && overlap_player === you.id` 的小怪放宽本机身体碰撞；已经重叠的实体使用成对分离许可，分离后恢复碰撞，避免客户端阻止玩家从重叠处走开。其他玩家仍看到同一服务端位置与速度，不在客户端重复结算攻击。每只小怪使用既有 `next_attack = elapsed + 1` 限制每秒最多一次近战；完全重叠、同一 tick 重复调用、换目标、重规划、重启和长 tick 都不补发攻击。许可、体温饥饿、击退、冷却与反馈在同次伤害保存中提交，写盘失败一同回退。此更新不修改地形版本或已有区块。
-
-## 制作、建造、丢弃与点火
-
-```json
-{"type":"craft","recipe":"fence","seq":10}
-{"type":"craft","recipe":"recycle_fences","seq":11}
-{"type":"place","x":3,"y":-2,"seq":12}
+{"type":"craft","recipe":"recycle_fences","seq":10}
+{"type":"place","x":3,"y":-2,"seq":11}
+{"type":"light","id":"篝火结构ID","seq":12}
 {"type":"drop","slot":4,"seq":13}
-{"type":"light","id":"篝火结构ID","seq":14}
 ```
 
-配方 ID：`fence`、`wall`、`floor`、`chest`、`campfire`、`recycle_fences`。最后一个消耗 2 个木栅栏，产出 1 个 `wood`，即用户所说的木材/木板。完整材料和产出数量由 `/api/info` 的 `recipes` 返回。制作单次执行一份配方，优先从背包再从物品栏扣材料，产物也优先放背包再放物品栏；扣材料后两个区域总空位不足时整次失败。浏览器 B 键同时打开背包与合成界面，I 为兼容快捷键。
+制作按 `recipes` 一份结算，共同读取背包/物品栏，扣料后须能装下全部产物。放置使用选中建筑，整数目标须在3格内、已生成、空位且不重叠、不破坏出生通路；不检查放置视线。全部容器/机器互相八邻域不相邻，不只限某几种机器。
 
-`place` 使用当前选中的物品栏建筑物品，x、y 必须是整数格子中心；放置前关闭 UI。目标中心距玩家不超过 3 格，不检查两者之间的视线，允许隔着树、墙或其他方块放置；目标仍须已生成、未占用、不与实体重叠，并遵守出生通路保护。`chest`、`campfire`、`vending_machine`、`match_machine`、`gun_machine` 任意两者不能八邻域紧邻，包括同类机器及斜对角；检查与放置顺序无关，拒绝返回 `adjacent_container`，不消耗物品。木墙不受此间距约束。视线例外仅作用于放置，不改变容器交互、斧击、拆除或拾取的视线要求。
-
-`drop` 缺省 slot 为当前选中的物品栏格。先发送包含当时鼠标世界坐标的 `input.aim`，服务器沿玩家到 aim 的归一化方向，寻找 2 格范围内最远的可达落点：无遮挡时为 2 格；遇到树、墙、栅栏、箱子、篝火或未生成区域时，截到首个障碍边界前，保留 0.000001 格间隙，不能穿过障碍或从斜角越墙。木地板不阻挡。aim 与玩家重合或该方向没有可用落点时才拒绝并保留物品。拖到场景的 `transfer` 地面目标也采用同一规则。点火必须先打开对应篝火。
-
-## 售货机兑换
-
-下列接口同样支持自助火柴机：`open` 使用火柴机结构 ID，快照 `container.kind` 为 `match_machine`；`trade.offer` 可为 `sell_wood`、`buy_wood`、`buy_matches`，最后一项返回 `{"output":"matches","count":1}`，产物为全新的一次性火柴。售货机继续仅提供 `buy_cola`，不提供 `buy_matches`。兑换必须操作当前已打开的同一机器；三种机器均校验空间、余额、距离、视线并整次原子保存，不支持伪造储物转移。
-
-先使用 `open` 打开对应售货机，快照的 `container.kind` 为 `vending_machine`；没有可存取的容器格，不能伪造 `transfer` 端点向售货机存取物品。已有 `close`、距离/视线失效关闭、UI 禁止攻击规则继续适用。
-
-```json
-{"type":"open","id":"售货机结构ID","seq":15}
-{"type":"trade","id":"售货机结构ID","offer":"sell_wood","seq":16}
-{"type":"trade","id":"售货机结构ID","offer":"buy_wood","seq":17}
-{"type":"trade","id":"售货机结构ID","offer":"buy_cola","seq":18}
-```
-
-`trade` 每次只执行一份服务器固定兑换，不接受客户端传入价格、数量或产物；ack 结果仍为 `{"output":"coin","count":1}` 等，其中 `coin` 结果直接计入 `you.money`，不会生成背包物品。必须是当前已打开、距离不超过 2 格且未被遮挡的售货机。木材优先从背包、再从物品栏扣除；硬币只从余额扣除，不会腾出物品格。实物产物优先放背包、再放物品栏，全部空位需容纳全部产物；卖出木材增加余额不需要产物空格。余额不足返回 `insufficient_money`；材料不足、空间不足、未知项目、机器已移除或保存失败均不扣款。不堆叠实物、不自动丢在地上、不部分交付，余额、材料与产物在一个事务中保存；多人请求由世界锁串行结算。ack 丢失不自动重放兑换，应根据重连后的余额与完整背包确认结果。
-
-## 篝火供暖范围
-
-![篝火](../cold_world_game/static/assets/campfire.png)
-
-服务端 `you.ambient_temperature` 根据玩家所在格子与最近已点燃篝火的曼哈顿距离结算：1–3 格为 30°C，4–6 格为 20°C，7–9 格为 10°C，超过 9 格恢复世界环境温度。前两档均按现实每分钟 10°C 恢复体温，最高 36°C；10°C 档仅保温。多个篝火不叠加，熄灭的篝火不生效，墙壁不阻挡供暖。
-
-仅热效应范围扩大三倍；需要火的食品仍要求曼哈顿距离 1–3 格，容器交互仍为欧氏距离 2 格，燃烧耗材与时长不变。无新增存档字段，不改动地图生成版本或已生成区块；旧篝火加载后立即使用新规则。桌面、手机与其他客户端均以快照温度为准，不自行重复结算恢复。
-
-## 夜间生成与快速怪
-
-`monster_activity` 提供 `rest_start: 6`、`rest_end: 18`、`rise_seconds: 1.0`。附近怪物快照增加 `sleeping` 布尔值（06:00–18:00 的大怪和快速怪为真）及 `rising`（18:00 后 1 秒内大怪的 0–1 起立进度，其他情况为 `null`）。这两个字段由已保存的 `elapsed` 推导，不写入怪物存档、不产生逐怪起立事件；旧快照缺少时客户端按正常活动处理。白天取消相应目标、路径任务和拆除，保留冷却；普通小怪不受影响。起立期间大怪仍不行动，客户端根据快照到达时间补足帧间进度，暂停时冻结，不在重连后重播历史动画。客户端对休眠/起立实体停用运动外推与跑动差分，避免白天滑动和傍晚瞬移。
-
-`/api/info.monster_spawning` 提供 `night_start: 21`、`night_end: 3`，以及 `day: {small: 0.9, big: 0.1, fast: 0}`、`night: {small: 0.8, big: 0.1, fast: 0.1}`。按 `environment.hour` 判断 `hour >= 21 || hour < 3`，即游戏时间 21:00（含）到次日 03:00（不含）。一次成功生成只抽一次互斥类型，不改变尝试频率、上限、生成范围、全员离线暂停或清除规则；已存在的怪物不在天亮时变型。
-
-怪物存档和附近 `monsters` 快照新增布尔字段 `fast`；缺失时缺省 `false`，不改变旧怪物、地图种子、区块及 `chunk_versions`。`big: false, fast: true` 为快速怪，`big: false, fast: false` 为普通小怪；大怪的 `big: true` 优先。`movement.fast_monster_speed` 为 4.8 格/秒，是正常玩家速度 4 的 1.2 倍；`movement.monster_speed` 仍为 1.2。追击、寻路时间成本、游荡都使用对应类型速度，不使用目标玩家减速后的速度；快照的实际 `velocity_x/y` 继续用于客户端逐帧平滑，不按类型猜测速度。
-
-沿路径移动时，每 tick 的剩余移动距离可以继续用于下一个路径点，不在经过格子中心时丢弃剩余步长；仍逐段检查静态和实体碰撞，遇阻不继续透过障碍前进。这保证快速怪实际追击速度为每秒 4.8 格，普通小怪与大怪的配置速度仍为每秒 1.2 格。
-
-快速怪活动时沿用小怪的 10 生命、索敌与倒地保护、近战 1 点体温/饥饿伤害、1 秒最短攻击间隔、击退和条件性 `overlap_player`，不拆除、不射击；`monster_coin_drops.fast` 独立为 50% 掉 1 枚硬币、50% 无掉落，不再复用小怪的 10% 掉落表。近战与死亡事件使用 `kind: "monster_fast"`，对应紫色立绘、四向跑动与死亡 PNG，沿用小怪音效；旧事件种类不变。
-
-## 金钱与怪物掉落
-
-`you.money` 是当前玩家的非负整数金钱余额，默认 0，仅由服务器修改，不暴露在其他玩家的公开状态中。硬币不占用 `inventory` 或 `backpack` 格子，不能把余额当作可扣取的 `transfer.from` 端点。`/api/info.currency` 标明 `item: "coin"`、`player_field: "money"`、`uses_slots: false`；`monster_coin_drops` 的 `small`、`fast`、`big` 分别是 `[硬币数量, 概率]` 对组成的数组：小怪 `[[1,0.1],[0,0.9]]`，快速怪 `[[1,0.5],[0,0.5]]`，大怪 `[[1,0.6],[2,0.2],[0,0.2]]`。
-
-每只怪物只在实际死亡时抽一次互斥结果，在死亡位置生成对应数量的普通 `ground` 硬币实体，沿用 `coin.png`；非致死命中不抽奖，重复弹丸不重复掉落，不直接给击杀者加钱。距离不超过 0.75 米、视线可达且满足既有拾取冷却时自动移除硬币并增加余额，不要求背包空位。其他掉落物的容量规则保持不变，离线账号不参与拾取。死亡、随机数状态、地面硬币和同次结算的余额一并原子保存，失败回退，重启不重新抽取已死亡怪物的掉落。
-
-旧账号缺少 `money` 时默认 0，读取时将该账号物品栏与背包中的每枚 `coin` 加入余额并清空对应格；箱子与地面硬币保留，收取时才入账。收取旧箱子硬币可沿用 `transfer`，目标为 `{"kind":"wallet"}`，同时携带原有 `item_id` 防止过期来源误取；钱包仅可作为硬币的目标，其他物品返回 `invalid_currency`。将硬币转向 `inventory` 或 `backpack` 也会自动改为入账，不占用或替换目标格，无需空位；来源端的容器打开、距离、视线和冷却校验仍适用。余额不会因重连重复增加。
-
-`knockback.fast_monster_scale = 2.5`，玩家近战及枪械直接命中快速怪时按普通小怪的 2.5 倍击退，受实际碰撞限制；大怪保持 0.6 倍。灼烧、手榴弹与金币榴弹炮爆炸仍不击退。
+点火须已打开对应篝火，有燃料和可用火种。丢弃默认选中格，按 `input.aim` 方向最远2格、首个障碍前回退，保留物品ID和剩余次数；方向无效/完全受阻不丢。**`axe` 不允许丢弃**，包括 `drop` 和任何以 `ground` 为目标的 `transfer`，返回 `item_not_droppable`，不更改来源；允许存入箱子。
 
 ## 原子物品转移
 
-`welcome.state` 和定期 `state` 增加仅属于本次连接的 `command_sequence`，初值 0，表示该连接已处理的最大带 `seq` 命令序号，成功和业务拒绝均推进；普通无序号输入不推进。它不写入 SQLite，不改变协议版本，其他连接的命令不影响此值。内置客户端的序号递增且按 WebSocket 顺序发送，收到快照时仅移除 `seq <= command_sequence` 的待确认预览，防止较早的快照重新显示已挪动的物品。
-
-内置客户端对物品栏、背包、箱子、火种和投入燃料/硬币的合法转移即时预览，可以连续发送多个依赖前一结果的操作，不使用全局 busy 锁或确认后的额外定时等待。来源物品 ID、目标空位、燃料容量及火种次数均在预览前检查；真实校验与原子保存仍由服务器执行，收到拒绝、超时、断线或保存失败时回滚预览并重新按最新权威状态重放仍有效的请求，不能将预览当作已保存的数据。燃料取出因服务端新建物品 ID，以及地面转移，继续等待权威结果，不虚构可被后续命令引用的物品 ID。旧服务端快照没有 `command_sequence` 时安全退回非预览显示。客户端复用背包、物品栏和箱子槽位节点，确认无需整体重建面板。
-
-每次转移一件物品或一单位缓冲木材。普通物品的目标格必须为空，不自动交换，也不堆叠；挪动占用格需先把它移到空格。硬币存入随身区域时改为计入余额，不要求目标格为空，也不会覆盖格中物品。`inventory` 物品栏格 0～9，`backpack` 背包格 0～29，`chest` 箱子格 0～29，三者是独立区域。
-
 ```json
-{"type":"transfer","from":{"kind":"inventory","slot":3},"to":{"kind":"chest","id":"箱子ID","slot":8},"item_id":"物品ID","seq":20}
-{"type":"transfer","from":{"kind":"chest","id":"箱子ID","slot":8},"to":{"kind":"inventory","slot":3},"seq":21}
-{"type":"transfer","from":{"kind":"inventory","slot":3},"to":{"kind":"fuel","id":"篝火ID"},"seq":22}
-{"type":"transfer","from":{"kind":"fuel","id":"篝火ID"},"to":{"kind":"inventory","slot":3},"seq":23}
-{"type":"transfer","from":{"kind":"inventory","slot":2},"to":{"kind":"igniter","id":"篝火ID"},"seq":24}
-{"type":"transfer","from":{"kind":"igniter","id":"篝火ID"},"to":{"kind":"ground"},"seq":25}
-{"type":"transfer","from":{"kind":"ground","id":"掉落物ID"},"to":{"kind":"inventory","slot":5},"seq":26}
-{"type":"transfer","from":{"kind":"inventory","slot":3},"to":{"kind":"backpack","slot":29},"seq":27}
-{"type":"transfer","from":{"kind":"backpack","slot":29},"to":{"kind":"inventory","slot":3},"seq":28}
-{"type":"transfer","from":{"kind":"chest","id":"箱子ID","slot":8},"to":{"kind":"backpack","slot":0},"seq":29}
+{"type":"transfer","from":{"kind":"backpack","slot":0},"to":{"kind":"inventory","slot":3},"item_id":"物品ID","seq":20}
 ```
 
-两个随身区域内部整理和彼此转移也使用 transfer。涉及箱子/篝火的端点必须对应当前已打开且仍在交互范围内的容器。燃料只接受 `wood`，上限 16；火种槽只接受剩余次数大于 0 的火种。缓冲木材按数量保存，不使用稳定物品 ID，因此从 `fuel` 取出时不传 `item_id`。地面来源 ID 是 `ground` 实体 ID，不是其中物品的 ID。地面取物要求距离不超过 0.75 米且路径可见，不能使用显式转移绕过距离检查。普通物品自动拾取只进入 30 格背包，背包满时不拾取，即使物品栏有空位也不例外；显式转移仍可指定物品栏空格。硬币自动计入余额，不受物品格容量限制。自己的手动丢弃物在 1 秒后才能取回。
+端点包括 `inventory`、`backpack`、`chest`、`fuel`、`igniter`、`ground`、`wallet`；容器端点带设施 `id`，地面来源带掉落物 `id`，地面目标按当前瞄准计算落点。随身格从0开始，箱子按实际slots长度校验，不截断自然箱额外格。目的格必须空，火种/燃料还需符合种类与容量。`item_id` 防止源格变化后移动错物品，冲突返回 `stale_item`。金币进入随身区域时转换为钱包入账。
 
-来源扣除、目标写入、剩余弹药/火种次数和掉落物增删一起保存在同一事务中；转移失败时保持操作前状态。需要原子保存的自动拾取、制作、售货机兑换、建造、射击耗弹、点火和拆除掉落也通过同一机制提交。
+客户端可依请求序号先预览转移，确认后以快照接管，失败撤销，不创建权威物品或改随机数。背包、物品栏、容器、地面与金额的整次变化同一SQLite事务保存；恢复后只能全部生效或全部回退。空间不足和写盘失败都不能吞掉来源或留下半份目标。
 
-## 回城法杖与传送事件
+## 交易与公共存款
 
-![回城法杖](../cold_world_game/static/assets/return_staff.png)
+```json
+{"type":"trade","id":"机器结构ID","offer":"buy_cola","seq":21}
+{"type":"bank","id":"存钱罐结构ID","operation":"deposit","amount":5,"seq":22}
+```
 
-`/api/info` 的 `return_items.return_staff` 给出 `duration: 1.5`、`uses: 20`；`terrain.chest_return_staff_chance` 为 `0.02`。`return_staff` 属于工具物品而不是食品、火种或建筑，沿用物品 `uses` 字段保存剩余次数。旧数据缺失次数时默认 20，已有剩余值（包括 0）不会被补满。
+交易必须已打开正确机器，项目读取 `machine_offers[kind][offer]`，不能跨种类使用专属项目。输入全部扣除后空间必须容纳全部产物；金币直接从 `money` 扣，产物优先背包再物品栏。不足或保存失败整次回退，不往地上发部分产物。
 
-选中法杖发送 `attack pressed:true` 持续 1.5 秒，每个按下最多成功一次；取消动作沿用现有释放、切换、面板和 stop 协议。`interaction.target` 为 `return:<item-id>`，`progress` 为累计秒数。失温玩家也可使用，但不治疗。最近空地按整数格中心到原点的平方欧氏距离排序，同距时最大化到最近怪物格子的距离，最后按 x、y 稳定排序；阻挡性建筑或树木占格、怪物占格与人物碰撞不合法的位置均排除，木地板视为空地允许传送。
+`bank.operation` 为 `deposit/withdraw`，amount是1至 `currency.max_coins` 的JSON整数，拒绝布尔/浮点/负数；返回操作、数量、余额及玩家money。共享 `container.balance` 只向实际打开者发送，不放附近建筑列表。服务器串行检查最新余额；不足返回 `insufficient_money/insufficient_bank_balance`，越上限 `balance_limit`，非空拆除 `bank_not_empty`。
 
-完成后原子保存玩家新坐标、次数扣减（0 时移除）及必要新区块，再发布独立 `teleport_out`、`teleport_in` 事件。二者均带 `actor`、`kind: return_staff` 和各自原位置/落点 `x/y`，按事件位置过滤给附近观察者，不跟随角色当前位置移动，也不作为客户端再次扣次或传送的指令。使用六帧 `fx_teleport` 图集：离开倒放、到达正放；施法时仅本地循环预览。
+## 状态快照与差分
 
-快照 `movement.teleport_epoch` 与附近 `players[].teleport_epoch` 为会话级计数，旧快照缺失视为 0；每次传送递增，同时递增既有 `movement.epoch`。客户端遇到传送计数改变时立即重置本机/远端角色轨迹，即使传送距离不足 2 格也不平滑经过障碍。旧位置的迟到上报因 movement epoch 不符被丢弃；普通击退仍保留平滑修正。计数不持久化，重连以首帧坐标重建。保存失败不发布成功事件，位置、次数、生成区块全部回滚。
+完整状态包含自己的 `you`、附近建筑/玩家/怪物/投射物/掉落物、环境、交互进度和实际打开的容器；不泄露离线坐标及其他玩家完整背包。饥饿不截断到10。怪物字段表达 `resting/rising`、冰冻和灼烧期限，显示不能改变受伤或掉落判定。个人 `excitement_remaining` 仅在线递减。
 
-## 寒冰法杖与冰冻状态
+约10Hz差分格式为 `{"type":"delta","base":0,"revision":1,"state":{},"objects":{},"entities":{}}`。`state` 是变化顶层字段；`objects` 为you/environment/movement/interaction/container的 `fields/unset` 补丁。实体集合 structures/players/monsters/projectiles/ground/events 各有add完整实体、update的id/fields/unset、remove的ID列表。未变数组与建筑不重复编码，区块列表仅附近变化时发送。
 
-![寒冰法杖](../cold_world_game/static/assets/ice_staff.png)
+每份必须整次应用到base指定基线，之后再发布给画面，不能显露半份物品变化。差分不连续或实体缺失时关闭并重新握手取完整基线，不重放产出命令。服务器锁内取附近状态，锁外编码差分；客户端保留未变静态网格与角色历史。
 
-`/api/info.melee_weapons` 返回 `axe` 与 `ice_staff`。寒冰法杖沿用斧头的 `range:3`、`arc_degrees:180`、`interval:0.5`，另有 `damage:8`、`uses:100`、`freeze_duration:4.0`、`speed_scale:0.5`；`terrain.chest_ice_staff_chance` 为 `0.02`，`movement.frozen_speed_scale` 为 `0.5`。物品剩余次数保存在已有的 `uses` 字段，缺失时补 100，已有值（包括 0）不补满。`ice_staff` 不是食品、火种、建筑或回城道具，无制作配方。
+`movement_epoch` 防止旧位置上报抵消击退、站起和传送；`teleport_epoch` 只标记真正传送。普通更新不能重置角色历史或被误判为瞬移；`players[].move_speed` 支持装备变速，缺失时使用基础速度。算法与时间预算见[实时性手册](performance.md)。
 
-普通 `attack pressed:true` 的按下边沿执行一次共享近战逻辑，松开使用原有 `pressed:false`；可附 `attack_id` 供本机立即播放预渲染八方向 PNG，并在确认时去重。成功挥动的 `melee.kind` 为 `ice_staff`，事件携带原有 `direction/range/arc_degrees/targets` 字段；空挥仍成功且消耗一次，冷却或其他前置条件不满足时 `swing:false`、不扣次数。第 100 次先完成整次群攻再移除法杖。法杖消耗、所有怪物伤害、冰冻时间、金币掉落与随机数状态原子提交，保存失败全部恢复，不发布成功事件。
+## 投射物状态
 
-每只怪物新增持久字段 `frozen_until`，为冰冻到期的世界运行时间；旧存档缺失时默认 `0.0`。快照 `monsters[].frozen_until` 使用同一绝对时间，不发送逐帧倒计时；客户端结合世界时间选择独立冰冻 PNG，插值/外推的速度上限同步乘以 0.5，但不重置轨迹。命中活动怪物时刷新至本次 `elapsed + 4`，不乘叠；休眠或起立中怪物只扣血，不新增或刷新状态。大怪仅在 `elapsed >= frozen_until` 且满足既有距离、视线与冷却时发射新子弹，近战与已有子弹不变。白天的休眠实体继续参加所有玩家武器的命中、血量、死亡与正常掉落结算；睡眠 PNG 优先于冰冻 PNG。世界暂停、下线和重启期间不推进冰冻计时，恢复后按保存的绝对时间继续。
+普通子弹标记 `owner`、`hostile`、`origin_x/y`、`spawned_at`；原点等于射手坐标。`hit_targets` 记录已伤害的玩家/怪物，shot_hits/shot_impacts去重一次射击的玩家伤害与反馈。`range_player/range_x/range_y/range_radius` 表示跟随玩家的视野半对角线销毁圆，越界飞行段先截断再判伤害；remaining为到圆边界的剩余距离。
 
-## 枪械机、爆炸与灼烧
+树挡双方普通弹，全部容器与机器仅挡hostile弹，墙可穿透；以 `projectiles.blockers/monster_blockers` 为准。`weapon_kind` 关联武器冰冻/灼烧参数；旧字段缺省不改变保存的飞行位置和速度。投掷物通过起点、目标和引爆时间显示抛物线，伤害只在服务器爆炸时结算。
 
-`machine_offers.gun_machine` 返回 `buy_handgun`（3）、`buy_shotgun`（5）、`buy_rifle`（10）、`buy_grenade`（5）和 `buy_coin_launcher`（暂定 10 金币）。均通过已有 `trade` 扣钱包余额并原子产生一个实物；`gun_machine` 参加建筑放置、五类容器八邻域间距、怪物子弹阻挡以及面板长按 1.5 秒拆除，掉落同名方块。
+`kind:"homing_missile"` 的 `target_id` 在发射时锁定最近存活怪物；origin/spawned_at/detonates_at及初始velocity确定短直线接曲线，target_x/y更新目标位置。它不进入普通直线碰撞和视野射程通道，只伤唯一目标；目标死亡就移除，不重新索敌。命中explosion事件radius仅控制小型特效，不做范围伤害。
 
-`melee_weapons.flame_staff` 沿用斧头的范围/直伤/冷却，增加 `uses:100`、`burn_duration:4.0`、`burn_interval:0.5`、`burn_damage:4`。怪物持久新增 `burning_until:0.0`、`next_burn:0.0`、`burn_owner:null`；旧存档按这些缺省值读取。快照只发送绝对截止时间 `monsters[].burning_until`，不发送逐帧火苗或倒计时。每 0.5 秒结算至截止时刻（含），不击退、不清空寻路，不产生每次跳伤害的命中事件；死亡仍正常发布。再次命中刷新时长并保留下次跳伤害相位，冰冻与灼烧独立。`uses` 缺失默认为 100，已用次数不补满。
+## 瞬时事件与即时反馈
 
-`explosive_weapons` 提供 `grenade` 与 `coin_launcher`：`duration:0.5`、`interval:1.0`、`flight_duration:0.45`、`radius:3.0`、`damage:20`；`coin_cost` 分别为 0 和 1。均用原有 `input.aim` 和持续 `attack.pressed`，手榴弹成功投出即消耗，榴弹炮持续按住按冷却发射，每发扣一金币，无弹药计数；未满足长按或余额/目标条件不消耗。目标须已生成且在玩家视野半对角线距离内，不检查遮挡，也允许目标是容器格。手机可直接长按场景坐标，或瞄准后长按“使用”；普通武器的场景触控行为不变。
+`event_sequence` 是进程内递增序号；events为附近最近1.5秒动作、最多256条，不是持久日志。浏览器按事件ID去重，首次加入和重连不补播旧动作；只在事务提交后发布成功反馈。
 
-在途炸弹保存在现有 `projectiles` 集合，新增字段 `kind`（旧弹缺省 `bullet`）、`target_x/target_y/detonates_at`（旧弹缺省 null），复用 `origin_x/origin_y/spawned_at`；炸弹 `kind` 为发射武器，`velocity_x/velocity_y/remaining` 为 0，不进入普通子弹碰撞或距离消失流程。客户端从起点、落点和时间计算抛物线，无需同步每帧坐标；落点附近的其他玩家也可收到在途炸弹。到期发出一个 `explosion` 事件（落点 `x/y`、`radius`、`damage`），仅对圆内怪物结算一次 20 点伤害，忽略建筑遮挡，不击退、不影响玩家或建筑。`throw` 事件用于投出提示音，爆炸只播放一份 PNG 和一个音效，不按受伤目标数重复。
+| 事件 | 用途 |
+| --- | --- |
+| `shot`、`melee` | 枪口、弹迹、扇形刃光和挥动音效 |
+| `hit`、`hurt`、`death` | 命中、受伤与怪物倒下/死亡音效 |
+| `chop`、`break`、`place`、`eat`、`unpack` | 采集过程/完成、放置、食用和拆包反馈 |
+| `heal` | 医疗光圈，actor为受治疗玩家，source可指施救者 |
+| `teleport_out`、`teleport_in` | 回城与管理员传送两端的法阵 |
+| `throw`、`explosion` | 投出动作、投掷物爆炸或追踪弹的小型命中特效 |
 
-持久化包含在途炸弹、灼烧相位及来源。暂停不推进，重启继续；发射扣款/扣物品与在途炸弹原子保存，爆炸或灼烧的 HP、死亡掉落、随机状态和移除也原子保存。失败不发布成功事件，恢复不会重复扣钱、生成或爆炸。`terrain` 新增 `gun_machine_chance`、`chest_grenade_chance`、`chest_flame_staff_chance`，均为 0.02，使用独立命名随机流，新区域记录版本 8。
+`attack_id` 可附1～64个可打印字符，成功近战返回 `swing:true` 且melee事件回传同标记；未挥动返回false。客户端先播放本机八方向PNG与音效，匹配服务器事件只确认、不重复播；拒绝、断线、写盘失败取消预览。伤害、掉落与他人表现仍由服务器决定。
 
-## 管理员与除颤器
+## 名单订阅与管理员
 
-![除颤器](../cold_world_game/static/assets/defibrillator.png)
+名单约1Hz独立发送 `roster`，含服务器Unix真实时间和每个账号id/online/hunger/temperature/money/last_login_at，不进入10Hz世界状态。在线优先；离线按最后成功登录倒序，未知记录为null。客户端用server_time加单调时钟计算“刚刚/整分钟/整小时/整天”，不依赖本机日期，详见[玩家列表](controls.md#玩家列表)。
 
-`state.you.is_admin` 是本次启动配置计算的布尔值，旧客户端可忽略，不作为持久玩家字段。未配置 `--admin` 时所有玩家均为 false。管理员通过 `{type:"admin", command:"give 小雪 defibrillator", seq:123}` 提交命令，成功 ack 的 `result.output` 为英文文本，错误的 `message` 同样为英文。每次请求按当前已认证连接的玩家 ID 校验；普通玩家伪造命令会返回 `admin_forbidden`，不可用客户端提供的管理员标记授权。全部命令见 [管理员命令手册](admin.md)。
+`you.admin` 仅在当前启动指定的管理员ID登录时为true，目录与接口不接受客户端自报管理员身份。管理员使用 `admin` 请求，命令字符串语法与英文错误见[专用手册](admin.md)；治疗和传送复用同类事件及移动修正。访问限制仍在服务端执行，隐藏按钮不是权限校验。
 
-目录新增 `revival_items.defibrillator`（duration 1.5、range 2、temperature 36、hunger 10）与 `terrain.chest_defibrillator_chance:0.02`。除颤器沿用普通 `input` 的 aim/target_id 与 `attack` 的按住/松开，不需要额外复活消息；交互目标为 `revive:<item-id>:<player-id>`，每个 tick 校验其他在线倒地玩家、瞄准、2 格距离与视线。成功恢复并消耗一次，发出以被救玩家为 actor 的 `heal` 事件，source 为施救者；管理员治疗也复用此医疗反馈。`tp` 精确保留无遮挡的小数坐标，受阻时复用最近空地搜索，木地板可落脚；与回城共用 `teleport_out` / `teleport_in` 事件、移动版本号和传送版本号，避免旧位置上报拉回。所有成功效果只在保存事务提交后发布。没有新增必须迁移的持久字段。
+## 嵌入与存档边界
 
-## 存档与地图生成兼容
+Python中使用 `cold_world_game.create_app(...)`；关闭时调用 `app.extensions["cold_world_game"].close()` 释放线程及存档锁，不要每次HTTP请求后关闭世界。`start_engine=False` 可用于确定性调试，通过runtime.world.tick(seconds)手动推进。
 
-SQLite 存档格式为第 3 版：`world` 的版本记录为 3，顶层世界字段按名称分存于 `world_parts(name, payload)`，全部变化在同一事务内原子提交，保持 WAL 与 FULL 同步。兼容第 1 版整图 JSON 和第 2 版分区存档，首次保存时原子升级，失败则保留原版本与原内容。存档版本不等于 WebSocket 协议版本，也不等于地形生成版本；协议仍为第 1 版，地形为第 12 版。升级后的存档不供旧版程序读取，降级须使用升级前备份，详见 [服务器与存档](server.md)。
-
-`structure:<id>` 每行保存一座建筑，行的存在与否为准。`structures` 保留初始有序 ID 基线，恢复时跳过已删 ID，再按 SQLite 行序追加后建建筑，因此增删单座建筑也不必重写全世界 ID 列表。事务只记录被修改建筑的旧值用于回滚，并只编码脏建筑；枪击、命中、普通移动不遍历、复制或序列化全图建筑。箱子、篝火、建筑增删及关联玩家/物品变更同事务提交，失败时一起恢复。第 2 版未拆分的 `structures` 数组也能读取并原子转换，保留实体顺序、物品、种子和旧区块版本。
-
-`chunk_versions` 字段为 `[chunk_x, chunk_y, generation_version]` 数组。旧存档缺少该字段时，已有 `chunks` 视为第 1 版已生成区域，其他区域保持未生成。区块版本字段不改变原有 `chunks`、实体 ID、物品和地形状态；玩家随身硬币仅按上述货币迁移规则转换为余额，其他物品不变。不需要删除或重建旧存档。
-
-当前生成器只处理不在 `chunks` 中的区块，新生成区块记录当前 `TERRAIN_VERSION: 12`，已有第 1～11 版区块保留原版本，不因版本较旧而重新生成。第 4 版对机器自然生成应用四类容器的八邻域间距，第 5 版增加箱内急救包，第 6 版增加回城法杖，第 7 版增加寒冰法杖，第 8 版增加自动枪械机及箱内手榴弹、烈焰法杖，第 9 版增加箱内除颤器；旧区块中已相邻的容器保持原位，重新放置则使用新规则。未探索区域始终使用当前服务端生成器，不受世界创建版本限制；各机器、急救包、回城与寒冰法杖、手榴弹、烈焰法杖、除颤器均使用基于世界种子、区块坐标和各自独立特征名的稳定随机流。保存与恢复保留混合版本区域及其物体，重启、重连、重访不重复生成。未来地形更新同样遵守仓库 `AGENTS.md` 的兼容约束。
-
-## HTTP 与生命周期
-
-- `GET /`：可直接游玩的内置游戏网页与登录界面。
-- `GET /health`：健康状态，故障暂停时返回 HTTP 503。
-- `GET /api/info`：协议版本、tick 率、物品属性和配方。
-- `{"type":"ping","seq":30}`：得到当前 elapsed 的 ack。
-
-无在线玩家时模拟完全暂停，所有世界计时器停留；单个玩家离线只冻结该玩家。正常关闭保存世界，重新启动不补算关闭期间的时间。每次启动若未指定 `--password` 就生成新口令，客户端缓存的旧随机口令届时应提示用户更新。
-
-嵌入 Python 应用时调用 `cold_world_game.create_app(...)`；关闭时调用 `app.extensions["cold_world_game"].close()` 释放模拟线程和存档锁。不要对每次 HTTP 请求关闭运行时。工厂的 `start_engine=False` 可用于确定性调试，此时通过 `runtime.world.tick(seconds)` 手动推进。
-
-## 共享存钱罐与暖宝宝贴
-
-![暖宝宝贴](../cold_world_game/static/assets/heat_patch.png)
-
-- `bank` 命令：`{"type":"bank","id":"容器ID","operation":"deposit","amount":5}`，`operation` 也可为 `withdraw`。必须已打开 2 格内无遮挡的 `piggy_bank`，`amount` 为 1 至 `catalog.currency.max_coins` 的 JSON 整数，不接受浮点数、布尔或负值。响应包含 `operation`、`amount`、最新 `balance` 和玩家 `money`。
-- 打开的 `container.balance` 是所有玩家共享且持久保存的整数余额，缺失默认 0。附近建筑列表不发送余额或内容物，只向实际打开容器的客户端按现有差分同步；双方钱包和共享余额在同一次 SQLite 事务提交。命令串行检查最新余额，不依赖客户端显示值。
-- 存款不足报 `insufficient_money`，取款不足报 `insufficient_bank_balance`，超过整数上限报 `balance_limit`；非空拆除报 `bank_not_empty`。断开、离开距离、关闭窗口等访问限制与箱子一致。持有斧头时通过 `dismantle_container` 长按拆除，不允许把普通物品拖进存钱罐。
-- `catalog.terrain.piggy_bank_chance = 0.05`，`chest_heat_patch_chance = 0.02`，当前地形版本 14；`healing_items.heat_patch = {"duration":0.5,"temperature":36.0}`，无 `hunger` 字段即表示不改变饥饿。使用沿用 `attack` 按下/释放协议；成功后发送 `type: heal, kind: heat_patch` 事件，客户端以小画幅播放已有医疗 PNG。
-
-## 警长徽章、伏特加与物品说明
-
-![警长徽章](../cold_world_game/static/assets/sheriff_badge.png) ![伏特加](../cold_world_game/static/assets/vodka.png)
-
-`catalog.passive_items.sheriff_badge` 提供 `damage_multiplier:2`、`monster_kinds:["small","fast"]`、`stackable:false`；`catalog.drinks.vodka` 提供 `duration:0.5`、`effect_duration:30.0`、`felt_temperature:30.0`。`catalog.ready_to_eat_foods` 是无需篝火的食品列表，伏特加独立归于饮料而非 `foods`。`terrain.chest_sheriff_badge_chance` 与 `chest_vodka_chance` 均为0.02，当前 `TERRAIN_VERSION` 为12。
-
-玩家持久字段 `excitement_remaining:0.0` 缺失时默认0，仅在线tick递减；快照沿用玩家编码发送剩余秒数，自己的 `ambient_temperature` 在生效时为30。饮用沿用 `attack` 按下/释放与现有 `eat` 音效事件，无新增使用命令。徽章不新增玩家伤害属性，统一在怪物伤害结算时查两个人物存储区域。
-
-前端 `item-guide.js` 根据现有目录及物品剩余状态生成中英双语作用与用法。选择说明不发送网络请求，不做逐帧全物品遍历；实际转移仍使用原有 `transfer` 与乐观显示/原子保存。
-
-## 迅捷戒指与手持移速装备
-
-![迅捷戒指](../cold_world_game/static/assets/swiftness_ring.png)
-
-`catalog.equipped_items.swiftness_ring.speed_multiplier = 3` 表示只有选中物品栏该物品才生效，不属于只需携带的 `passive_items`。`terrain.chest_swiftness_ring_chance = 0.02`，当前地形版本14。戒指沿用普通Item字段，无弹药或次数，不增加玩家持久字段；`select`、数字键/滚轮/点选及原有 `transfer`、`drop` 协议不变。
-
-服务端 `player_speed` 和客户端 `playerSpeed` 使用相同的体温/饥饿倍率，再乘已选装备倍率，倒地返回0。浏览器使用本地预测选中格，不等 `select` 往返；普通位置更新不增加传送版本或重置运动历史。附近 `players[].move_speed` 给出各玩家当前可用移速供远端有界推算，旧消息缺失该字段时沿用原有基础速度；不发送其他玩家完整背包或物品栏。怪物继续使用原有速度字段，完全不受戒指影响。
-
-高于基础移速的远端玩家，显示纠偏上限为当前移速加基础移速的0.5倍（12格/秒戒指对应最多14格/秒），而非直接把原2.5倍纠偏上限也放大三倍；实际正常行走仍为12格/秒。普通玩家和怪物保持原有纠偏规则，显式传送仍沿用独立版本号。
-
-## 追踪导弹
-
-![追踪导弹](../cold_world_game/static/assets/homing_missile.png)
-
-`catalog.guns.homing_missile` 包含 `ammo:20`、`damage:15`、`interval:0.8`、`speed:18`、`launch_duration:0.12`、`launch_distance:1.2`、`impact_radius:0.9`。`terrain.chest_homing_missile_chance = 0.02`，当前地形版本14。它属于枪械，沿用 `input.aim` 与 `attack.pressed`，非长按连发；不加入枪械机商品，不改变原枪械产出概率。无目标时不消耗弹药/冷却；发射时锁定全体存活怪物中的最近对象，与鼠标所点对象无关。
-
-在途 `Projectile.kind = "homing_missile"`，新增可选持久字段 `target_id`（旧子弹缺省为 `null`），标记唯一锁定怪物ID。沿用 `origin_x/y`、`spawned_at`、`detonates_at`、`target_x/y`，`velocity_x/y` 表示固定初始方向乘18，不是不断同步的转向速度。`x/y` 为当前曲线位置用于视野裁剪，`target_x/y` 为目标最新位置；客户端优先使用已平滑的目标位置计算相同曲线。没有普通 `range_player/range_radius` 限制，不进入直线子弹碰撞/预测通道。飞行中不重新索敌，目标消失时直接移除。
-
-命中只结算锁定对象，广播 `type:explosion, kind:homing_missile, radius:0.9, target:<monster-id>` 小型爆炸事件；这里的radius只控制特效尺寸，不进行范围伤害。伤害/击退/死亡事件仍沿用现有协议；其他玩家和方块不受影响。轨迹、锁定、弹药和伤害通过现有差分/原子存档保存；全员离线或保存故障时暂停。
-
-## 扩展物品与榴莲
-
-![榴莲](../cold_world_game/static/assets/durian.png)
-
-`catalog.expansion_items` 提供60项的 `group/category/chance`，详细机制仍在 foods/guns/melee_weapons/explosive_weapons/healing_items/revival_items/return_items/igniters/passive_items/equipped_items。地形目录增加 `chest_expansion_chances` 与 `chest_durian_chance:0.03`，版本14。每项概率0.001～0.02，使用独立随机流，不改变旧普通候选池。
-
-`durian` 食用后在同一 `inventory[selected]` 槽原子替换成新ID的 `durian_peel`。后者属于一次性爆炸武器，沿用现有长按、抛物线与半径3/伤害20结算。新增医疗支持 `uses`、temperature_delta/hunger_delta及supplies；不会超额覆盖饥饿，新物品缺少uses时按当前定义补缺省。
-
-Projectile新增可选持久字段 `weapon_kind:null`，旧子弹缺省null；它关联发射武器的冰冻/灼烧参数，不改变普通 `kind:bullet` 的穿透、伤害和视觉通道。新枪 `automatic` 与 `instant` 控制长按与按下首发，`pellets/spread` 控制散布。近战 `arc_degrees` 参与实际命中，`effect` 指向离线烘焙的八方向PNG，特殊knockback按配置结算。
-
-随身被动无需新增玩家持久字段，同属性只取最强，不叠加；服务端按当前背包/物品栏计算，手持移速沿用已选格即时预测。自然箱极端超过30项时 `slots` 保留实际长度；转移端点以其真实长度验证，客户端已有动态格子渲染。玩家背包/物品栏容量不变，原子回滚与差分协议不变。
-
-## 房屋功能机器与第15版
-
-目录新增 `room_machines`，以十种建筑ID映射到 `chance`；`terrain.room_machine_chances` 提供同一独立概率表，当前地形版本15。完整价格仍由 `machine_offers[kind][offer]` 提供，新增29份配方均为现有 `{inputs, output, count}` 结构。客户端使用服务器价格判断材料和空格，不另维护可被篡改的支付结果。
-
-交互沿用 `open`、`trade`、`dismantle_container` 和 `place`，不新增命令，不改变协议版本。新机器也是普通 `Structure`，没有库存、补货时间或余额扩展；旧SQLite无需新持久字段。方块拆除仍在原子事务里移除建筑并生成同种物品，交易只在全部材料和空间足够时提交。机器快照沿用原建筑差分，无逐帧服务或全图机器扫描。
+个人离线仅冻结该人，全员离线或停机冻结整个世界，不补算离线时间。存储结构、旧存档缺省、备份和安全部署属于[服务器手册](server.md)，地图独立随机流与未探索区域更新属于[世界手册](world.md#地图生成与存档)。

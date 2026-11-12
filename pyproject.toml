@@ -21,4 +21,4 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "cold_world_game"
 module-root = ""
-source-include = ["docs/**", "tools/generate_assets.py", "tools/expansion_assets.py", "tools/machine_assets.py", "tools/manual_assets.py", "tools/generate_audio.py", "uv.lock"]
+source-include = ["docs/**", "tools/generate_assets.py", "tools/expansion_assets.py", "tools/machine_assets.py", "tools/manual_assets.py", "tools/generate_manuals.py", "tools/generate_audio.py", "uv.lock"]

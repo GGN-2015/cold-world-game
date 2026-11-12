@@ -31,6 +31,7 @@ export class GameUI {
     this.demolitionButton = null;
     this.storageView = null;
     this.inspectedId = null;
+    this.guideExpanded = false;
     this.guideHotbarKey = null;
     this.transfers = new StoragePrediction(catalog);
     connection.addEventListener('command', ({ detail }) => {
@@ -65,6 +66,7 @@ export class GameUI {
     byId('inventory-button').onclick = () => this.togglePanel('inventory');
     byId('craft-button').onclick = () => this.togglePanel('inventory');
     byId('panel-close').onclick = () => this.closePanel();
+    byId('item-guide-toggle').onclick = () => this.toggleItemGuide();
     byId('help-button').onclick = () => this.toggleHelp();
     byId('help-close').onclick = () => this.toggleHelp(false);
     byId('help-overlay').onclick = (event) => { if (event.target === byId('help-overlay')) this.toggleHelp(false); };
@@ -98,6 +100,10 @@ export class GameUI {
 
   async action(type, payload = {}, success = '') {
     if (this.busy) return false;
+    if (type === 'drop' && this.state?.you.inventory[payload.slot ?? this.controls.selected()]?.kind === 'axe') {
+      this.toast(() => t('error.item_not_droppable'));
+      return false;
+    }
     this.cancelDemolition();
     this.busy = true;
     this.refreshPanel();
@@ -132,6 +138,7 @@ export class GameUI {
     this.controls.stop();
     this.closedContainer = this.state?.container?.id || this.closedContainer;
     this.panel = null;
+    this.guideExpanded = false;
     byId('side-panel').hidden = true;
     this.panelSignature = '';
     this.touchTransfer = false;
@@ -275,7 +282,7 @@ export class GameUI {
     const body = byId('panel-body');
     byId('side-panel').hidden = false;
     byId('touch-transfer-button').setAttribute('aria-pressed', String(this.touchTransfer));
-    byId('touch-transfer-drop').disabled = this.busy || !this.touchSelection;
+    byId('touch-transfer-drop').disabled = this.busy || !this.touchSelection || this.touchSelection.item.kind === 'axe';
     byId('touch-transfer-status').textContent = this.touchSelection ? t('touch.transferSelected', { item: itemDetail(this.touchSelection.item, this.catalog) }) : t(this.touchTransfer ? 'touch.transferPick' : 'touch.transferOff');
     byId('panel-kicker').textContent = t(this.panel === 'container' ? 'panel.shelter' : 'panel.kit');
     const key = JSON.stringify([this.panel, container?.id, container?.kind, getLanguage()]);
@@ -286,10 +293,10 @@ export class GameUI {
       const bag = element('section', 'storage-column backpack-section');
       const detail = element('section', 'storage-column detail-section');
       this.storageView = { key, detail, backpack: this.renderBackpack(bag) };
+      this.storageView.guide = this.renderItemGuide(layout);
       layout.append(bag, detail);
       body.replaceChildren(layout);
       detail.append(element('h3', 'storage-heading', this.panel === 'container' ? itemName(container.kind) : t('button.craft')));
-      this.storageView.guide = this.renderItemGuide(detail);
       if (this.panel === 'container' && container.kind === 'chest') {
         this.storageView.chestCount = element('div', 'container-meta');
         this.storageView.chestGrid = element('div', 'chest-grid');
@@ -334,13 +341,18 @@ export class GameUI {
     this.updateDemolitionButton();
   }
 
-  inspectItem(item, scroll = true) {
+  inspectItem(item) {
     if (!this.panel) return;
     this.inspectedId = item?.id ?? null;
     this.panelSignature = '';
     this.hotbarSignature = '';
     this.update(this.state);
-    if (scroll && item && isMobileDevice && !this.touchTransfer) this.storageView?.guide.card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  toggleItemGuide(open = !this.guideExpanded) {
+    this.guideExpanded = open;
+    byId('side-panel').classList.toggle('guide-expanded', open);
+    byId('item-guide-toggle').setAttribute('aria-expanded', String(open));
   }
 
   renderItemGuide(body) {
@@ -349,6 +361,10 @@ export class GameUI {
     card.hidden = true;
     card.setAttribute('aria-live', 'polite');
     const header = element('div', 'item-guide-heading');
+    const close = element('button', 'close-button item-guide-close', '×');
+    close.type = 'button';
+    close.setAttribute('aria-label', t('guide.hide'));
+    close.onclick = () => { this.toggleItemGuide(false); byId('item-guide-toggle').focus(); };
     const icon = element('img');
     icon.alt = '';
     const heading = element('div');
@@ -367,7 +383,7 @@ export class GameUI {
       const entry = this.playerItems().find(entry => entry.item?.id === this.inspectedId);
       if (entry) this.movePersonalItem(entry.endpoint, entry.item);
     };
-    card.append(header, effect, use, detail, move);
+    card.append(close, header, effect, use, detail, move);
     body.append(card);
     return { card, icon, category, title, effect, use, detail, move };
   }
@@ -375,6 +391,8 @@ export class GameUI {
   updateItemGuide(view) {
     const entry = this.playerItems().find(entry => entry.item?.id === this.inspectedId);
     view.card.hidden = !entry;
+    byId('item-guide-toggle').disabled = !entry;
+    this.toggleItemGuide(Boolean(entry) && this.guideExpanded);
     if (!entry) return;
     const guide = itemGuide(entry.item, this.catalog);
     view.card.dataset.itemId = entry.item.id;
@@ -653,6 +671,10 @@ export class GameUI {
 
   transfer(source, destination, item) {
     if (this.busy || !this.connection.ready) return Promise.resolve(false);
+    if (destination.kind === 'ground' && item.kind === 'axe') {
+      this.toast(() => t('error.item_not_droppable'));
+      return Promise.resolve(false);
+    }
     this.cancelDemolition();
     this.dragSource = null;
     if (item.kind === 'coin' && ['inventory', 'backpack'].includes(destination.kind)) destination = { kind: 'wallet' };

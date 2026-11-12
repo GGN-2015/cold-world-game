@@ -1,66 +1,45 @@
 # cold-world-game
 
-冰天雪地中的多人浏览器生存游戏，使用 Python Flask/WebSocket 服务端与原生浏览器前端。支持 Windows/Linux、电脑和手机浏览器、中英双语、SQLite 世界存档。
+寒境：基于Python Flask与WebSocket的多人俯视角雪地生存游戏。直接用浏览器探索、收集、制作、建造和战斗，支持Windows/Linux、桌面键鼠、手机横竖屏及中英切换。
 
 ## 快速启动
 
-需要 Python 3.11+ 和 uv，在项目目录执行：
+需要Python 3.11或更高版本与uv：
 
 ```sh
 uv sync --frozen
-uv run cold-world-game
+uv run cold-world-game --host 0.0.0.0 --port 5000
 ```
 
-浏览器打开 `http://127.0.0.1:5000`，输入玩家名称和终端显示的服务器口令即可游玩。不提供 `--password` 时，每次启动自动生成随机口令。
+本机浏览器打开 `http://127.0.0.1:5000/`；其他设备用服务器局域网IP替换127.0.0.1。终端显示游戏口令，未指定 `--password` 时每次启动随机生成。输入玩家ID和口令即可进入，无需单独启动前端。
 
-局域网联机（手机与电脑连接同一网络）：
+固定口令、存档和管理员示例：
 
 ```sh
-uv run cold-world-game --host 0.0.0.0 --port 5000 --password your-server-password --save-path ./saves
+uv run cold-world-game --host 0.0.0.0 --password your-password --save-path ./saves --admin neko
 ```
 
-其他设备访问服务器电脑的局域网 IP，例如 `http://192.168.1.10:5000`，并放行防火墙端口。无需独立前端、Node.js 或浏览器插件。按 Ctrl+C 保存并停止服务。
+新角色携带手枪、斧头和打火机；先采木材、制作并点燃篝火，再探索房屋。手机自动显示双摇杆与大号操作按钮，不要求解锁屏幕方向。详见[安装与开始](docs/quick-start.md)。
 
 ## 手册树
 
-**[完整手册目录](docs/README.md)**
+完整入口：[游戏与服务器手册](docs/README.md)。手册按玩法职责归类，同类内容统一结构，不按加入批次组织。
 
-- 入门：[安装与开始游戏](docs/quick-start.md) · [电脑/手机界面与操作](docs/controls.md)
-- 世界：[地图、房屋、季节与年份](docs/world.md) · [体温、饥饿与急救](docs/survival.md)
-- 物品：[背包与物品栏](docs/inventory.md) · [采集、配方与建造](docs/building.md)
-- 联机玩法：[机器交易与金币](docs/trading.md) · [武器手册](docs/weapons.md) · [怪物与战斗](docs/combat.md)
-- 维护：[服务器、参数与存档](docs/server.md) · [HTTP/WebSocket 协议](docs/protocol.md)
-- 管理：[管理员控制台命令](docs/admin.md)（启动参数 `--admin "玩家 ID"`，默认不启用）
-- 自定义：[PNG 贴图与动画](docs/assets.md) · [WAV 音效](docs/audio.md)
+| 领域 | 手册 |
+| --- | --- |
+| 开始与操作 | [安装与开始](docs/quick-start.md) · [界面与操作](docs/controls.md) |
+| 世界与生存 | [世界、地图与季节](docs/world.md) · [体温、饥饿与状态](docs/survival.md) · [怪物与战斗](docs/combat.md) |
+| 随身物品 | [背包与转移](docs/inventory.md) · [食品与饮料](docs/foods.md) · [武器图鉴](docs/weapons.md) · [工具与装备](docs/tools.md) |
+| 营地与经济 | [采集、制作与建造](docs/building.md) · [容器、篝火与全部机器](docs/machines.md) · [金币与共享经济](docs/economy.md) |
+| 服务器 | [联机、存档与部署](docs/server.md) · [管理员命令](docs/admin.md) |
+| 开发与资源 | [开发维护](docs/development.md) · [后端协议](docs/protocol.md) · [实时性与性能](docs/performance.md) · [PNG美术](docs/assets.md) · [音效](docs/audio.md) |
 
-## 游玩提示
-
-- WASD 移动，数字键/滚轮选择物品，B 打开独立 30 格背包与制作；手机使用专用摇杆和操作按钮，横竖屏均可玩。
-- 选中斧头朝空地或怪物单击，攻击前方 3 格、180° 半圆内所有可见怪物；长按砍树拆除。箱子、篝火、售货机、火柴机、枪械机须在面板内长按拆除按钮；箱子与篝火先取空。左键放置，Q 朝鼠标方向丢弃。
-- 注意体温与饥饿，点燃篝火取暖。可乐、奥利奥、压缩饼干不用火也能吃；急救包长按使用，无需篝火，恢复到 36°C、饥饿至少 10，并播放光圈和红色医疗加号。
-- 自然房屋的每个箱子独立有 2% 概率生成一个急救包。旧世界已生成区域不重刷，未探索区域使用新版生成规则。
-- 除颤器独立以 2% 概率出现在自然箱子中；对准 2 格内倒地队友长按 1.5 秒，恢复满体温与饥饿，每件仅能成功使用一次。
-- 回城法杖独立以 2% 概率出现在自然箱子中，初始 20 次；长按使用 1.5 秒返回离原点最近的空地，同距优先远离怪物，带独立 PNG 法阵与传送动画。
-- 寒冰法杖独立以 2% 概率出现在自然箱子中，初始 100 次；与斧头相同的 3 格、180° 群攻，每只伤害 8，活动怪物冰冻减速 50% 持续 4 秒，大怪期间不能发射子弹。白天休眠怪物仍可受伤、击杀和正常掉落，详见[寒冰法杖](docs/weapons.md#寒冰法杖)。
-- 建筑区块独立有 2% 概率出现[自动枪械机](docs/trading.md#自动枪械机)，销售枪械、手榴弹和金币榴弹炮；面板长按拆除可带走。手榴弹长按投出，半径 3 格、伤害 20，只伤怪物；金币榴弹炮每发消耗 1 金币。
-- 烈焰法杖与手榴弹分别独立以 2% 概率出现在自然箱子中。烈焰法杖初始 100 次，同斧头群攻并灼烧 4 秒，每 0.5 秒伤害 4，持续伤害无击退，详见[新增武器](docs/weapons.md#烈焰法杖)。
-- 物品栏与背包独立保存，物品转移采用即时预览和服务端原子存档；全员离线后世界暂停，个人离线时不消耗状态。
-- 本机挥斧即时播放八方向 PNG 与刀风，伤害由服务器确认；联机与存档采用差分，已验证 300ms 延迟下的大地图、70 怪和四人同行，详见[性能验证](docs/server.md#300ms-延迟与多人同行验证)。
-
-- 每间新生成房屋独立有 5% 概率出现[小猪存钱罐](docs/trading.md#小猪存钱罐)，玩家共享存款，可按数量存取金币；余额为零才可在面板长按拆除带走。
-- 暖宝宝贴独立以 2% 概率出现在自然箱子中；长按 0.5 秒恢复满体温，饥饿不变，无需篝火，并播放小型医疗动画。
-
-- [警长徽章](docs/weapons.md#警长徽章)放在背包或物品栏即可使所有武器对小怪、快速怪伤害翻倍；[伏特加](docs/survival.md#伏特加与亢奋)长按饮用后30秒体感恒为30°C，两者独立以2%概率出现在新自然箱子里。
-- 背包内点击随身物品即显示[全物品说明卡](docs/inventory.md#物品说明卡)，包括作用与用法；双击、拖动或说明卡按钮仍可快速转移，支持手机与中英切换。
-
-- [迅捷戒指](docs/inventory.md#迅捷戒指)必须放在物品栏并选中，才将当前体温/饥饿下的移速乘3；倒地仍不能移动。新自然箱子独立2%概率，客户端立即响应选中与切换。
-
-追踪导弹：20发、手枪三倍伤害、0.8秒冷却，自动锁定最近怪物，详见 [武器手册](docs/weapons.md#追踪导弹)；榴莲及60物品见 [扩展图鉴](docs/expansion.md)，新房屋有概率出现的十类有偿加工与补给建筑见 [功能机器手册](docs/machines.md)。
+物品图鉴附实际PNG、获取方式、效果、操作和限制；设施统一列出全部兑换配方。已有SQLite世界可继续使用：旧区域不重刷，未探索区域使用当前生成规则，不需要删档或换种子。
 
 ## 项目结构
 
-- `cold_world_game/`：Flask 服务端、规则、SQLite 存档与内置网页。
-- `cold_world_game/static/assets/`：独立 PNG、角色/特效图集与清单，便于替换。
-- `cold_world_game/static/audio/`：本地 WAV 音效。
-- `tools/`：贴图与音效生成脚本。
-- `docs/`：完整玩法、运行维护及开发手册；更新兼容约束见 [AGENTS.md](AGENTS.md)。
+- `cold_world_game/`：Flask服务端、世界模拟、事务存档及内置浏览器客户端。
+- `cold_world_game/static/assets/`：可独立替换的PNG、动画图集与清单。
+- `cold_world_game/static/audio/`：可替换WAV与清单。
+- `docs/`：按领域组织的完整手册树。
+- `tools/`：美术、音效和分类图鉴生成脚本，见[开发维护](docs/development.md)。

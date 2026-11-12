@@ -157,6 +157,7 @@ class Actions:
             item = player.inventory[slot]
             if item is None:
                 raise GameError("empty_slot", "The source slot is empty")
+            self.ensure_droppable(item)
             position = self.drop_position(player, controls)
             self.touch()
             self.cancel_selected(player, controls, slot)
@@ -365,6 +366,8 @@ class Actions:
         if item.kind == "coin" and destination[0] in ("inventory", "backpack"):
             destination = "wallet", player, None
         target_kind, target, target_slot = destination
+        if target_kind == "ground":
+            self.ensure_droppable(item)
         if target_kind == "wallet":
             if item.kind != "coin":
                 raise GameError("invalid_currency", "Only coins can be collected as money")
@@ -403,6 +406,11 @@ class Actions:
                 self.drop_item(item, *owner, player.id)
             else:
                 del self.ground[owner.id]
+
+    @staticmethod
+    def ensure_droppable(item):
+        if item.kind == "axe":
+            raise GameError("item_not_droppable", "Axes cannot be dropped; store them in a chest instead")
 
     def drop_position(self, player, controls):
         direction_x, direction_y = normalized(controls.aim_x - player.x, controls.aim_y - player.y)
