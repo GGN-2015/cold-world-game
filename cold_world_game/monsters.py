@@ -57,10 +57,12 @@ class Monsters:
         return MONSTER_SPAWN_CHANCES["night" if hour >= start or hour < end else "day"]
 
     def monster_spawn_available(self):
+        farthest = max((math.hypot(player.x, player.y) for player in self.players.values() if player.temperature >= 5), default=None)
+        if farthest is None:
+            return False
         population = len(self.monsters)
         if population < MONSTER_LIMIT:
             return True
-        farthest = max((math.hypot(player.x, player.y) for player in self.players.values()), default=0.0)
         return farthest / MONSTER_LIMIT_DOUBLING_DISTANCE >= math.log2((population + 1) / MONSTER_LIMIT)
 
     def spawn_monster(self):

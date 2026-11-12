@@ -254,28 +254,7 @@ def frozen_monsters():
 
 def monsters():
     for big in (False, True):
-        image, drawing = canvas()
-        drawing.ellipse((3, 25, 30, 30), fill="#587e8d77")
-        if big:
-            drawing.polygon(((4, 15), (9, 6), (22, 6), (28, 15), (27, 26), (22, 28), (17, 24), (11, 28), (5, 26)), fill=PALETTE["outline"])
-            drawing.polygon(((6, 14), (10, 7), (22, 7), (26, 15), (24, 25), (20, 24), (16, 27), (11, 24), (7, 25)), fill="#6b919e")
-            drawing.rectangle((10, 4, 21, 15), fill=PALETTE["ice"])
-            drawing.rectangle((8, 8, 24, 14), fill=PALETTE["snow"])
-            drawing.rectangle((10, 10, 22, 15), fill="#345761")
-            drawing.rectangle((11, 10, 13, 11), fill="#f5aa78")
-            drawing.rectangle((19, 10, 21, 11), fill="#f5aa78")
-            drawing.rectangle((13, 17, 20, 22), fill=PALETTE["ice"])
-            drawing.line((5, 15, 4, 21), fill=PALETTE["snow"], width=3)
-            drawing.line((26, 15, 28, 21), fill=PALETTE["snow"], width=3)
-        else:
-            drawing.polygon(((6, 10), (6, 4), (12, 8), (20, 8), (26, 4), (26, 12), (28, 21), (23, 27), (9, 27), (4, 21)), fill=PALETTE["outline"])
-            drawing.polygon(((8, 10), (8, 7), (12, 11), (21, 11), (24, 7), (24, 13), (26, 21), (21, 25), (10, 25), (6, 21)), fill=PALETTE["shade"])
-            drawing.polygon(((9, 12), (22, 12), (24, 17), (20, 20), (12, 20), (8, 17)), fill=PALETTE["snow"])
-            drawing.rectangle((10, 14, 12, 15), fill="#c36b61")
-            drawing.rectangle((20, 14, 22, 15), fill="#c36b61")
-            drawing.rectangle((15, 18, 18, 20), fill=PALETTE["outline"])
-            drawing.line((10, 23, 8, 26), fill=PALETTE["outline"], width=3)
-            drawing.line((22, 23, 24, 26), fill=PALETTE["outline"], width=3)
+        image = monster_frame(big, "down", 0)
         save("monster_big" if big else "monster_small", image)
         if not big:
             save("monster_fast", fast_monster_tint(image))
@@ -345,81 +324,151 @@ def traveler_frame(coat, direction, pose):
     return image
 
 
+def small_monster_art(image, direction, step):
+    drawing = ImageDraw.Draw(image)
+    outline = "#293e4d"
+    if direction == "right":
+        drawing.polygon(((9, 19), (5, 16), (3, 18), (3, 23), (7, 26), (12, 24)), fill=outline)
+        drawing.polygon(((7, 20), (5, 18), (5, 22), (8, 24), (11, 23)), fill="#d5e6e5")
+        drawing.polygon(((9, 15), (15, 13), (22, 16), (24, 23), (20, 26), (11, 25), (7, 21)), fill=outline)
+        drawing.polygon(((11, 16), (16, 15), (21, 18), (21, 23), (18, 24), (11, 23), (9, 20)), fill="#7093a3")
+        drawing.line((12, 17, 15, 18, 16, 21), fill="#a8c7cf", width=1)
+        drawing.polygon(((13, 11), (13, 4), (18, 7), (22, 7), (26, 10), (26, 13), (29, 15), (28, 19), (22, 21), (16, 19), (12, 15)), fill=outline)
+        drawing.polygon(((15, 10), (15, 7), (18, 10), (23, 9), (25, 12), (24, 15), (27, 16), (25, 18), (21, 19), (17, 17), (14, 14)), fill="#9fbec8")
+        drawing.polygon(((15, 12), (19, 11), (21, 13), (25, 13), (24, 15), (27, 16), (24, 18), (20, 18), (18, 16), (15, 17)), fill="#e8f0e9")
+        drawing.rectangle((22, 12, 25, 13), fill="#b86564")
+        drawing.point((24, 12), fill="#ffd3b2")
+        drawing.rectangle((27, 15, 29, 16), fill=outline)
+        drawing.polygon(((24, 18), (26, 18), (25, 21)), fill="#f7f0d7")
+        drawing.line((17, 18, 18 - step, 22, 20 - step, 25), fill=outline, width=4)
+        drawing.line((17, 18, 18 - step, 22), fill="#9cbac5", width=2)
+        drawing.line((18 - step, 24, 21 - step, 24), fill="#e5eee7", width=1)
+        return
+    drawing.polygon(((10, 17), (21, 17), (25, 21), (23, 26), (9, 26), (7, 22)), fill=outline)
+    drawing.polygon(((11, 19), (20, 19), (22, 22), (20, 24), (11, 24), (10, 22)), fill="#7598a8")
+    for side in (-1, 1):
+        horizontal = 16 + side * 9
+        reach = step * side // 2
+        drawing.line((horizontal, 17, horizontal + side, 21 + reach, horizontal, 24 + reach), fill=outline, width=4)
+        drawing.line((horizontal, 18, horizontal + side, 21 + reach), fill="#acc7ce", width=2)
+        drawing.line((horizontal - 1, 24 + reach, horizontal + 1, 24 + reach), fill="#ebf1e8", width=1)
+    drawing.polygon(((7, 10), (7, 3), (13, 7), (20, 7), (25, 3), (25, 10), (28, 14), (27, 20), (23, 23), (19, 21), (16, 23), (11, 21), (7, 22), (4, 17)), fill=outline)
+    drawing.polygon(((9, 10), (9, 7), (13, 10), (20, 9), (23, 7), (23, 12), (25, 15), (24, 19), (21, 21), (17, 20), (12, 20), (9, 18), (7, 16)), fill="#8faebb")
+    drawing.polygon(((10, 10), (14, 8), (19, 8), (23, 10), (20, 12), (16, 11), (12, 13)), fill="#bed6d9")
+    if direction == "down":
+        drawing.polygon(((8, 13), (12, 12), (16, 14), (20, 12), (25, 13), (24, 17), (22, 19), (19, 18), (16, 21), (13, 18), (10, 19), (8, 17)), fill="#e8f0e9")
+        drawing.line((10, 13, 13, 14), fill=outline, width=1)
+        drawing.line((19, 14, 22, 13), fill=outline, width=1)
+        drawing.rectangle((10, 15, 12, 16), fill="#c87570")
+        drawing.rectangle((20, 15, 22, 16), fill="#c87570")
+        drawing.point((10, 15), fill="#ffceac")
+        drawing.point((22, 15), fill="#ffceac")
+        drawing.rectangle((15, 17, 17, 18), fill=outline)
+        drawing.polygon(((12, 18), (14, 19), (13, 22)), fill="#f8f1d9")
+        drawing.polygon(((19, 19), (21, 18), (20, 22)), fill="#f8f1d9")
+        drawing.line((13, 24, 19, 24), fill="#bad3d7", width=1)
+    else:
+        drawing.line((16, 11, 16, 18), fill="#5d8395", width=1)
+        drawing.line((11, 13, 13, 16), fill="#b8d1d6", width=1)
+        drawing.line((21, 13, 19, 16), fill="#b8d1d6", width=1)
+        drawing.polygon(((13, 21), (18, 20), (21, 23), (20, 26), (16, 27), (12, 25)), fill=outline)
+        drawing.polygon(((15, 22), (18, 22), (19, 24), (16, 25), (14, 24)), fill="#dceae5")
+
+
+def big_monster_art(image, direction, step):
+    drawing = ImageDraw.Draw(image)
+    outline = "#2b414d"
+    if direction == "right":
+        drawing.polygon(((5, 16), (7, 11), (12, 8), (19, 9), (24, 14), (26, 21), (23, 26), (18, 25), (13, 27), (7, 25), (4, 21)), fill=outline)
+        drawing.polygon(((7, 16), (9, 12), (13, 10), (18, 11), (22, 15), (24, 21), (21, 24), (17, 23), (13, 25), (8, 23), (6, 20)), fill="#b0cbcd")
+        drawing.polygon(((8, 14), (11, 11), (15, 10), (19, 12), (18, 15), (15, 17), (13, 16), (10, 19), (8, 17)), fill="#e6eee4")
+        drawing.line((8, 20, 10, 22, 13, 23), fill="#d3e3da", width=1)
+        drawing.ellipse((14, 4, 20, 10), fill=outline)
+        drawing.ellipse((15, 5, 19, 9), fill="#e5ede4")
+        drawing.polygon(((16, 7), (20, 5), (25, 7), (28, 10), (28, 13), (30, 15), (29, 19), (26, 21), (22, 20), (18, 21), (14, 17), (13, 12)), fill=outline)
+        drawing.polygon(((16, 9), (20, 7), (24, 8), (26, 11), (26, 14), (28, 16), (27, 19), (23, 18), (20, 19), (17, 17), (15, 13)), fill="#dce9de")
+        drawing.polygon(((17, 9), (20, 7), (23, 8), (24, 10), (21, 11), (18, 10), (16, 13)), fill="#f4f4e8")
+        drawing.ellipse((15, 5, 19, 9), fill="#dbe7df")
+        drawing.point((17, 7), fill="#a0bdc3")
+        drawing.line((22, 11, 25, 12), fill="#536c76", width=1)
+        drawing.rectangle((23, 12, 25, 13), fill="#c18160")
+        drawing.point((24, 12), fill="#ffdc9e")
+        drawing.polygon(((24, 15), (28, 14), (30, 16), (29, 18), (26, 19), (23, 18)), fill="#f4f0dc")
+        drawing.rectangle((28, 15, 30, 16), fill=outline)
+        drawing.line((26, 18, 28, 18), fill="#768b8d", width=1)
+        drawing.polygon(((24, 18), (26, 19), (25, 21)), fill="#f8f1d8")
+        reach = step // 2
+        drawing.polygon(((17, 16), (21, 15), (24, 19 + reach), (24, 24 + reach), (21, 27 + reach), (17, 26 + reach), (15, 22 + reach)), fill=outline)
+        drawing.polygon(((18, 17), (20, 17), (22, 20 + reach), (22, 24 + reach), (20, 25 + reach), (18, 24 + reach), (17, 21 + reach)), fill="#dce9de")
+        drawing.line((18, 18, 19, 21 + reach), fill="#f2f3e7", width=2)
+        drawing.line((19, 25 + reach, 21, 25 + reach), fill="#9ab7bd", width=1)
+        drawing.point((19, 26 + reach), fill="#f5efda")
+        drawing.point((21, 26 + reach), fill="#f5efda")
+        return
+    for side in (-1, 1):
+        horizontal = 16 + side * 9
+        reach = step * side // 2
+        drawing.polygon(((horizontal - 2, 13), (horizontal + 2, 13), (horizontal + 4, 18 + reach), (horizontal + 3, 24 + reach), (horizontal + 1, 27 + reach), (horizontal - 3, 26 + reach), (horizontal - 4, 22 + reach), (horizontal - 4, 17)), fill=outline)
+        drawing.polygon(((horizontal - 2, 15), (horizontal + 1, 15), (horizontal + 2, 19 + reach), (horizontal + 1, 24 + reach), (horizontal - 1, 25 + reach), (horizontal - 3, 23 + reach), (horizontal - 2, 20 + reach), (horizontal - 3, 18)), fill="#d5e5da")
+        drawing.line((horizontal - 2, 17, horizontal - 2, 20 + reach), fill="#f1f3e6", width=1)
+        drawing.line((horizontal - 1, 24 + reach, horizontal + 1, 24 + reach), fill="#9bb9bf", width=1)
+        drawing.point((horizontal - 1, 26 + reach), fill="#f6efda")
+        drawing.point((horizontal + 1, 26 + reach), fill="#f6efda")
+    drawing.polygon(((8, 13), (12, 10), (20, 10), (25, 14), (26, 21), (24, 26), (19, 27), (16, 26), (11, 27), (7, 24), (6, 19)), fill=outline)
+    drawing.polygon(((10, 14), (13, 12), (19, 12), (23, 15), (24, 21), (22, 24), (18, 25), (15, 24), (12, 25), (9, 23), (8, 19)), fill="#aac6c9")
+    drawing.polygon(((11, 15), (15, 13), (20, 14), (22, 18), (21, 23), (18, 24), (16, 23), (13, 25), (11, 22), (9, 20)), fill="#e0ebdf")
+    drawing.line((12, 21, 14, 22), fill="#c0d7d1", width=1)
+    drawing.line((20, 20, 19, 23), fill="#c0d7d1", width=1)
+    for horizontal in (9, 23):
+        drawing.ellipse((horizontal - 3, 3, horizontal + 3, 9), fill=outline)
+        drawing.ellipse((horizontal - 2, 4, horizontal + 2, 8), fill="#d2e1d8")
+        drawing.point((horizontal, 5), fill="#a0b9be")
+    drawing.polygon(((8, 8), (11, 5), (15, 4), (21, 5), (25, 8), (26, 13), (25, 18), (22, 21), (18, 20), (15, 22), (11, 21), (7, 18), (6, 13)), fill=outline)
+    drawing.polygon(((10, 9), (12, 7), (16, 6), (20, 7), (23, 9), (24, 13), (23, 17), (21, 19), (18, 18), (15, 20), (12, 19), (9, 17), (8, 13)), fill="#dae7db")
+    drawing.polygon(((11, 9), (13, 7), (17, 6), (20, 7), (22, 9), (19, 10), (16, 9), (13, 11)), fill="#f3f3e5")
+    if direction == "down":
+        drawing.line((10, 11, 13, 12), fill="#627a80", width=1)
+        drawing.line((19, 12, 22, 11), fill="#627a80", width=1)
+        drawing.rectangle((10, 13, 12, 14), fill="#bc7e5e")
+        drawing.rectangle((20, 13, 22, 14), fill="#bc7e5e")
+        drawing.point((10, 13), fill="#ffdb9e")
+        drawing.point((22, 13), fill="#ffdb9e")
+        drawing.polygon(((13, 14), (18, 14), (22, 17), (20, 20), (17, 19), (15, 21), (12, 19), (10, 17)), fill="#f4efdb")
+        drawing.polygon(((14, 15), (18, 15), (19, 16), (17, 18), (15, 18), (13, 16)), fill=outline)
+        drawing.line((16, 18, 16, 19), fill="#7d9494", width=1)
+        drawing.polygon(((11, 18), (13, 19), (12, 21)), fill="#fcf2d6")
+        drawing.polygon(((20, 19), (22, 18), (21, 21)), fill="#fcf2d6")
+    else:
+        drawing.line((11, 12, 13, 14, 12, 17), fill="#b1ccc8", width=1)
+        drawing.line((21, 12, 19, 14, 20, 17), fill="#b1ccc8", width=1)
+        drawing.line((16, 10, 16, 14), fill="#e8eee0", width=1)
+        drawing.polygon(((14, 24), (16, 23), (19, 24), (19, 26), (17, 27), (14, 26)), fill="#e6edde")
+
+
 def monster_frame(big, direction, pose):
-    stride, swing, lift = WALK_POSES[pose]
+    if direction == "left":
+        return monster_frame(big, "right", pose).transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+    step = (0, 2, 1, -2, -1)[pose]
+    lift = WALK_POSES[pose][2]
     image, drawing = canvas()
     drawing.ellipse((3, 27, 29, 30), fill="#587e8d66")
+    for horizontal, reach in ((10, step), (22, -step)):
+        width = 3 if big else 2
+        foot = horizontal + reach
+        drawing.polygon(((horizontal - width, 22), (horizontal + width, 22), (foot + width, 27), (foot + width, 29), (foot - width, 29), (foot - width - 1, 27)), fill="#293e4d")
+        if big:
+            drawing.polygon(((foot - 2, 24), (foot + 1, 24), (foot + 2, 27), (foot + 2, 28), (foot - 2, 28), (foot - 3, 27)), fill="#d2e3d8")
+            for toe in (-2, 0, 2):
+                drawing.point((foot + toe, 29), fill="#f2ead3")
+        else:
+            drawing.rectangle((foot - width + 1, 26, foot + width - 1, 27), fill="#7093a3")
+            drawing.line((foot - width + 1, 28, foot + width - 1, 28), fill="#e8eee3", width=1)
     body = Image.new("RGBA", (32, 32))
-    drawing = ImageDraw.Draw(body)
-    fur = "#6b919e" if big else PALETTE["shade"]
-    side = direction in ("left", "right")
-    if side:
-        for position, phase in ((11, stride), (19, -stride)):
-            drawing.line((position, 21, position + phase, 27), fill=PALETTE["outline"], width=4)
-            drawing.line((position, 21, position + phase, 25), fill=fur, width=2)
-            drawing.rectangle((position + phase, 26, position + phase + 4, 28), fill=PALETTE["snow"])
-        if big:
-            drawing.polygon(((8, 12 + lift), (18, 10 + lift), (24, 16 + lift), (22, 24 + lift), (9, 24 + lift), (5, 20 + lift)), fill=PALETTE["outline"])
-            drawing.polygon(((9, 13 + lift), (18, 12 + lift), (22, 17 + lift), (20, 23 + lift), (9, 22 + lift), (7, 19 + lift)), fill=fur)
-            drawing.line((16, 15 + lift, 16 - swing, 23 + lift), fill=PALETTE["outline"], width=5)
-            drawing.line((16, 15 + lift, 16 - swing, 22 + lift), fill=PALETTE["ice"], width=3)
-            drawing.rectangle((14 - swing, 22 + lift, 18 - swing, 25 + lift), fill=PALETTE["snow"])
-            drawing.rectangle((12, 4 + lift, 23, 14 + lift), fill=PALETTE["ice"])
-            drawing.rectangle((10, 7 + lift, 25, 13 + lift), fill=PALETTE["snow"])
-            drawing.rectangle((19, 9 + lift, 25, 13 + lift), fill="#345761")
-            drawing.rectangle((23, 10 + lift, 27, 12 + lift), fill="#345761")
-            drawing.rectangle((22, 9 + lift, 24, 10 + lift), fill="#f5aa78")
-            drawing.point((25, 13 + lift), fill=PALETTE["light"])
-        else:
-            drawing.polygon(((6, 15 + lift), (4, 12 + lift), (2, 15 + lift), (4, 23 + lift), (9, 24 + lift), (12, 20 + lift)), fill=PALETTE["outline"])
-            drawing.polygon(((5, 15 + lift), (4, 18 + lift), (7, 22 + lift), (10, 20 + lift)), fill=PALETTE["snow"])
-            drawing.polygon(((8, 13 + lift), (18, 11 + lift), (25, 16 + lift), (23, 24 + lift), (8, 24 + lift), (6, 20 + lift)), fill=PALETTE["outline"])
-            drawing.polygon(((9, 14 + lift), (18, 13 + lift), (23, 17 + lift), (21, 22 + lift), (9, 22 + lift)), fill=fur)
-            drawing.polygon(((13, 12 + lift), (13, 5 + lift), (18, 8 + lift), (22, 8 + lift), (24, 11 + lift), (29, 16 + lift), (27, 20 + lift), (17, 20 + lift), (12, 16 + lift)), fill=PALETTE["outline"])
-            drawing.polygon(((15, 11 + lift), (15, 8 + lift), (18, 11 + lift), (22, 10 + lift), (24, 14 + lift), (27, 16 + lift), (25, 18 + lift), (18, 18 + lift), (14, 15 + lift)), fill=PALETTE["snow"])
-            drawing.rectangle((22, 12 + lift, 24, 13 + lift), fill="#c36b61")
-            drawing.rectangle((27, 16 + lift, 29, 17 + lift), fill=PALETTE["outline"])
-            drawing.line((11, 17 + lift, 13 - swing, 23 + lift), fill=PALETTE["outline"], width=3)
-            drawing.line((11, 17 + lift, 13 - swing, 22 + lift), fill=PALETTE["ice"], width=2)
+    if big:
+        big_monster_art(body, direction, step)
     else:
-        for position, phase in ((9, stride), (22, -stride)):
-            foot = 28 + (1 if phase > 0 else -1 if phase < 0 else 0)
-            drawing.rectangle((position - 2, 22, position + 2, foot), fill=PALETTE["outline"])
-            drawing.rectangle((position - 1, 23, position + 1, foot - 1), fill=fur)
-            drawing.rectangle((position - 2, foot - 1, position + 2, foot), fill=PALETTE["snow"])
-        if big:
-            drawing.polygon(((4, 15 + lift), (9, 7 + lift), (22, 7 + lift), (28, 15 + lift), (26, 25 + lift), (21, 26 + lift), (16, 24 + lift), (10, 26 + lift), (5, 25 + lift)), fill=PALETTE["outline"])
-            drawing.polygon(((6, 15 + lift), (10, 9 + lift), (21, 9 + lift), (26, 15 + lift), (24, 23 + lift), (20, 24 + lift), (16, 22 + lift), (11, 24 + lift), (7, 23 + lift)), fill=fur)
-            drawing.line((7, 16 + lift, 4, 21 + swing + lift), fill=PALETTE["snow"], width=3)
-            drawing.line((25, 16 + lift, 28, 21 - swing + lift), fill=PALETTE["snow"], width=3)
-            drawing.rectangle((10, 4 + lift, 21, 15 + lift), fill=PALETTE["ice"])
-            drawing.rectangle((8, 8 + lift, 24, 14 + lift), fill=PALETTE["snow"])
-            if direction == "down":
-                drawing.rectangle((10, 10 + lift, 22, 15 + lift), fill="#345761")
-                drawing.rectangle((11, 10 + lift, 13, 11 + lift), fill="#f5aa78")
-                drawing.rectangle((19, 10 + lift, 21, 11 + lift), fill="#f5aa78")
-                drawing.rectangle((13, 17 + lift, 20, 22 + lift), fill=PALETTE["ice"])
-            else:
-                drawing.line((16, 8 + lift, 16, 22 + lift), fill="#54808e", width=2)
-                drawing.line((12, 16 + lift, 15, 18 + lift), fill=PALETTE["ice"], width=2)
-                drawing.line((20, 16 + lift, 17, 18 + lift), fill=PALETTE["ice"], width=2)
-        else:
-            drawing.polygon(((6, 10 + lift), (6, 4 + lift), (12, 8 + lift), (20, 8 + lift), (26, 4 + lift), (26, 12 + lift), (28, 21 + lift), (23, 26 + lift), (9, 26 + lift), (4, 21 + lift)), fill=PALETTE["outline"])
-            drawing.polygon(((8, 10 + lift), (8, 7 + lift), (12, 11 + lift), (21, 11 + lift), (24, 7 + lift), (24, 13 + lift), (26, 21 + lift), (21, 24 + lift), (10, 24 + lift), (6, 21 + lift)), fill=fur)
-            drawing.line((7, 19 + swing + lift, 5, 23 + swing + lift), fill=PALETTE["ice"], width=2)
-            drawing.line((25, 19 - swing + lift, 27, 23 - swing + lift), fill=PALETTE["ice"], width=2)
-            if direction == "down":
-                drawing.polygon(((9, 12 + lift), (22, 12 + lift), (24, 17 + lift), (20, 20 + lift), (12, 20 + lift), (8, 17 + lift)), fill=PALETTE["snow"])
-                drawing.rectangle((10, 14 + lift, 12, 15 + lift), fill="#c36b61")
-                drawing.rectangle((20, 14 + lift, 22, 15 + lift), fill="#c36b61")
-                drawing.rectangle((15, 18 + lift, 18, 20 + lift), fill=PALETTE["outline"])
-            else:
-                drawing.line((16, 11 + lift, 16, 23 + lift), fill=PALETTE["snow"], width=3)
-                drawing.polygon(((14, 22 + lift), (18, 22 + lift), (20, 26 + lift), (15, 27 + lift), (12, 25 + lift)), fill=PALETTE["outline"])
-                drawing.rectangle((14, 23 + lift, 17, 25 + lift), fill=PALETTE["ice"])
-    if direction == "left":
-        body = body.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-    image.alpha_composite(body)
+        small_monster_art(body, direction, step)
+    image.alpha_composite(body, (0, lift))
     return image
 
 
@@ -443,29 +492,46 @@ def actor_animations():
         ANIMATIONS[kind] = {"asset": asset, "frame_width": 96, "frame_height": 96, "directions": ACTOR_DIRECTIONS, "idle_frame": 0, "walk_frames": [1, 2, 3, 4], "stride": 1.5 if kind.startswith("player") else 1.35 if base_kind == "monster_big" else 1.0}
 
 
-def sleeping_monster_frame(big):
+def sleeping_big_monster_frame():
     image, drawing = canvas()
-    drawing.ellipse((2, 25, 30, 30), fill="#587e8d66")
-    drawing.rounded_rectangle((8, 17, 29, 27), radius=4, fill=PALETTE["outline"])
-    drawing.rounded_rectangle((9, 18, 27, 25), radius=3, fill="#6b919e" if big else PALETTE["shade"])
-    drawing.line((18, 25, 27, 26), fill=PALETTE["outline"], width=3)
-    drawing.line((10, 25, 17, 26), fill=PALETTE["ice"], width=3)
-    drawing.rectangle((24, 25, 28, 27), fill=PALETTE["snow"])
+    outline = "#2b414d"
+    drawing.ellipse((3, 27, 29, 30), fill="#587e8d66")
+    drawing.polygon(((12, 18), (16, 13), (22, 12), (26, 15), (29, 20), (29, 25), (26, 28), (16, 28), (11, 25), (9, 21)), fill=outline)
+    drawing.polygon(((13, 19), (17, 15), (22, 14), (25, 17), (27, 21), (27, 25), (24, 26), (16, 26), (12, 23)), fill="#d5e5d9")
+    drawing.polygon(((15, 18), (18, 15), (22, 14), (25, 17), (25, 20), (21, 19), (19, 21), (16, 20)), fill="#f0f2e5")
+    drawing.line((23, 22, 25, 24, 24, 26), fill="#a8c3c5", width=1)
+    drawing.ellipse((8, 10, 14, 16), fill=outline)
+    drawing.ellipse((9, 11, 13, 15), fill="#dbe7dc")
+    drawing.polygon(((5, 16), (8, 13), (12, 13), (16, 16), (17, 22), (14, 26), (8, 26), (3, 24), (2, 20)), fill=outline)
+    drawing.polygon(((6, 17), (9, 15), (12, 15), (14, 17), (15, 21), (13, 24), (8, 24), (5, 22), (4, 20)), fill="#deeadf")
+    drawing.line((8, 18, 10, 19, 12, 18), fill="#7d9598", width=1)
+    drawing.polygon(((4, 21), (8, 20), (10, 22), (9, 24), (5, 24), (3, 22)), fill="#f5efdc")
+    drawing.rectangle((3, 21, 5, 22), fill=outline)
+    drawing.polygon(((14, 23), (18, 23), (21, 25), (20, 28), (13, 28), (11, 26)), fill=outline)
+    drawing.polygon(((14, 24), (18, 24), (19, 26), (17, 27), (13, 26)), fill="#e3ecdf")
+    drawing.point((14, 27), fill="#f6eed6")
+    drawing.point((17, 27), fill="#f6eed6")
+    return image
+
+
+def sleeping_monster_frame(big):
     if big:
-        drawing.rounded_rectangle((2, 16, 14, 25), radius=2, fill=PALETTE["outline"])
-        drawing.rectangle((3, 17, 12, 23), fill=PALETTE["snow"])
-        drawing.rectangle((3, 21, 11, 24), fill="#345761")
-        drawing.line((4, 22, 7, 22), fill="#83a9b4", width=1)
-        drawing.line((9, 22, 11, 22), fill="#83a9b4", width=1)
-    else:
-        drawing.polygon(((2, 18), (3, 12), (8, 16), (13, 17), (15, 23), (11, 26), (3, 24)), fill=PALETTE["outline"])
-        drawing.polygon(((4, 18), (4, 16), (8, 19), (12, 19), (13, 23), (9, 24), (4, 22)), fill=PALETTE["snow"])
-        drawing.line((5, 21, 8, 21), fill="#9b6b86", width=1)
-        drawing.rectangle((2, 23, 4, 24), fill=PALETTE["outline"])
-    drawing.polygon(((9, 16), (14, 15), (18, 17), (24, 17), (29, 20), (27, 22), (22, 20), (15, 20), (10, 19)), fill=PALETTE["snow"])
-    drawing.line((13, 16, 17, 16), fill=PALETTE["light"], width=1)
-    drawing.rectangle((23, 17, 25, 18), fill=PALETTE["light"])
-    drawing.rectangle((6, 26, 9, 27), fill=PALETTE["snow"])
+        return sleeping_big_monster_frame()
+    image, drawing = canvas()
+    outline = "#293e4d"
+    drawing.ellipse((3, 27, 29, 30), fill="#587e8d66")
+    drawing.polygon(((11, 19), (16, 14), (23, 14), (28, 18), (29, 24), (26, 27), (13, 27), (9, 24)), fill=outline)
+    drawing.polygon(((13, 20), (17, 16), (22, 16), (26, 19), (27, 24), (24, 25), (14, 25), (11, 23)), fill="#7f9fac")
+    drawing.polygon(((14, 18), (18, 15), (23, 16), (27, 19), (26, 22), (23, 20), (20, 22), (18, 20), (14, 22)), fill="#dce9e2")
+    drawing.line((19, 24, 22, 26, 27, 25), fill=outline, width=2)
+    drawing.line((21, 25, 26, 25), fill="#c8ddd8", width=1)
+    drawing.polygon(((3, 19), (4, 12), (9, 16), (13, 17), (16, 22), (12, 26), (6, 25), (3, 23)), fill=outline)
+    drawing.polygon(((5, 19), (5, 16), (9, 19), (12, 19), (14, 22), (11, 24), (7, 23), (5, 22)), fill="#dfece6")
+    drawing.line((7, 21, 10, 22), fill="#7a6777", width=1)
+    drawing.rectangle((3, 22, 5, 23), fill=outline)
+    drawing.polygon(((8, 24), (10, 24), (9, 26)), fill="#f4edd6")
+    drawing.line((10, 26, 15, 27), fill="#dce9df", width=2)
+    drawing.line((21, 16, 24, 17), fill="#f6f7ee", width=1)
     return image
 
 
@@ -482,8 +548,8 @@ def monster_resting():
             image, drawing = canvas()
             drawing.ellipse((3, 27, 29, 30), fill="#587e8d66")
             height = 17 if frame == 1 else 23
-            body = standing.crop((2, 3, 30, 29)).resize((28, height), Image.Resampling.NEAREST)
-            image.alpha_composite(body, (2, 29 - height))
+            body = standing.crop((1, 1, 31, 30)).resize((30, height), Image.Resampling.NEAREST)
+            image.alpha_composite(body, (1, 29 - height))
         else:
             image = standing.copy()
             drawing = ImageDraw.Draw(image)
@@ -492,10 +558,10 @@ def monster_resting():
                 right_hand = 22 if frame == 3 else 14
                 drawing.line((7, 16, left_hand, 21), fill=PALETTE["outline"], width=5)
                 drawing.line((7, 16, left_hand, 21), fill=PALETTE["ice"], width=3)
-                drawing.rectangle((left_hand - 2, 20, left_hand + 2, 22), fill=PALETTE["snow"])
+                drawing.ellipse((left_hand - 2, 19, left_hand + 2, 23), fill="#dbe9dc")
                 drawing.line((25, 16, right_hand, 19), fill=PALETTE["outline"], width=5)
                 drawing.line((25, 16, right_hand, 19), fill=PALETTE["ice"], width=3)
-                drawing.rectangle((right_hand - 2, 18, right_hand + 2, 20), fill=PALETTE["snow"])
+                drawing.ellipse((right_hand - 2, 17, right_hand + 2, 21), fill="#dbe9dc")
         drawing = ImageDraw.Draw(image)
         if frame > 0:
             for flake in range(7):
@@ -1095,7 +1161,7 @@ def combat_effects():
         source = Image.open(DESTINATION / f"{kind}.png").convert("RGBA").resize((32, 32), Image.Resampling.NEAREST)
         sheet = Image.new("RGBA", (32 * 6, 32))
         for frame in range(6):
-            image = source.rotate(-min(90, frame * 24), resample=Image.Resampling.NEAREST, center=(16, 20))
+            image = source.rotate(-min(90, frame * 24), resample=Image.Resampling.NEAREST, center=(16, 16))
             opacity = (255, 255, 240, 200, 125, 45)[frame]
             image.putalpha(image.getchannel("A").point(lambda value: value * opacity // 255))
             sheet.alpha_composite(image, (frame * 32, 0))
