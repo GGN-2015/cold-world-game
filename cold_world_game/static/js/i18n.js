@@ -344,7 +344,7 @@ const messages = {
   'bag.title': ['背包', 'Backpack'],
   'bag.slots': ['{count} / 30 格 · 与物品栏独立', '{count} / 30 slots · Separate from hotbar'],
   'bag.transferHint': ['点击查看物品说明；双击或点说明卡按钮转移。Shift 点击存入已打开容器，否则在物品栏与背包间转移。', 'Click to inspect; double-click or use the guide button to transfer. Shift-click stores items in an open container, or transfers between the hotbar and backpack.'],
-  'bag.pickupHint': ['距离掉落物不超过 0.75 米且背包有空格时，普通物品才会自动拾取到背包；硬币直接计入金钱，背包满也可拾取。物品栏空位不代替背包容量。Q 朝鼠标方向最多丢出 2 格，受阻时落在障碍前最远可用位置。', 'Within 0.75 m, ordinary loot needs a free backpack slot; coins go straight to your money balance even when full. Empty hotbar slots do not count as backpack space. Q drops toward the cursor up to 2 tiles, stopping before an obstacle.'],
+  'bag.pickupHint': ['距离掉落物不超过 0.75 米且交互路径畅通时，普通物品优先拾取到物品栏，物品栏满后放入背包；两者都满则留在地上。硬币直接计入金钱，不占格子。Q 朝鼠标方向最多丢出 2 格，受阻时落在障碍前最远可用位置。', 'Within 0.75 m with a clear interaction path, ordinary loot fills empty hotbar slots first, then the backpack. If both are full, it stays on the ground. Coins go straight to your money balance without using slots. Q drops toward the cursor up to 2 tiles, stopping before an obstacle.'],
   'slot.inventory': ['物品栏', 'Hotbar'],
   'slot.backpack': ['背包', 'Backpack'],
   'slot.container': ['容器', 'Container'],

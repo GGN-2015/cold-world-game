@@ -562,18 +562,20 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
             controls.velocity_x = controls.velocity_y = 0.0
 
     def pickup(self, player):
-        has_space = None in player.backpack
+        empty_slots = ((storage, slot) for storage in (player.inventory, player.backpack) for slot, item in enumerate(storage) if item is None)
+        destination = next(empty_slots, None)
         radius = PICKUP_RADIUS + carried_modifier(player, "pickup_radius_bonus", 0.0)
         for ground_id, ground in list(self.ground.items()):
-            if ground.item.kind != "coin" and not has_space:
+            if ground.item.kind != "coin" and destination is None:
                 continue
             if distance(player, ground) <= radius and self.visible(player.x, player.y, ground.x, ground.y) and not (ground.dropped_by == player.id and self.elapsed < ground.immune_until):
                 self.touch()
                 if ground.item.kind == "coin":
                     player.money += 1
                 else:
-                    player.backpack[player.backpack.index(None)] = ground.item
-                    has_space = None in player.backpack
+                    storage, slot = destination
+                    storage[slot] = ground.item
+                    destination = next(empty_slots, None)
                 del self.ground[ground_id]
 
     def snapshot(self, player_id, procedural=False):

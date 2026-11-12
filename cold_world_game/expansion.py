@@ -137,7 +137,7 @@ tool("safety_helmet", "安全头盔", "Safety helmet", "passive", .010, {"knockb
      ["携带时怪物造成的击退距离减少25%，不减少伤害，不改变玩家枪击击退。", "While carried, reduces monster knockback by 25%, without reducing damage or player-gun knockback."],
      ["放背包或物品栏即生效，不用选中、不消耗、多件不叠加。", "Keep in bag or hotbar; no selection required. Not consumed or stacked."], "helmet")
 tool("collector_glove", "拾荒手套", "Scavenger glove", "passive", .007, {"pickup_radius_bonus": .35},
-     ["携带时自动拾取半径从0.75米增至1.1米；仍要求背包有空格、视线畅通。", "While carried, increases auto-pickup radius from 0.75 m to 1.1 m. Ordinary items still require a free bag slot and clear sight."],
+     ["携带时自动拾取半径从0.75米增至1.1米；仍要求视线畅通，物品优先填入物品栏，满后放背包，两者都满则不拾取。", "While carried, increases auto-pickup radius from 0.75 m to 1.1 m. Clear sight is still required. Items fill the hotbar first, then the backpack; no pickup when both are full."],
      ["放背包或物品栏即生效，不消耗、多件不叠加；硬币仍直接计入金钱。", "Carry in bag or hotbar. Not consumed or stacked; coins still go directly to money."], "glove")
 tool("insulated_lunchbox", "保鲜饭盒", "Insulated lunchbox", "passive", .006, {"hunger_drain_multiplier": .8},
      ["携带时自然饥饿消耗降低20%，不降低受击损失，不增加食品回复值。", "While carried, reduces natural hunger drain by 20%, not damage losses, and does not boost food restoration."],

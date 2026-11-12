@@ -688,8 +688,8 @@ export const expansionMessages = {
     "Scavenger glove"
   ],
   "guide.effect.collector_glove": [
-    "携带时自动拾取半径从0.75米增至1.1米；仍要求背包有空格、视线畅通。",
-    "While carried, increases auto-pickup radius from 0.75 m to 1.1 m. Ordinary items still require a free bag slot and clear sight."
+    "携带时自动拾取半径从0.75米增至1.1米；仍要求视线畅通，物品优先填入物品栏，满后放背包，两者都满则不拾取。",
+    "While carried, increases auto-pickup radius from 0.75 m to 1.1 m. Clear sight is still required. Items fill the hotbar first, then the backpack; no pickup when both are full."
   ],
   "guide.use.collector_glove": [
     "放背包或物品栏即生效，不消耗、多件不叠加；硬币仍直接计入金钱。",

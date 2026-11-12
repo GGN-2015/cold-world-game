@@ -28,6 +28,9 @@ class Monsters:
         resting, rising = self.monster_activity()
         return ((monster.big or monster.fast) and resting) or (monster.big and rising is not None)
 
+    def monster_has_xray(self, monster):
+        return monster.xray and not self.monster_activity()[0]
+
     def monster_speed(self, monster):
         return monster.speed * (ICE_STAFF["speed_scale"] if self.elapsed < monster.frozen_until else 1)
 
@@ -90,6 +93,13 @@ class Monsters:
 
     def update_monsters(self, seconds):
         resting, rising = self.monster_activity()
+        night = not resting
+        if getattr(self, "_xray_night", None) != night:
+            self._xray_night = night
+            for monster in self.monsters.values():
+                if monster.xray:
+                    self.clear_target(monster)
+                    self._path_jobs.pop(monster.id, None)
         inactive = {monster.id for monster in self.monsters.values() if ((monster.big or monster.fast) and resting) or (monster.big and rising is not None)}
         for identifier in inactive:
             monster = self.monsters[identifier]
@@ -104,21 +114,22 @@ class Monsters:
         if cursor in self.monsters:
             pivot = identifiers.index(cursor) + 1
             identifiers = identifiers[pivot:] + identifiers[:pivot]
-        due = [identifier for identifier in identifiers if identifier not in inactive and identifier not in self._path_jobs and self.monsters[identifier].next_plan <= self.elapsed and (self.monsters[identifier].target in standing_players or self.monsters[identifier].xray and bool(standing_players) or any(distance(self.monsters[identifier], player) <= 32 for player in standing_players.values()))]
+        due = [identifier for identifier in identifiers if identifier not in inactive and identifier not in self._path_jobs and self.monsters[identifier].next_plan <= self.elapsed and (self.monsters[identifier].target in standing_players or night and self.monsters[identifier].xray and bool(standing_players) or any(distance(self.monsters[identifier], player) <= 32 for player in standing_players.values()))]
         planning = set(due[:PATH_PLANS_PER_TICK])
         if planning:
             self._path_cursor = due[min(len(due), PATH_PLANS_PER_TICK) - 1]
         for monster_id, monster in list(self.monsters.items()):
-            if not monster.xray and all(distance(monster, self.players[player_id]) > 120 for player_id in self.online):
+            xray = monster.xray and night
+            if not xray and all(distance(monster, self.players[player_id]) > 120 for player_id in self.online):
                 del self.monsters[monster_id]
                 continue
             if monster_id in inactive:
                 continue
             target = standing_players.get(monster.target)
-            if target is None or target.temperature < 5 or not monster.xray and distance(monster, target) > 40:
+            if target is None or target.temperature < 5 or not xray and distance(monster, target) > 40:
                 self.clear_target(monster)
                 target = None
-            can_see = target is not None and (monster.xray or self.visible(monster.x, monster.y, target.x, target.y))
+            can_see = target is not None and (xray or self.visible(monster.x, monster.y, target.x, target.y))
             if can_see:
                 monster.seen_x, monster.seen_y = target.x, target.y
                 monster.last_seen = self.elapsed
@@ -126,7 +137,7 @@ class Monsters:
                 self.clear_target(monster)
                 target = None
             if target is None:
-                candidates = [player for player in standing_players.values() if monster.xray or distance(monster, player) <= 32 and self.visible(monster.x, monster.y, player.x, player.y)]
+                candidates = [player for player in standing_players.values() if xray or distance(monster, player) <= 32 and self.visible(monster.x, monster.y, player.x, player.y)]
                 if candidates:
                     target = min(candidates, key=lambda player: (distance(monster, player), player.id))
                     monster.target = target.id
@@ -147,7 +158,7 @@ class Monsters:
                 monster.demolition_progress = 0.0
                 monster.next_plan = 0
             separation = distance(monster, target)
-            attack_visible = can_see and separation <= 12 and (not monster.xray or self.visible(monster.x, monster.y, target.x, target.y))
+            attack_visible = can_see and separation <= 12 and (not xray or self.visible(monster.x, monster.y, target.x, target.y))
             if attack_visible and separation <= 1:
                 if self.elapsed + 1e-9 >= monster.next_attack:
                     previous_x, previous_y = target.x, target.y
@@ -170,7 +181,7 @@ class Monsters:
                 self.emit_event("shot", monster.id, "monster", monster.x, monster.y, direction=[direction_x, direction_y])
                 monster.next_attack = self.elapsed + 2
             if self.elapsed >= monster.next_plan and monster.id in planning:
-                revision = getattr(self, "_terrain_revision", 0), len(self.chunks)
+                revision = self.monster_path_revision(monster)
                 self._path_jobs[monster.id] = monster, monster.target, (tile(monster.x), tile(monster.y)), revision, self.search_monster_path(monster)
                 self._path_queue.append(monster.id)
                 self.advance_paths(deadline)
@@ -182,6 +193,9 @@ class Monsters:
             path, reached = yield from self.search_path(monster, True)
         return path
 
+    def monster_path_revision(self, monster):
+        return getattr(self, "_terrain_revision", 0), len(self.chunks), self.monster_has_xray(monster)
+
     def advance_paths(self, deadline):
         while self._path_queue and time.perf_counter() < deadline:
             identifier = self._path_queue.popleft()
@@ -190,7 +204,7 @@ class Monsters:
                 continue
             monster, target_id, start, revision, search = job
             target = self.players.get(target_id)
-            if self.monsters.get(identifier) is not monster or self.monster_inactive(monster) or monster.demolition is not None or monster.target != target_id or target_id not in self.online or target is None or target.temperature < 5 or start != (tile(monster.x), tile(monster.y)) or revision != (getattr(self, "_terrain_revision", 0), len(self.chunks)):
+            if self.monsters.get(identifier) is not monster or self.monster_inactive(monster) or monster.demolition is not None or monster.target != target_id or target_id not in self.online or target is None or target.temperature < 5 or start != (tile(monster.x), tile(monster.y)) or revision != self.monster_path_revision(monster):
                 self._path_jobs.pop(identifier, None)
                 continue
             try:
@@ -274,7 +288,7 @@ class Monsters:
         start = tile(monster.x), tile(monster.y)
         goal_x, goal_y = monster.seen_x, monster.seen_y
         span = max(abs(goal_x - start[0]), abs(goal_y - start[1]))
-        if monster.xray and span > 32:
+        if self.monster_has_xray(monster) and span > 32:
             goal_x = start[0] + (goal_x - start[0]) * 32 / span
             goal_y = start[1] + (goal_y - start[1]) * 32 / span
         occupied = set()
