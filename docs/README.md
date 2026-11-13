@@ -28,3 +28,4 @@
 - 为什么旧箱子不会刷稀有物品？见[地图生成与存档](world/world.md#地图生成与存档)。
 - 如何关闭BGM、如何按怪物切歌？见[背景音乐](development/music.md)。
 - 多人走动卡顿怎么排查？见[实时性回归场景](development/performance.md#回归场景)。
+- 如何测试16人同屏能承受多少怪物？见[多人同屏战斗压测](development/combat-benchmark.md)。

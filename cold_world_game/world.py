@@ -1,4 +1,3 @@
-import copy
 import heapq
 import math
 import random
@@ -12,10 +11,11 @@ from .actions import Actions, GameError
 from .admin import Administration, admin_id
 from .combat import Combat
 from .constants import STARVATION_AMBIENT, STARVATION_HUNGER, STARVATION_TEMPERATURE, WORLD_START_HOUR
+from .constants import NAVIGATION_ITEMS
 from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BODY_TEMPERATURE_RATES, BULLET_BLOCKERS, BURN_SECONDS, CHAINSAW_CHANCE, CHUNK_SIZE, DAY_SECONDS, DEFAULT_VIEWPORT, DEFIBRILLATOR_CHANCE, DRINKS, DROP_DISTANCE, EQUIPPED_ITEMS, EXPLOSIVE_WEAPONS, FAST_MONSTER_SPEED, FIRST_AID_KIT_CHANCE, FLAME_STAFF_CHANCE, FOODS, GRENADE_CHANCE, GUNS, HARVEST_TOOLS, GUN_MACHINE_CHANCE, HEALING_ITEMS, HOMING_MISSILE_CHANCE, HEAT_PATCH_CHANCE, ICE_STAFF, ICE_STAFF_CHANCE, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, LANDMINE_CHANCE, MACHINE_OFFERS, MATCH_MACHINE_CHANCE, MAX_COINS, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_SPEED, NIGHT_MONSTER_HOURS, OPAQUE, PASSIVE_ITEMS, PICKUP_RADIUS, PIGGY_BANK_CHANCE, PLAYER_SPEED, READY_TO_EAT_FOODS, RECIPES, RETURN_ITEMS, RETURN_STAFF_CHANCE, REVIVAL_ITEMS, SEASONS, SEASON_DAYS, SEASON_OFFSETS, SHERIFF_BADGE_CHANCE, SMALL_MONSTER_FOOD_CHANCE, SMALL_MONSTER_FOOD_WEIGHTS, SOLID, SWIFTNESS_RING_CHANCE, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS, VODKA_CHANCE
 from .expansion import DURIAN_CHANCE, EXPANSION_CATEGORIES, EXPANSION_ITEMS, carried_modifier
 from .room_machines import ROOM_MACHINES
-from .geometry import chunk, circle_square, distance, segment_box, tile
+from .geometry import chunk, circle_square, distance, segment_box, segment_tiles, tile
 from .models import Controls, GroundItem, Item, Monster, Player, Projectile, encode, item_from, player_from, structure_from
 from .monsters import Monsters
 from .outdoors import Outdoors
@@ -24,6 +24,8 @@ from .storage import WorldDelta
 from .terrain import Terrain
 from .terrain_stream import TerrainStream
 from .procedural import plan
+from .spatial import BodyIndex
+from .publication import capture_entities, compose_snapshot
 
 
 def tuples(value):
@@ -56,6 +58,9 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
         self._path_jobs = {}
         self._path_queue = deque()
         self._velocities = {}
+        self._body_index = None
+        self._persistence = None
+        self._save_generation = 0
         self.init_terrain_stream()
         self._seats_by_chunk = {}
         state = storage.load()
@@ -79,6 +84,7 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
             self.chunk_versions = {}
             self.ensure_terrain(0, 0)
             self.save_changes()
+        self.navigation_bootstrap()
         self.next_save = self.elapsed + 2
 
     def export(self):
@@ -94,11 +100,12 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
         }
 
     def export_metadata(self, terrain=True):
+        random_state = self.random.getstate()
         return {
             **(self.export_terrain() if terrain else {}),
             "seed": self.seed,
             "terrain_format": 1,
-            "random": self.random.getstate(),
+            "random": [random_state[0], list(random_state[1]), random_state[2]],
             "elapsed": self.elapsed,
             "tick_number": self.tick_number,
             "players": [encode(value) for value in self.players.values()],
@@ -163,7 +170,7 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
     def touch(self):
         if self._backup is None:
             self._backup = self.export_metadata(terrain=False)
-            self._runtime_backup = (set(self.online), copy.deepcopy(self.controls))
+            self._runtime_backup = (set(self.online), {identifier: Controls(**{**vars(controls), "ghost_monsters": set(controls.ghost_monsters)}) for identifier, controls in self.controls.items()})
 
     def touch_terrain(self):
         if self._in_transaction:
@@ -182,15 +189,29 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
         self._dirty_structures.setdefault(identifier, None)
 
     def save_changes(self):
+        if self._persistence is not None:
+            self._persistence.changed()
+            self._persistence.request()
+            return
+        batch = self.capture_save(clear=False)
+        self.storage.save(batch)
+        self._dirty_structures.clear()
+        self._terrain_dirty = False
+        self.finish_save(batch)
+
+    def capture_save(self, clear=True):
         changed, removed = self.sparse_changes()
         metadata = self.export_metadata(terrain=False)
         if self._terrain_dirty:
             metadata.update(self.export_terrain())
-        self.storage.save(WorldDelta(metadata, changed, removed))
-        self._dirty_structures.clear()
-        self._terrain_dirty = False
-        for identifier in removed:
-            if identifier not in self.structures:
+        if clear:
+            self._dirty_structures.clear()
+            self._terrain_dirty = False
+        return WorldDelta(metadata, changed, removed)
+
+    def finish_save(self, batch):
+        for identifier in batch.removed:
+            if identifier not in self.structures and identifier not in self._dirty_structures:
                 self._structure_order.pop(identifier, None)
 
     @contextmanager
@@ -202,9 +223,11 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
         terrain_before = self._terrain_dirty
         try:
             yield
-            if self._backup is not None:
+            if self._backup is not None and self._persistence is None:
                 self.save_changes()
                 self.next_save = self.elapsed + 2
+            if self._persistence is not None:
+                self._persistence.changed()
             for event in self._pending_events:
                 self.event_sequence += 1
                 self.events.append({**event, "id": self.event_sequence})
@@ -281,6 +304,10 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                 self.online.remove(player_id)
                 self.controls.pop(player_id, None)
                 self.players[player_id].offline_since = self.elapsed
+                if self._persistence is not None:
+                    self._persistence.changed()
+                    if not self.online:
+                        self._persistence.request()
                 return
             with self.transaction():
                 self.touch()
@@ -292,6 +319,8 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                 for monster in self.monsters.values():
                     if monster.target == player_id:
                         self.clear_target(monster)
+            if not self.online and self._persistence is not None:
+                self._persistence.request()
 
     def player_roster(self):
         with self.lock:
@@ -345,8 +374,22 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                     self.validate_container(player, controls)
                 self.detonate_mines()
                 self.spawn_monster()
-                if self.elapsed >= self.next_save and self._backup is None:
+                if self._persistence is None and self.elapsed >= self.next_save and self._backup is None:
                     self.touch()
+
+    @contextmanager
+    def monster_collisions(self):
+        previous = self._body_index
+        if previous is None:
+            self._body_index = BodyIndex(self.monsters.values())
+        try:
+            yield
+        finally:
+            self._body_index = previous
+
+    def nearby_monsters(self, left, top, right, bottom):
+        bodies = self._body_index.query(left, top, right, bottom) if self._body_index is not None else self.monsters.values()
+        return (body for body in bodies if self.monsters.get(body.id) is body and left <= body.x <= right and top <= body.y <= bottom)
 
     def can_stand(self, x, y, player_id=None, monster_id=None, ignore_monsters=False, ignore_structure=None):
         if any(not self.generated(corner_x, corner_y) for corner_x in (x - BODY_RADIUS, x + BODY_RADIUS) for corner_y in (y - BODY_RADIUS, y + BODY_RADIUS)):
@@ -358,7 +401,7 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                     return False
         if not ignore_monsters:
             ghost = self.controls[player_id].ghost_monsters if player_id in self.controls else set()
-            for monster in self.monsters.values():
+            for monster in self.nearby_monsters(x - BODY_RADIUS * 2, y - BODY_RADIUS * 2, x + BODY_RADIUS * 2, y + BODY_RADIUS * 2):
                 if monster.id != monster_id and monster.id not in ghost and not self.allows_player_overlap(monster, player_id) and math.hypot(x - monster.x, y - monster.y) < BODY_RADIUS * 2 - 1e-9:
                     return False
         if monster_id is not None:
@@ -386,6 +429,8 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                     body.y += delta_y / steps
                     moved = True
             if monster_id is not None:
+                if self._body_index is not None:
+                    self._body_index.update(body)
                 self.collect_mine(body)
         return moved
 
@@ -396,44 +441,10 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
         return True
 
     def nearby_structures(self, start_x, start_y, end_x, end_y):
-        first_x, first_y = tile(start_x), tile(start_y)
-        last_x, last_y = tile(end_x), tile(end_y)
-        width, height = abs(last_x - first_x) + 3, abs(last_y - first_y) + 3
-        if width * height > (width + height) * 5:
-            direction_x = (end_x > start_x) - (end_x < start_x)
-            direction_y = (end_y > start_y) - (end_y < start_y)
-            step_x = 1 / abs(end_x - start_x) if direction_x else math.inf
-            step_y = 1 / abs(end_y - start_y) if direction_y else math.inf
-            next_x = ((first_x + direction_x * 0.5) - start_x) / (end_x - start_x) if direction_x else math.inf
-            next_y = ((first_y + direction_y * 0.5) - start_y) / (end_y - start_y) if direction_y else math.inf
-            visited = set()
-            current_x, current_y = first_x, first_y
-            while True:
-                for offset_x in (-1, 0, 1):
-                    for offset_y in (-1, 0, 1):
-                        point = current_x + offset_x, current_y + offset_y
-                        if point not in visited:
-                            visited.add(point)
-                            structure = self.structure_at(*point)
-                            if structure:
-                                yield structure
-                if (current_x, current_y) == (last_x, last_y):
-                    return
-                if current_x == last_x:
-                    next_x = math.inf
-                if current_y == last_y:
-                    next_y = math.inf
-                if next_x < next_y:
-                    current_x += direction_x
-                    next_x += step_x
-                else:
-                    current_y += direction_y
-                    next_y += step_y
-        for tile_x in range(tile(min(start_x, end_x)) - 1, tile(max(start_x, end_x)) + 2):
-            for tile_y in range(tile(min(start_y, end_y)) - 1, tile(max(start_y, end_y)) + 2):
-                structure = self.structure_at(tile_x, tile_y)
-                if structure:
-                    yield structure
+        for point in segment_tiles(start_x, start_y, end_x, end_y):
+            identifier = self.tiles.get(point)
+            if identifier is not None:
+                yield self.structures[identifier]
 
     def nearest_walkable(self, player):
         center_x, center_y = tile(player.x), tile(player.y)
@@ -580,10 +591,16 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
 
     def snapshot(self, player_id, procedural=False):
         with self.lock:
+            shared = capture_entities(self)
+            viewer = self.snapshot_view(player_id, procedural)
+        return compose_snapshot(shared, viewer)
+
+    def snapshot_view(self, player_id, procedural=False, demolitions=None):
+        with self.lock:
             player = self.players[player_id]
-            resting, rising = self.monster_activity()
             structures = []
-            demolitions = {monster.demolition for monster in self.monsters.values() if monster.demolition and not self.monster_inactive(monster)}
+            if demolitions is None:
+                demolitions = self.active_demolitions()
             for horizontal in range(math.ceil(player.x - 20), math.floor(player.x + 20) + 1) if not procedural else ():
                 for vertical in range(math.ceil(player.y - 13), math.floor(player.y + 13) + 1):
                     structure = self.structure_at(horizontal, vertical)
@@ -599,34 +616,23 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
             container = self.structures.get(controls.container)
             visible_chunks = [(horizontal, vertical) for horizontal in range(math.ceil((player.x - 30) / CHUNK_SIZE), math.floor((player.x + 30) / CHUNK_SIZE) + 1) for vertical in range(math.ceil((player.y - 24) / CHUNK_SIZE), math.floor((player.y + 24) / CHUNK_SIZE) + 1) if (horizontal, vertical) in self.chunks]
             return {
-                "tick": self.tick_number,
-                "elapsed": self.elapsed,
-                "paused": not self.online or self.fault is not None,
-                "fault": self.fault,
                 "movement": {"mode": "client" if controls.client_movement else "server", "epoch": controls.movement_epoch, "teleport_epoch": controls.teleport_epoch},
-                "environment": self.environment(),
                 "you": {**encode(player), "seated": seat.kind if seat else None, "seat_id": controls.seat, "tile": [tile(player.x), tile(player.y)], "offset": [player.x - tile(player.x), player.y - tile(player.y)], "ambient_temperature": self.temperature_at(player), "downed": player.temperature < 5, "is_admin": self.admin is not None and player.id == self.admin},
-                "players": [{"id": other.id, "x": other.x, "y": other.y, "temperature": other.temperature, "hunger": other.hunger, "downed": other.temperature < 5, "move_speed": self.player_speed(other), "velocity_x": self.controls[other_id].velocity_x, "velocity_y": self.controls[other_id].velocity_y, "teleport_epoch": self.controls[other_id].teleport_epoch, "seated": self.structures[self.controls[other_id].seat].kind if self.controls[other_id].seat in self.structures else None, "seat_direction": (round(math.atan2(self.controls[other_id].aim_y - other.y, self.controls[other_id].aim_x - other.x) / (math.pi / 4)) + 8) % 8 if self.controls[other_id].seat else 0} for other_id in sorted(self.online) if (other := self.players[other_id]) and abs(other.x - player.x) <= 20 and abs(other.y - player.y) <= 13],
                 "structures": structures,
-                **({"structure_states": self.structure_states(player)} if procedural else {}),
+                **({"structure_states": self.structure_states(player, demolitions)} if procedural else {}),
                 "chunks": sorted(visible_chunks),
-                "monsters": [{"id": monster.id, "x": monster.x, "y": monster.y, "big": monster.big, "fast": monster.fast, "species": monster.kind, "max_hp": MONSTER_TYPES[monster.kind]["hp"], "move_speed": monster.speed, "hp": monster.hp, "frozen_until": monster.frozen_until, "burning_until": monster.burning_until, "sleeping": (monster.big or monster.fast) and resting, "rising": rising if monster.big else None, "demolition": monster.demolition, "overlap_player": monster.overlap_player, "velocity_x": self._velocities.get(monster.id, (0.0, 0.0))[0], "velocity_y": self._velocities.get(monster.id, (0.0, 0.0))[1]} for monster in self.monsters.values() if abs(monster.x - player.x) <= 20 and abs(monster.y - player.y) <= 13],
-                "projectiles": [encode(projectile) for projectile in self.projectiles.values() if (abs(projectile.x - player.x) <= 22 and abs(projectile.y - player.y) <= 15) or (projectile.kind in EXPLOSIVE_WEAPONS and abs(projectile.target_x - player.x) <= 22 and abs(projectile.target_y - player.y) <= 15)],
-                "ground": [encode(ground) for ground in self.ground.values() if abs(ground.x - player.x) <= 20 and abs(ground.y - player.y) <= 13],
                 "container": encode(container) if container else None,
                 "interaction": {"target": controls.target, "progress": controls.progress, "ui_open": controls.ui},
-                "event_sequence": self.event_sequence,
-                "events": [event for event in self.events if self.elapsed - event["time"] <= 1.5 and abs(event["x"] - player.x) <= 20 and abs(event["y"] - player.y) <= 13],
             }
 
     @staticmethod
     def catalog():
-        return {"tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "vending_offers": VENDING_OFFERS, "machine_offers": MACHINE_OFFERS, "room_machines": {kind: {"chance": definition["chance"]} for kind, definition in ROOM_MACHINES.items()}, "currency": {"item": "coin", "player_field": "money", "uses_slots": False, "shared_bank": "piggy_bank", "bank_balance_field": "balance", "max_coins": MAX_COINS}, "body_temperature_rates": BODY_TEMPERATURE_RATES, "monster_coin_drops": MONSTER_COIN_DROPS, "monster_food_drops": {"small": {"chance": SMALL_MONSTER_FOOD_CHANCE, "weights": SMALL_MONSTER_FOOD_WEIGHTS}}, "monster_spawning": {"night_start": NIGHT_MONSTER_HOURS[0], "night_end": NIGHT_MONSTER_HOURS[1], **MONSTER_SPAWN_CHANCES}, "monster_activity": {"rest_start": MONSTER_REST_HOURS[0], "rest_end": MONSTER_REST_HOURS[1], "rise_seconds": MONSTER_RISE_SECONDS}, "terrain": {"version": TERRAIN_VERSION, "vending_machine_chance": VENDING_MACHINE_CHANCE, "match_machine_chance": MATCH_MACHINE_CHANCE, "chest_first_aid_kit_chance": FIRST_AID_KIT_CHANCE, "chest_return_staff_chance": RETURN_STAFF_CHANCE, "chest_ice_staff_chance": ICE_STAFF_CHANCE, "gun_machine_chance": GUN_MACHINE_CHANCE, "chest_grenade_chance": GRENADE_CHANCE, "chest_flame_staff_chance": FLAME_STAFF_CHANCE, "chest_defibrillator_chance": DEFIBRILLATOR_CHANCE, "piggy_bank_chance": PIGGY_BANK_CHANCE, "chest_heat_patch_chance": HEAT_PATCH_CHANCE, "chest_sheriff_badge_chance": SHERIFF_BADGE_CHANCE, "chest_vodka_chance": VODKA_CHANCE, "chest_swiftness_ring_chance": SWIFTNESS_RING_CHANCE, "chest_homing_missile_chance": HOMING_MISSILE_CHANCE, "chest_chainsaw_chance": CHAINSAW_CHANCE, "chest_landmine_chance": LANDMINE_CHANCE, "chest_durian_chance": DURIAN_CHANCE, "room_machine_chances": {kind: definition["chance"] for kind, definition in ROOM_MACHINES.items()}, "chest_expansion_chances": {kind: value["chance"] for kind, value in EXPANSION_ITEMS.items()}, "unexplored_uses_latest": True}, "axe": AXE, "melee_weapons": MELEE_WEAPONS, "harvest_tools": HARVEST_TOOLS, "explosive_weapons": EXPLOSIVE_WEAPONS, "guns": GUNS, "projectiles": {"piercing": True, "range": "viewport_half_diagonal", "default_viewport": list(DEFAULT_VIEWPORT), "blockers": sorted(BULLET_BLOCKERS), "monster_blockers": sorted(MONSTER_BULLET_BLOCKERS)}, "drinks": DRINKS, "passive_items": PASSIVE_ITEMS, "equipped_items": EQUIPPED_ITEMS, "ready_to_eat_foods": sorted(READY_TO_EAT_FOODS), "healing_items": HEALING_ITEMS, "revival_items": REVIVAL_ITEMS, "return_items": RETURN_ITEMS, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "expansion_items": {kind: {"category": EXPANSION_CATEGORIES[value["mechanic"]], "group": value["group"], "chance": value["chance"]} for kind, value in EXPANSION_ITEMS.items()}, "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED, "fast_monster_speed": FAST_MONSTER_SPEED, "frozen_speed_scale": ICE_STAFF["speed_scale"]}, "knockback": KNOCKBACK, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "monster_types": MONSTER_TYPES, "outdoor_features": OUTDOOR_FEATURES, "protocol": 1}
+        return {"navigation_items": NAVIGATION_ITEMS, "tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "vending_offers": VENDING_OFFERS, "machine_offers": MACHINE_OFFERS, "room_machines": {kind: {"chance": definition["chance"]} for kind, definition in ROOM_MACHINES.items()}, "currency": {"item": "coin", "player_field": "money", "uses_slots": False, "shared_bank": "piggy_bank", "bank_balance_field": "balance", "max_coins": MAX_COINS}, "body_temperature_rates": BODY_TEMPERATURE_RATES, "monster_coin_drops": MONSTER_COIN_DROPS, "monster_food_drops": {"small": {"chance": SMALL_MONSTER_FOOD_CHANCE, "weights": SMALL_MONSTER_FOOD_WEIGHTS}}, "monster_spawning": {"night_start": NIGHT_MONSTER_HOURS[0], "night_end": NIGHT_MONSTER_HOURS[1], **MONSTER_SPAWN_CHANCES}, "monster_activity": {"rest_start": MONSTER_REST_HOURS[0], "rest_end": MONSTER_REST_HOURS[1], "rise_seconds": MONSTER_RISE_SECONDS}, "terrain": {"version": TERRAIN_VERSION, "vending_machine_chance": VENDING_MACHINE_CHANCE, "match_machine_chance": MATCH_MACHINE_CHANCE, "chest_first_aid_kit_chance": FIRST_AID_KIT_CHANCE, "chest_return_staff_chance": RETURN_STAFF_CHANCE, "chest_ice_staff_chance": ICE_STAFF_CHANCE, "gun_machine_chance": GUN_MACHINE_CHANCE, "chest_grenade_chance": GRENADE_CHANCE, "chest_flame_staff_chance": FLAME_STAFF_CHANCE, "chest_defibrillator_chance": DEFIBRILLATOR_CHANCE, "piggy_bank_chance": PIGGY_BANK_CHANCE, "chest_heat_patch_chance": HEAT_PATCH_CHANCE, "chest_sheriff_badge_chance": SHERIFF_BADGE_CHANCE, "chest_vodka_chance": VODKA_CHANCE, "chest_swiftness_ring_chance": SWIFTNESS_RING_CHANCE, "chest_homing_missile_chance": HOMING_MISSILE_CHANCE, "chest_chainsaw_chance": CHAINSAW_CHANCE, "chest_landmine_chance": LANDMINE_CHANCE, "chest_durian_chance": DURIAN_CHANCE, "room_machine_chances": {kind: definition["chance"] for kind, definition in ROOM_MACHINES.items()}, "chest_expansion_chances": {kind: value["chance"] for kind, value in EXPANSION_ITEMS.items()}, "unexplored_uses_latest": True}, "axe": AXE, "melee_weapons": MELEE_WEAPONS, "harvest_tools": HARVEST_TOOLS, "explosive_weapons": EXPLOSIVE_WEAPONS, "guns": GUNS, "projectiles": {"piercing": True, "range": "viewport_half_diagonal", "default_viewport": list(DEFAULT_VIEWPORT), "blockers": sorted(BULLET_BLOCKERS), "monster_blockers": sorted(MONSTER_BULLET_BLOCKERS)}, "drinks": DRINKS, "passive_items": PASSIVE_ITEMS, "equipped_items": EQUIPPED_ITEMS, "ready_to_eat_foods": sorted(READY_TO_EAT_FOODS), "healing_items": HEALING_ITEMS, "revival_items": REVIVAL_ITEMS, "return_items": RETURN_ITEMS, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "expansion_items": {kind: {"category": EXPANSION_CATEGORIES[value["mechanic"]], "group": value["group"], "chance": value["chance"]} for kind, value in EXPANSION_ITEMS.items()}, "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED, "fast_monster_speed": FAST_MONSTER_SPEED, "frozen_speed_scale": ICE_STAFF["speed_scale"]}, "knockback": KNOCKBACK, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "monster_types": MONSTER_TYPES, "outdoor_features": OUTDOOR_FEATURES, "protocol": 1}
 
-    def close(self):
+    def close(self, save=True):
         with self.lock:
             try:
-                if not self.fault:
+                if save and not self.fault:
                     self.save_changes()
             finally:
                 self.storage.close()

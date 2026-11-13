@@ -11,6 +11,7 @@ from .wildlife import MONSTER_TYPES
 
 
 PATH_STEPS = tuple((offset_x, offset_y, math.hypot(offset_x, offset_y)) for offset_x, offset_y in DIRECTIONS)
+DIAGONAL_COST = math.sqrt(2) - 2
 PATH_PLANS_PER_TICK = 8
 PATH_TIME_BUDGET = 0.008
 
@@ -98,6 +99,10 @@ class Monsters:
         self.monsters[monster.id] = monster
 
     def update_monsters(self, seconds):
+        with self.monster_collisions():
+            self.step_monsters(seconds)
+
+    def step_monsters(self, seconds):
         resting, rising = self.monster_activity()
         night = not resting
         if getattr(self, "_xray_night", None) != night:
@@ -129,6 +134,8 @@ class Monsters:
             target = standing_players.get(monster.target)
             if not xray and not (monster.big and target is not None) and all(distance(monster, self.players[player_id]) > 120 for player_id in self.online):
                 del self.monsters[monster_id]
+                if self._body_index is not None:
+                    self._body_index.remove(monster_id)
                 continue
             if monster_id in inactive:
                 continue
@@ -339,7 +346,7 @@ class Monsters:
 
         def travel_distance(point, goal):
             horizontal, vertical = abs(point[0] - goal[0]), abs(point[1] - goal[1])
-            return horizontal + vertical + (math.sqrt(2) - 2) * min(horizontal, vertical)
+            return horizontal + vertical + DIAGONAL_COST * min(horizontal, vertical)
 
         shortest = min((travel_distance(start, goal) for goal in goals), default=math.inf)
         for goal in sorted(goals):
@@ -376,12 +383,10 @@ class Monsters:
                 examined = 0
                 for radius in range(1, 49):
                     for offset_x in range(-radius, radius + 1):
-                        for offset_y in range(-radius, radius + 1):
+                        for offset_y in range(-radius, radius + 1) if abs(offset_x) == radius else (-radius, radius):
                             examined += 1
                             if examined % 128 == 0:
                                 yield
-                            if max(abs(offset_x), abs(offset_y)) != radius:
-                                continue
                             point = tile(goal_x) + offset_x, tile(goal_y) + offset_y
                             if point not in region and cell_cost(point, allow_demolition) is not None:
                                 candidates.append(point)

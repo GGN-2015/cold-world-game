@@ -9,7 +9,7 @@
 | `GET /` | 内置浏览器游戏与登录页 |
 | `GET /api/server` | 服务信息 |
 | `GET /api/info` | 规则目录、协议标识、配方与价格 |
-| `GET /health` | 健康状态；存档故障暂停时HTTP 503 |
+| `GET /health` | 健康状态与 `persistence` 保存年龄/失败次数；故障暂停时HTTP 503 |
 | `/static/` | 同源PNG、WAV、JavaScript与CSS |
 | `/ws` | 实时WebSocket，HTTPS站点用WSS |
 
@@ -22,6 +22,8 @@
 成功返回 `welcome`，含 `player_id`、`protocol:1`、附近完整 `state` 和差分基线 `state_revision:0`。玩家ID为1～64字符，不全为空白、不含控制字符；身份绑定连接，后续不能指定他人。错误口令、同名在线或无法出生时发错误并关闭。默认只允许同源浏览器，额外Origin须服务端显式允许；非浏览器可不带Origin。
 
 ## 地图订阅
+
+`welcome.navigation_config`独立于地形差分协商，包含`seed`（字符串）、`size`（区块边长）、`algorithm`（共享类型算法）及`legacy`（`[chunk_x,chunk_y,is_building]`旧生成器区块类型表）。这是一次性只读导航元数据，指南针不发送寻向请求、不订阅远方区块。后续状态不重复发送该字段。
 
 `procedural_terrain:1`仅在同时启用`state_deltas:true`时生效。服务端在`welcome`附加`terrain_config`（会话标识、字符串种子、按区块版本索引的生成配置）和`terrain`，常规`state.structures`为空，动态外观放在`state.structure_states`。没有协商此能力的连接保持原有建筑快照与字段差分，不要求旧客户端理解种子地图。
 
@@ -126,7 +128,7 @@
 
 端点包括 `inventory`、`backpack`、`chest`、`fuel`、`igniter`、`ground`、`wallet`；容器端点带设施 `id`，地面来源带掉落物 `id`，地面目标按当前瞄准计算落点。随身格从0开始，箱子按实际slots长度校验，不截断自然箱额外格。目的格必须空，火种/燃料还需符合种类与容量。`item_id` 防止源格变化后移动错物品，冲突返回 `stale_item`。金币进入随身区域时转换为钱包入账。
 
-客户端可依请求序号先预览转移，确认后以快照接管，失败撤销，不创建权威物品或改随机数。背包、物品栏、容器、地面与金额的整次变化同一SQLite事务保存；恢复后只能全部生效或全部回退。空间不足和写盘失败都不能吞掉来源或留下半份目标。
+客户端可依请求序号先预览转移，确认后以快照接管，操作拒绝时撤销，不创建权威物品或改随机数。确认表示内存原子结算成功；后台把背包、物品栏、容器、地面与金额的同一份快照在SQLite事务中提交。恢复后只能全部生效或全部回退，不能留下半份目标；崩溃可能回到最近完整提交。写盘失败保留待保存批次重试，而非撤销已确认命令，详见[保存策略](server.md#保存与故障处理)。
 
 ## 交易与公共存款
 
@@ -135,7 +137,7 @@
 {"type":"bank","id":"存钱罐结构ID","operation":"deposit","amount":5,"seq":22}
 ```
 
-交易必须已打开正确机器，项目读取 `machine_offers[kind][offer]`，不能跨种类使用专属项目。输入全部扣除后空间必须容纳全部产物；金币直接从 `money` 扣，产物优先背包再物品栏。不足或保存失败整次回退，不往地上发部分产物。
+交易必须已打开正确机器，项目读取 `machine_offers[kind][offer]`，不能跨种类使用专属项目。输入全部扣除后空间必须容纳全部产物；金币直接从 `money` 扣，产物优先背包再物品栏。空间不足或结算失败整次回退，不往地上发部分产物；持久化遵循同一快照的原子提交。
 
 `bank.operation` 为 `deposit/withdraw`，amount是1至 `currency.max_coins` 的JSON整数，拒绝布尔/浮点/负数；返回操作、数量、余额及玩家money。共享 `container.balance` 只向实际打开者发送，不放附近建筑列表。服务器串行检查最新余额；不足返回 `insufficient_money/insufficient_bank_balance`，越上限 `balance_limit`，非空拆除 `bank_not_empty`。
 
@@ -159,7 +161,7 @@
 
 ## 瞬时事件与即时反馈
 
-`event_sequence` 是进程内递增序号；events为附近最近1.5秒动作、最多256条，不是持久日志。浏览器按事件ID去重，首次加入和重连不补播旧动作；只在事务提交后发布成功反馈。
+`event_sequence` 是进程内递增序号；events为附近最近1.5秒动作、最多256条，不是持久日志。浏览器按事件ID去重，首次加入和重连不补播旧动作；只在内存事务成功后发布反馈，不等待后台磁盘提交。状态公共数据统一约10Hz捕获，命令序号与对应数据一起冻结，不能用更新的序号确认旧库存。
 
 | 事件 | 用途 |
 | --- | --- |
@@ -170,7 +172,7 @@
 | `teleport_out`、`teleport_in` | 回城与管理员传送两端的法阵 |
 | `throw`、`explosion` | 投出动作、投掷物爆炸或追踪弹的小型命中特效 |
 
-`attack_id` 可附1～64个可打印字符，成功近战返回 `swing:true` 且melee事件回传同标记；未挥动返回false。客户端先播放本机八方向PNG与音效，匹配服务器事件只确认、不重复播；拒绝、断线、写盘失败取消预览。伤害、掉落与他人表现仍由服务器决定。
+`attack_id` 可附1～64个可打印字符，成功近战返回 `swing:true` 且melee事件回传同标记；未挥动返回false。客户端先播放本机八方向PNG与音效，匹配服务器事件只确认、不重复播；拒绝、断线取消未确认预览。伤害、掉落与他人表现仍由服务器决定。
 
 ## 名单订阅与管理员
 
@@ -180,6 +182,6 @@
 
 ## 嵌入与存档边界
 
-Python中使用 `cold_world_game.create_app(...)`；关闭时调用 `app.extensions["cold_world_game"].close()` 释放线程及存档锁，不要每次HTTP请求后关闭世界。`start_engine=False` 可用于确定性调试，通过runtime.world.tick(seconds)手动推进。
+Python中使用 `cold_world_game.create_app(...)`；关闭时调用 `app.extensions["cold_world_game"].close()` 等待最终保存、释放线程及存档锁，不要每次HTTP请求后关闭世界。`start_engine=False` 可用于确定性调试，通过runtime.world.tick(seconds)手动推进；此模式保持同步提交。调用runtime.start()后启用与生产相同的模拟、共享发布及后台保存。显式等待后台落盘可在世界锁外调用runtime.persistence.flush()，不要在持有世界锁时等待保存线程。
 
 个人离线仅冻结该人，全员离线或停机冻结整个世界，不补算离线时间。存储结构、旧存档缺省、备份和安全部署属于[服务器手册](server.md)，地图独立随机流与未探索区域更新属于[世界手册](../world/world.md#地图生成与存档)。

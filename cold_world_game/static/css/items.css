@@ -25,6 +25,10 @@
 .item-guide-detail { color: #9fbdc0; font-size: 12px !important; }
 .item-guide-move { margin-top: 14px; min-height: 44px; width: 100%; touch-action: manipulation; }
 .item-slot.inspected { box-shadow: inset 0 0 0 2px #9ee0b4; }
+.item-slot > .compass-needle { position: absolute; inset: var(--compass-inset, 4px); width: calc(100% - 2 * var(--compass-inset, 4px)); height: calc(100% - 2 * var(--compass-inset, 4px)); pointer-events: none; opacity: .25; transform: rotate(var(--compass-angle, 0rad)); transition: transform 100ms linear; filter: none; }
+.compass-ready .item-slot > .compass-needle { opacity: 1; }
+@media (max-width: 720px) { .item-slot { --compass-inset: 3px; } }
+.mobile-device .item-slot { --compass-inset: 4px; }
 .excitement-status { color: #f2d69f; background: #69452cdd; padding: 3px 8px; border: 1px solid #eebd6b70; border-radius: 8px; }
 .mobile-device .item-guide p { font-size: 14px; }
 .mobile-device .storage-layout { grid-template-columns: minmax(0, 1fr); }

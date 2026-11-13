@@ -7,7 +7,7 @@
 Windows PowerShell 和 Linux shell 使用相同参数：
 
 ```sh
-uv run cold-world-game --host 0.0.0.0 --password your-server-password --save-path ./saves --admin "管理员 小雪"
+uv run cold-world-game game --host 0.0.0.0 --password your-server-password --save-path ./saves --admin "管理员 小雪"
 ```
 
 - `--admin` 后是完整玩家 ID，大小写、空格与中文必须完全匹配。含空格时使用英文双引号。ID 为 1～64 个可打印字符，不能全是空白。
@@ -78,4 +78,4 @@ X、Y 支持正负整数、小数和科学记数法，必须是有限数且绝�
 | `Invalid quoting; ...` | 引号未闭合或使用了不正确的转义 |
 | `Only the configured server administrator ...` | 无管理员权限；伪造客户端请求同样被拒绝 |
 
-发物品、金币、脚边掉落与治疗均在服务器 SQLite 事务成功后才确认；写盘失败整次回滚，不留下半次操作或成功动画。写盘故障会暂停世界，保留数据库并处理故障，不要盲目重发。连接中断或超时可能发生在提交之后：先查看玩家状态再重试，避免重复发放。`help`、`items` 不修改存档。
+发物品、金币、脚边掉落与治疗在服务器内存事务成功后确认，再随一致性快照后台提交SQLite；确认不代表已落盘。结算失败整次回滚，后台保存失败则保留批次重试，持续失败暂停世界。崩溃可能丢失最近未提交进度，详见[保存策略](server.md#保存与故障处理)。保留数据库并处理故障，不要盲目重发。连接中断或超时可能发生在提交之后：先查看玩家状态再重试，避免重复发放。`help`、`items` 不修改存档。

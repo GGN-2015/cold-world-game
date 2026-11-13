@@ -64,6 +64,7 @@ db.sqlite3-journal
 world.sqlite3*
 world.db*
 /saves/
+/benchmark-results/
 
 # Flask stuff:
 instance/

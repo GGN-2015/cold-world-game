@@ -257,6 +257,21 @@
       "width": 96,
       "height": 96
     },
+    "compass_base": {
+      "file": "compass_base.png",
+      "width": 96,
+      "height": 96
+    },
+    "compass_needle": {
+      "file": "compass_needle.png",
+      "width": 96,
+      "height": 96
+    },
+    "compass": {
+      "file": "compass.png",
+      "width": 96,
+      "height": 96
+    },
     "vodka": {
       "file": "vodka.png",
       "width": 96,

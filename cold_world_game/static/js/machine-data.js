@@ -25,8 +25,8 @@ export const roomMachineMessages = {
     "Paid exchanges and processing only: no passive production or interest. Every exchange consumes its full cost; normal item-use restrictions remain."
   ],
   "machine.capacity": [
-    "产物先入背包，再入物品栏；本次消耗的材料格可用于接收产物。必须装得下全部产物，空间不足或保存失败整次回退，不扣款、不吞材料。回收会销毁整件输入物品及其剩余弹药。",
-    "Results fill backpack then hotbar; consumed ingredient slots may hold outputs. All results must fit. Insufficient space or failed saving rolls back payment and materials in full. Recycling destroys the entire input and its remaining ammo."
+    "产物先入背包，再入物品栏；本次消耗的材料格可用于接收产物。必须装得下全部产物，空间不足或结算失败整次回退，不扣款、不吞材料；后台提交完整快照。回收会销毁整件输入物品及其剩余弹药。",
+    "Results fill backpack then hotbar; consumed ingredient slots may hold outputs. All results must fit. Insufficient space or operation failure rolls back payment and materials in full; complete snapshots are saved in the background. Recycling destroys the entire input and its remaining ammo."
   ],
   "item.ration_dispenser": [
     "自动口粮机",

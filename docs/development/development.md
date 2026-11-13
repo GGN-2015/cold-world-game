@@ -4,7 +4,19 @@
 
 ## 开发环境
 
-运行 `uv sync --frozen` 安装锁定依赖，`uv run python -m cold_world_game` 启动。Windows与Linux命令相同；浏览器ES modules直接加载，不需要前端打包器或CDN。新增持久字段提供缺省值，不重置旧地图；地图生成变化遵守[生成与存档约束](../world/world.md#地图生成与存档)。
+运行 `uv sync --frozen` 安装锁定依赖，`uv run cold-world-game game` 启动。`uv run python -m cold_world_game game` 使用同一入口。Windows与Linux命令相同；浏览器ES modules直接加载，不需要前端打包器或CDN。新增持久字段提供缺省值，不重置旧地图；地图生成变化遵守[生成与存档约束](../world/world.md#地图生成与存档)。
+
+## 测试入口
+
+所有性能测试通过 `uv run cold-world-game test <名称> ...` 运行，追加 `--help` 查看该项参数。根命令与 `test` 不带具体名称时只列帮助，避免误开游戏或误跑长测试。三个测试都使用临时世界，不读取游戏的正式存档。
+
+| 命令 | 用途 | 依赖与输出 |
+| --- | --- | --- |
+| `uv run cold-world-game test terrain` | 同图地形协议处理、流量和SQLite体积对照 | 基础依赖；终端JSON，可设置 `--players`、`--radius`、`--steps` |
+| `uv run cold-world-game test sync` | 同一批权威战斗帧的JSON与紧凑协议对照 | 基础依赖；终端JSON，`--capture` 可保存同帧数据；可设置 `--players`、`--radius`、`--frames` |
+| `uv run --frozen --group benchmark cold-world-game test combat` | 真实多人同屏战斗、延迟、桌面/手机画面与容量阶梯 | 需 `benchmark` 依赖组及浏览器；默认在当前目录的 `benchmark-results/combat-时间戳` 输出报告，支持 `--output` |
+
+战斗测试的安装、完整命令和指标见[压测手册](combat-benchmark.md)。压力测试由用户手动运行，代理只提供命令、解读报告；功能、兼容性和单元验证不受此限制。测试实现与浏览器观察脚本随Python包一起分发，内部子服务器也通过 `python -m cold_world_game test combat` 启动，不依赖仓库的绝对位置。`tools/benchmark_*.py` 仅为脚本调用提供转发，不维护另一套参数或测试逻辑。
 
 ## 规则与资源源文件
 
@@ -16,8 +28,12 @@
 | 怪物与户外设施数据 | `cold_world_game/wildlife.py` | 六种属性、威胁分数、座位独立概率与有限弹药 |
 | 确定性地图与稀疏覆盖 | `cold_world_game/procedural.py`、`cold_world_game/terrain_stream.py` | 固定生成算法、版本配置、格子初始内容、区块订阅，见[地图实现](terrain.md) |
 | 浏览器地图缓存 | `cold_world_game/static/js/terrain-worker.js`、`terrain-cache.js` | 后台生成、校验、IndexedDB、订阅合并与故障回退 |
-| 同图性能回放 | `tools/benchmark_terrain.py` | 临时世界、两种协议的处理耗时/字节与SQLite体积；不替代实际浏览器延迟测试 |
-| 战斗传输与同帧回放 | `cold_world_game/wire.py`、`cold_world_game/static/js/wire.js`、`tools/benchmark_sync.py` | 紧凑二进制、子弹轨迹、格子差分及同一批权威帧的字节/编码耗时对照 |
+| 统一命令入口 | `cold_world_game/cli.py` | `game` 与 `test combat/terrain/sync` 的参数、帮助与分发 |
+| 一致性后台保存 | `cold_world_game/persistence.py` | 合并批次、锁外提交、重试/超时暂停及最终保存；同步调试不启用 |
+| 共享状态发布 | `cold_world_game/publication.py`、`cold_world_game/server.py` | 公共实体捕获、连接视野裁剪、命令序号栅栏与地图修订补齐 |
+| 同图性能回放 | `cold_world_game/benchmarks/terrain.py` | 临时世界、两种协议的处理耗时/字节与SQLite体积；不替代实际浏览器延迟测试 |
+| 战斗传输与同帧回放 | `cold_world_game/wire.py`、`cold_world_game/static/js/wire.js`、`cold_world_game/benchmarks/sync.py` | 紧凑二进制、子弹轨迹、格子差分及同一批权威帧的字节/编码耗时对照 |
+| 多人同屏容量压测 | `cold_world_game/benchmarks/combat/` | 隔离世界、真实协议/浏览器、延迟代理、阶梯加压与报告，见[压测手册](combat-benchmark.md) |
 | 基础界面双语 | `cold_world_game/static/js/i18n.js` | 每键中文/English，同步修改两种语言 |
 | PNG与清单 | `tools/generate_assets.py` 及其绘图模块 | 独立资源及离线预烘焙动画，见[美术](assets.md) |
 | WAV与清单 | `tools/generate_audio.py` | 见[音效](audio.md) |
@@ -56,7 +72,7 @@ uv build
 
 生成器从游戏定义读取数值、概率、配方与名称，不改变运行规则、种子或已生成区块；覆盖物品图鉴前修改生成源，不手工改生成结果。美术生成也调用同一图鉴生成器，不能重新产出按批次分组的文档。`--check` 只比较、不写文件；所有手册和生成脚本包含在源码包中。
 
-验证相对链接和锚点、目录可达性、全部物品及怪物PNG、条目覆盖、重复生成一致性。逻辑变动还需验证旧存档、旧区域不变、新区域当前内容、满格和写盘失败整次回滚；UI验证桌面与手机中英、长按和高延迟，见[实时性回归](performance.md#回归场景)。
+验证相对链接和锚点、目录可达性、全部物品及怪物PNG、条目覆盖、重复生成一致性。逻辑变动还需验证旧存档、旧区域不变、新区域当前内容、满格拒绝、内存操作回滚，以及SQLite提交失败整次回滚并保留后台批次、重试/暂停/恢复和Ctrl+C最终保存；UI验证桌面与手机中英、长按和高延迟，见[实时性回归](performance.md#回归场景)。
 
 ## 前端代码入口
 

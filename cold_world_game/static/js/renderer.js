@@ -82,6 +82,8 @@ export class WorldRenderer {
     this.scale = isMobileDevice ? Math.max(this.width / 28, this.height / 24) : this.width / 32;
     this.pixelRatio = ratio;
     this.snow = null;
+    this.projectileGlows = new Map();
+    for (const color of ['#ff356d', '#63e7ff', '#ffad43', '#ff493d']) this.projectileGlow(color, 0.8, Math.max(5, this.scale * 0.16));
   }
 
   setState(state) {
@@ -348,6 +350,32 @@ export class WorldRenderer {
     this.context.drawImage(this.snow.canvas, point.x, point.y, this.snow.width, this.snow.height);
   }
 
+  projectileGlow(color, length, width) {
+    const key = `${color}:${length}:${width}`;
+    let entry = this.projectileGlows.get(key);
+    if (entry) return entry;
+    const padding = 30 / this.pixelRatio + width;
+    const span = length * this.scale;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil((span + padding * 2) * this.pixelRatio);
+    canvas.height = Math.ceil(padding * 2 * this.pixelRatio);
+    const context = canvas.getContext('2d');
+    context.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+    context.lineCap = 'round';
+    context.lineWidth = width;
+    context.strokeStyle = color;
+    context.shadowColor = color;
+    context.shadowBlur = 10;
+    context.beginPath();
+    context.moveTo(padding, padding);
+    context.lineTo(padding + span, padding);
+    context.stroke();
+    entry = { canvas, left: -padding - span, top: -padding, width: canvas.width / this.pixelRatio, height: canvas.height / this.pixelRatio };
+    if (this.projectileGlows.size >= 64) this.projectileGlows.delete(this.projectileGlows.keys().next().value);
+    this.projectileGlows.set(key, entry);
+    return entry;
+  }
+
   drawProjectiles(projectiles) {
     const context = this.context;
     context.save();
@@ -373,12 +401,13 @@ export class WorldRenderer {
       context.strokeStyle = '#702237';
       context.lineWidth = width + 3;
       context.stroke();
-      context.strokeStyle = color;
-      context.lineWidth = width;
-      context.shadowColor = color;
-      context.shadowBlur = 10;
-      context.stroke();
-      context.shadowBlur = 0;
+      const glow = this.projectileGlow(color, length, width);
+      context.save();
+      context.translate(point.x, point.y);
+      context.rotate(Math.atan2(projectile.velocity_y, projectile.velocity_x));
+      context.imageSmoothingEnabled = true;
+      context.drawImage(glow.canvas, glow.left, glow.top, glow.width, glow.height);
+      context.restore();
       context.strokeStyle = '#fff1df';
       context.lineWidth = Math.max(2, width * 0.35);
       context.stroke();

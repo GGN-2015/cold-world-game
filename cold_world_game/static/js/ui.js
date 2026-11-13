@@ -18,6 +18,7 @@ export class GameUI {
     this.catalog = catalog;
     this.controls = controls;
     this.state = null;
+    this.hasCompass = false;
     this.panel = null;
     this.helpOpen = false;
     this.busy = false;
@@ -174,6 +175,7 @@ export class GameUI {
     this.guideHotbarKey = null;
     this.storageView = null;
     this.state = null;
+    this.hasCompass = false;
     this.panel = null;
     this.helpOpen = false;
     this.dragSource = null;
@@ -191,6 +193,7 @@ export class GameUI {
     this.state = this.transfers.project();
     state = this.state;
     const you = state.you;
+    this.hasCompass = [...you.inventory, ...you.backpack].some(item => item?.kind === 'compass');
     byId('season-label').textContent = t('world.seasonDay', { year: state.environment.year ?? 1, season: seasonName(state.environment.season), day: state.environment.day });
     const totalMinutes = Math.floor(state.environment.hour * 60) % 1440;
     byId('clock-label').textContent = `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
@@ -669,9 +672,20 @@ export class GameUI {
     let image = node.querySelector('img');
     if (item) {
       if (!image) { image = element('img'); image.draggable = false; node.append(image); }
-      if (image.getAttribute('src') !== assetUrl(item.kind)) image.src = assetUrl(item.kind);
+      const source = assetUrl(item.kind === 'compass' ? 'compass_base' : item.kind);
+      if (image.getAttribute('src') !== source) image.src = source;
       image.alt = itemName(item.kind);
     } else image?.remove();
+    let needle = node.querySelector('.compass-needle');
+    if (item?.kind === 'compass') {
+      if (!needle) {
+        needle = element('img', 'compass-needle');
+        needle.src = assetUrl('compass_needle');
+        needle.alt = '';
+        needle.draggable = false;
+        node.append(needle);
+      }
+    } else needle?.remove();
     let count = node.querySelector('.item-count');
     const value = item?.ammo ?? item?.uses;
     if (value != null) {

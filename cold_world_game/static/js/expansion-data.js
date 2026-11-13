@@ -732,8 +732,8 @@ export const expansionMessages = {
     "Restores 3 hunger, including above 10, leaving one durian peel in the same hotbar slot. Independent 3% natural-chest chance."
   ],
   "guide.use.durian": [
-    "无需篝火；选中长按0.5秒，手机按住使用。饥饿大于10时不能吃；背包全满也能在原格产出皮，保存失败整次回滚。",
-    "No fire needed. Equip and hold left click or Use for 0.5 s. Cannot eat above 10 hunger. Its peel replaces the fruit even with full storage; saving failure rolls everything back."
+    "无需篝火；选中长按0.5秒，手机按住使用。饥饿大于10时不能吃；背包全满也能在原格产出皮，结算失败整次回滚，后台保存完整快照。",
+    "No fire needed. Equip and hold left click or Use for 0.5 s. Cannot eat above 10 hunger. Its peel replaces the fruit even with full storage; operation failure rolls everything back; complete snapshots are saved in the background."
   ],
   "guide.effect.durian_peel": [
     "一次性投掷物，与手榴弹相同：半径3格内怪物受20伤害，玩家和方块不受伤害，播放相同爆炸。",

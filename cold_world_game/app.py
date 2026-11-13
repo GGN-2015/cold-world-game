@@ -65,7 +65,8 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
     def health():
         with server.world.lock:
             healthy = server.world.fault is None and not server.stopping.is_set()
-            return jsonify({"ok": healthy, "online": len(server.world.online), "paused": not server.world.online or not healthy, "tick": server.world.tick_number}), 200 if healthy else 503
+            persistence = server.persistence.status() if server.persistence else {"mode": "synchronous"}
+            return jsonify({"ok": healthy, "online": len(server.world.online), "paused": not server.world.online or not healthy, "tick": server.world.tick_number, "persistence": persistence}), 200 if healthy else 503
 
     @app.get("/api/info")
     def info():
@@ -93,17 +94,19 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
             wants_deltas = message.get("state_deltas") is True
             compact = CompactSync() if message.get("compact_state") == 1 and wants_deltas else None
             wants_terrain = message.get("procedural_terrain") == 1 and wants_deltas
+            server.publisher.subscribe(player_id, wants_terrain)
             terrain_previous = {}
             if wants_terrain:
                 with server.world.lock:
                     state = server.world.snapshot(player_id, procedural=True)
                     terrain_changes, terrain_previous = server.world.terrain_updates(player_id, terrain_previous)
             state_revision = 0
-            processed_sequence = 0
-            state["command_sequence"] = processed_sequence
+            state["command_sequence"] = 0
+            last_capture = time.monotonic()
             if compact:
                 state = compact.welcome(state)
             welcome = {"type": "welcome", "player_id": player_id, "protocol": 1, "state": state}
+            welcome["navigation_config"] = server.world.navigation_bootstrap()
             if compact:
                 welcome["wire_config"] = compact.encoder.config()
             if wants_terrain:
@@ -123,7 +126,12 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
             while not server.stopping.is_set():
                 raw = websocket.receive(timeout=max(0, min(0.05, next_state - time.monotonic())))
                 now = time.monotonic()
-                if raw is not None:
+                batch_started = time.perf_counter()
+                batch_count = 0
+                while raw is not None and not server.stopping.is_set():
+                    received = time.perf_counter()
+                    server.observe("inbound_backlog", len(getattr(websocket, "input_buffer", ())))
+                    now = time.monotonic()
                     tokens = min(120, tokens + (now - last_token) * 60)
                     last_token = now
                     tokens -= 1
@@ -133,22 +141,25 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
                     try:
                         command = parse_message(raw)
                         sequence = command.get("seq")
-                        result = server.world.execute(player_id, command)
-                        if sequence is not None:
-                            processed_sequence = max(processed_sequence, sequence)
+                        result = server.execute(player_id, command)
                         if sequence is not None or not quiet_inputs or command.get("type") not in ("input", "stop"):
                             send(websocket, {"type": "ack", "seq": sequence, "result": result})
                     except GameError as error:
-                        if sequence is not None:
-                            processed_sequence = max(processed_sequence, sequence)
                         send(websocket, {"type": "error", "seq": sequence, "code": error.code, "message": str(error)})
+                    finally:
+                        server.observe("received_command_ms", (time.perf_counter() - received) * 1000)
+                    batch_count += 1
+                    if batch_count >= 32 or time.perf_counter() - batch_started >= .004:
+                        break
+                    raw = websocket.receive(timeout=0)
                 now = time.monotonic()
                 if now >= next_state:
-                    with server.world.lock:
-                        state = server.world.snapshot(player_id, procedural=wants_terrain)
-                        if wants_terrain:
-                            terrain_changes, terrain_previous = server.world.terrain_updates(player_id, terrain_previous)
-                    state["command_sequence"] = processed_sequence
+                    state, terrain_changes, current_terrain, captured_at = server.snapshot(player_id, wants_terrain, terrain_previous)
+                    if captured_at < last_capture or state["tick"] < previous_state["tick"] or state["command_sequence"] < previous_state["command_sequence"]:
+                        next_state = time.monotonic() + .01
+                        continue
+                    last_capture = captured_at
+                    terrain_previous = current_terrain
                     if wants_deltas:
                         update = compact.delta(state) if compact else state_delta(previous_state, state, state_revision)
                         if wants_terrain and (terrain_changes["add"] or terrain_changes["remove"]):
@@ -158,13 +169,13 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
                         else:
                             send(websocket, update)
                         state_revision += 1
-                        previous_state = state
                     else:
                         send(websocket, {"type": "state", "state": state})
+                    previous_state = state
                     now = time.monotonic()
                     next_state += (int((now - next_state) / 0.1) + 1) * 0.1
                 if wants_roster and now >= next_roster:
-                    roster = server.world.player_roster()
+                    roster = server.roster()
                     if compact:
                         update = compact.roster_delta(roster)
                         if update:
@@ -176,19 +187,21 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
             try:
                 send(websocket, {"type": "error", "code": error.code, "message": str(error)})
                 websocket.receive(timeout=1)
-            except ConnectionClosed:
+            except (ConnectionClosed, OSError):
                 pass
         except ConnectionClosed:
             pass
         except Exception:
-            LOGGER.exception("WebSocket connection failed")
-            try:
-                send(websocket, {"type": "error", "code": "server_error", "message": "The server could not complete this request"})
-            except Exception:
-                pass
+            if not server.stopping.is_set():
+                LOGGER.exception("WebSocket connection failed")
+                try:
+                    send(websocket, {"type": "error", "code": "server_error", "message": "The server could not complete this request"})
+                except Exception:
+                    pass
         finally:
             try:
                 if player_id is not None:
+                    server.publisher.unsubscribe(player_id)
                     server.world.leave(player_id)
             except Exception:
                 LOGGER.exception("Could not persist disconnected player")
@@ -199,7 +212,7 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
                 server.unregister(websocket)
                 try:
                     websocket.close()
-                except ConnectionClosed:
+                except (ConnectionClosed, OSError):
                     pass
                 if websocket.mode == "werkzeug":
                     websocket.thread.join(timeout=1)

@@ -330,7 +330,7 @@ def export_text(root, items):
     messages.update({
         "item.durian": ["榴莲", "Durian"], "item.durian_peel": ["榴莲皮", "Durian peel"],
         "guide.effect.durian": ["恢复3点饥饿，可以超过10；吃完后同一个物品栏格子留下一个榴莲皮。自然箱子独立3%概率。", "Restores 3 hunger, including above 10, leaving one durian peel in the same hotbar slot. Independent 3% natural-chest chance."],
-        "guide.use.durian": ["无需篝火；选中长按0.5秒，手机按住使用。饥饿大于10时不能吃；背包全满也能在原格产出皮，保存失败整次回滚。", "No fire needed. Equip and hold left click or Use for 0.5 s. Cannot eat above 10 hunger. Its peel replaces the fruit even with full storage; saving failure rolls everything back."],
+        "guide.use.durian": ["无需篝火；选中长按0.5秒，手机按住使用。饥饿大于10时不能吃；背包全满也能在原格产出皮，结算失败整次回滚，后台保存完整快照。", "No fire needed. Equip and hold left click or Use for 0.5 s. Cannot eat above 10 hunger. Its peel replaces the fruit even with full storage; operation failure rolls everything back; complete snapshots are saved in the background."],
         "guide.effect.durian_peel": ["一次性投掷物，与手榴弹相同：半径3格内怪物受20伤害，玩家和方块不受伤害，播放相同爆炸。", "Single-use throwable with grenade behavior: 20 damage to monsters within radius 3, no harm to players or blocks, with the same explosion."],
         "guide.use.durian_peel": ["选中后朝落点长按0.5秒；手机可直接长按场景，或瞄准后按住使用。消耗一片皮，飞行0.45秒后爆炸，最多每秒一次。", "Equip and hold 0.5 s toward the landing point. Hold the scene on mobile, or aim then hold Use. Consumes one peel; explodes after a 0.45 s flight, at most once per second."],
     })

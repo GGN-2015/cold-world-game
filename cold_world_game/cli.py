@@ -10,7 +10,28 @@ from .app import create_app
 
 
 def parser():
-    arguments = argparse.ArgumentParser(description="Cold World Game browser game with Flask/WebSocket server")
+    arguments = argparse.ArgumentParser(prog="cold-world-game", description="Cold World Game browser game with Flask/WebSocket server")
+    arguments.set_defaults(handler=None, command_parser=arguments)
+    commands = arguments.add_subparsers(title="commands")
+    game = commands.add_parser("game", help="Start the browser game server", description="Start the Flask/WebSocket game server")
+    game_arguments(game)
+    game.set_defaults(handler=run_game, command_parser=game)
+    tests = commands.add_parser("test", help="Run isolated performance tests", description="Performance tests use disposable worlds and never open the game save")
+    tests.set_defaults(handler=None, command_parser=tests)
+    checks = tests.add_subparsers(title="tests")
+    from .benchmarks import combat, sync, terrain
+    for name, module, description in (
+        ("combat", combat, "Measure same-screen combat capacity with WebSocket players and optional browsers"),
+        ("terrain", terrain, "Compare terrain protocols and SQLite size on the same disposable world"),
+        ("sync", sync, "Compare JSON and compact combat streaming on identical authoritative frames"),
+    ):
+        check = checks.add_parser(name, help=description, description=description)
+        module.configure_parser(check)
+        check.set_defaults(handler=module.run, command_parser=check)
+    return arguments
+
+
+def game_arguments(arguments):
     arguments.add_argument("--host", default="127.0.0.1", help="Bind address (use 0.0.0.0 for LAN access)")
     arguments.add_argument("--port", type=int, default=5000, help="HTTP/WebSocket port (default: 5000)")
     arguments.add_argument("--password", help="Shared server password; generated randomly when omitted")
@@ -19,12 +40,20 @@ def parser():
     arguments.add_argument("--seed", type=int, help="World seed for a new save only")
     arguments.add_argument("--allowed-origin", action="append", default=[], help="Additional browser Origin allowed to connect; repeatable")
     arguments.add_argument("--log-level", choices=("DEBUG", "INFO", "WARNING", "ERROR"), default="INFO")
-    return arguments
 
 
 def main(argv=None):
     arguments = parser()
     options = arguments.parse_args(argv)
+    handler = vars(options).pop("handler")
+    command_parser = vars(options).pop("command_parser")
+    if handler is None:
+        command_parser.print_help()
+        return 0
+    return handler(options, command_parser)
+
+
+def run_game(options, arguments):
     if not 0 <= options.port <= 65535:
         arguments.error("--port must be in [0, 65535]")
     if options.password == "":
@@ -61,17 +90,27 @@ def main(argv=None):
         if runtime.world.admin is not None:
             print(f"Administrator player ID: {runtime.world.admin}", flush=True)
         print("Press Ctrl+C to save and stop.", flush=True)
+        print("Saving: background snapshots (normally 15s, forced by 150s under load; pause if uncommitted for 180s). A forced stop can lose recent progress.", flush=True)
         http_thread.start()
         serving = True
         stop.wait()
     except KeyboardInterrupt:
         pass
     finally:
-        if http_server is not None:
-            if serving:
-                http_server.shutdown()
-            http_server.server_close()
-        runtime.close()
-        for signal_number, handler in previous.items():
-            signal.signal(signal_number, handler)
+        try:
+            if http_server is not None:
+                try:
+                    if serving:
+                        http_server.shutdown()
+                finally:
+                    http_server.server_close()
+        finally:
+            try:
+                runtime.close()
+                print("Final world snapshot saved. Server stopped.", flush=True)
+            except Exception as error:
+                arguments.exit(1, f"FINAL SAVE FAILED: {error}. Check the server log; recent progress may not be saved.\n")
+            finally:
+                for signal_number, handler in previous.items():
+                    signal.signal(signal_number, handler)
     return 0

@@ -91,7 +91,7 @@ def generate(save, canvas, palette, destination):
         "machine.dismantle": ["长按拆除机器 · 1.5 秒", "Hold to dismantle machine · 1.5 s"],
         "machine.dismantleHint": ["选中斧头并在此持续按住1.5秒；松开取消。成功掉落同一种机器，可搬走重新放置，不能退回曾经支付的材料。", "Equip an axe and hold here for 1.5 s; release to cancel. Drops the same machine for relocation, never refunds past payments."],
         "machine.description": ["有偿兑换与加工，不自动生成物资、不产生利息。每次都重新支付全部材料，产物保留原本的使用限制。", "Paid exchanges and processing only: no passive production or interest. Every exchange consumes its full cost; normal item-use restrictions remain."],
-        "machine.capacity": ["产物先入背包，再入物品栏；本次消耗的材料格可用于接收产物。必须装得下全部产物，空间不足或保存失败整次回退，不扣款、不吞材料。回收会销毁整件输入物品及其剩余弹药。", "Results fill backpack then hotbar; consumed ingredient slots may hold outputs. All results must fit. Insufficient space or failed saving rolls back payment and materials in full. Recycling destroys the entire input and its remaining ammo."],
+        "machine.capacity": ["产物先入背包，再入物品栏；本次消耗的材料格可用于接收产物。必须装得下全部产物，空间不足或结算失败整次回退，不扣款、不吞材料；后台提交完整快照。回收会销毁整件输入物品及其剩余弹药。", "Results fill backpack then hotbar; consumed ingredient slots may hold outputs. All results must fit. Insufficient space or operation failure rolls back payment and materials in full; complete snapshots are saved in the background. Recycling destroys the entire input and its remaining ammo."],
     }
     for kind, definition in machines.items():
         messages[f"item.{kind}"] = definition["name"]

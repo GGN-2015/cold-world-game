@@ -15,6 +15,13 @@ dependencies = [
 [project.scripts]
 cold-world-game = "cold_world_game.cli:main"
 
+[dependency-groups]
+benchmark = [
+    "playwright>=1.56,<2",
+    "psutil>=7,<8",
+    "websockets>=15,<18",
+]
+
 [build-system]
 requires = ["uv_build>=0.11,<0.12"]
 build-backend = "uv_build"
@@ -22,4 +29,4 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "cold_world_game"
 module-root = ""
-source-include = ["docs/**", "tools/benchmark_sync.py", "tools/benchmark_terrain.py", "tools/generate_assets.py", "tools/expansion_assets.py", "tools/machine_assets.py", "tools/outdoor_assets.py", "tools/manual_assets.py", "tools/generate_manuals.py", "tools/generate_audio.py", "tools/generate_music.py", "tools/music/**", "uv.lock"]
+source-include = ["docs/**", "tools/benchmark_sync.py", "tools/benchmark_terrain.py", "tools/benchmark_combat.py", "tools/generate_assets.py", "tools/expansion_assets.py", "tools/machine_assets.py", "tools/outdoor_assets.py", "tools/manual_assets.py", "tools/generate_manuals.py", "tools/generate_audio.py", "tools/generate_music.py", "tools/music/**", "uv.lock"]

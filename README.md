@@ -8,7 +8,7 @@
 
 ```sh
 uv sync --frozen
-uv run cold-world-game --host 0.0.0.0 --port 5000
+uv run cold-world-game game --host 0.0.0.0 --port 5000
 ```
 
 本机浏览器打开 `http://127.0.0.1:5000/`；其他设备用服务器局域网IP替换127.0.0.1。终端显示游戏口令，未指定 `--password` 时每次启动随机生成。输入玩家ID和口令即可进入，无需单独启动前端。
@@ -16,10 +16,26 @@ uv run cold-world-game --host 0.0.0.0 --port 5000
 固定口令、存档和管理员示例：
 
 ```sh
-uv run cold-world-game --host 0.0.0.0 --password your-password --save-path ./saves --admin neko
+uv run cold-world-game game --host 0.0.0.0 --password your-password --save-path ./saves --admin neko
 ```
 
 新角色携带手枪、斧头和打火机；先采木材、制作并点燃篝火，再探索房屋。手机自动显示双摇杆与大号操作按钮，不要求解锁屏幕方向。详见[安装与开始](docs/guide/quick-start.md)。
+
+操作在内存原子结算后确认，后台合并保存，不让每次战斗等待磁盘；强制结束可能丢失最近未提交进度。正常退出请按Ctrl+C并等终端确认最终保存成功，完整规则见[服务器保存策略](docs/server/server.md#保存与故障处理)。
+
+## 统一命令入口
+
+`uv run cold-world-game game ...` 启动游戏，`uv run cold-world-game test ...` 运行隔离测试；直接运行根命令或 `test` 只显示帮助，不会启动服务器或压测。
+
+```sh
+uv run cold-world-game game --help
+uv run cold-world-game test --help
+uv run cold-world-game test terrain
+uv run cold-world-game test sync
+uv run --frozen --group benchmark cold-world-game test combat --browser-channel msedge
+```
+
+战斗压测需安装 `benchmark` 依赖组，由用户手动执行；安装、参数、延迟与报告说明见[战斗压测手册](docs/development/combat-benchmark.md)，其他测试见[开发维护](docs/development/development.md#测试入口)。
 
 ## 手册树
 
@@ -32,7 +48,7 @@ uv run cold-world-game --host 0.0.0.0 --password your-password --save-path ./sav
 | [物品图鉴](docs/items/README.md) | [食品与饮料](docs/items/foods.md) · [武器图鉴](docs/items/weapons.md) · [工具与装备](docs/items/tools.md) |
 | [营地与经济](docs/building/README.md) | [采集、制作与建造](docs/building/building.md) · [容器、篝火与全部机器](docs/building/machines.md) · [户外座位与固定武器](docs/building/outdoor-facilities.md) · [金币与共享经济](docs/building/economy.md) |
 | [服务器](docs/server/README.md) | [联机、存档与部署](docs/server/server.md) · [管理员命令](docs/server/admin.md) · [后端协议](docs/server/protocol.md) |
-| [开发与资源](docs/development/README.md) | [开发维护](docs/development/development.md) · [实时性与性能](docs/development/performance.md) · [PNG美术](docs/development/assets.md) · [音效](docs/development/audio.md) · [背景音乐](docs/development/music.md) |
+| [开发与资源](docs/development/README.md) | [开发维护](docs/development/development.md) · [实时性与性能](docs/development/performance.md) · [多人压测](docs/development/combat-benchmark.md) · [PNG美术](docs/development/assets.md) · [音效](docs/development/audio.md) · [背景音乐](docs/development/music.md) |
 
 物品图鉴附实际PNG、获取方式、效果、操作和限制；设施统一列出全部兑换配方。已有SQLite世界可继续使用：旧区域不重刷，未探索区域使用当前生成规则，不需要删档或换种子。
 

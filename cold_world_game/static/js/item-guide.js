@@ -9,6 +9,10 @@ export function itemGuide(item, catalog) {
     category = catalog.expansion_items[kind].category;
     effect = t(`guide.effect.${kind}`);
     use = t(`guide.use.${kind}`);
+  } else if (kind === 'compass') {
+    category = 'navigation';
+    effect = t('guide.effect.compass');
+    use = t('guide.use.compass');
   } else if (kind === 'durian' || kind === 'durian_peel') {
     category = kind === 'durian' ? 'food' : 'explosive';
     effect = t(`guide.effect.${kind}`);

@@ -439,6 +439,8 @@ class Combat:
                 self.drop_item(Item.create("wood"), monster.x, monster.y)
             self.emit_event("death", monster.id, f"monster_{monster.kind}", impact_x, impact_y, source=actor, target=monster.id, target_type="monster", direction=list(normalized(*direction)), knockback=displacement)
             self.monsters.pop(monster.id, None)
+            if self._body_index is not None:
+                self._body_index.remove(monster.id)
 
     def drop_monster_food(self, monster, kind):
         if monster.big and (kind not in FOODS or kind in READY_TO_EAT_FOODS or FOODS[kind] > 4):
@@ -522,6 +524,10 @@ class Combat:
         projectile.x, projectile.y = homing_position(projectile, self.elapsed, target.x, target.y)
 
     def update_projectiles(self, seconds):
+        with self.monster_collisions():
+            self.step_projectiles(seconds)
+
+    def step_projectiles(self, seconds):
         for projectile_id, projectile in list(self.projectiles.items()):
             if projectile.kind == "homing_missile":
                 self.update_homing_missile(projectile)
@@ -538,6 +544,9 @@ class Combat:
             travel = min(projectile.remaining, speed * seconds)
             end_x = projectile.x + projectile.velocity_x * travel / speed
             end_y = projectile.y + projectile.velocity_y * travel / speed
+            padding = BODY_RADIUS + 1e-9
+            left, right = min(projectile.x, end_x) - padding, max(projectile.x, end_x) + padding
+            top, bottom = min(projectile.y, end_y) - padding, max(projectile.y, end_y) + padding
             candidates = []
             blockers = MONSTER_BULLET_BLOCKERS if projectile.hostile else BULLET_BLOCKERS
             for structure in self.nearby_structures(projectile.x, projectile.y, end_x, end_y):
@@ -547,6 +556,8 @@ class Combat:
                         candidates.append((fraction, 0, "structure", structure))
             for player_id in self.online:
                 player = self.players[player_id]
+                if not (left <= player.x <= right and top <= player.y <= bottom):
+                    continue
                 seat = self.seated_structure(self.controls[player_id])
                 if player.temperature <= 0 or player_id == projectile.owner or (projectile.hostile and (player.temperature < 5 or seat and seat.kind == "mounted_gun" and projectile.weapon_kind in {None, "monster_big"})):
                     continue
@@ -554,7 +565,7 @@ class Combat:
                 if fraction is not None:
                     candidates.append((fraction, 1, "player", player))
             if not projectile.hostile:
-                for monster in self.monsters.values():
+                for monster in self.nearby_monsters(left, top, right, bottom):
                     fraction = segment_circle(projectile.x, projectile.y, end_x, end_y, monster.x, monster.y)
                     if fraction is not None:
                         candidates.append((fraction, 2, "monster", monster))

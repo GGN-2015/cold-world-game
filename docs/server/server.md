@@ -4,7 +4,9 @@
 
 ## 命令行参数
 
-`uv run cold-world-game` 与 `uv run python -m cold_world_game` 等价；追加 `--help` 查看帮助。Windows PowerShell 和 Linux shell 使用相同参数，不需要平台专用启动脚本。
+所有运行命令共用 `cold-world-game` 根入口：`game` 启动游戏，`test` 进入[测试命令](../development/development.md#测试入口)。根命令和未指定具体测试的 `test` 只显示帮助，不创建存档、不启动服务或压力测试。
+
+`uv run cold-world-game game` 与 `uv run python -m cold_world_game game` 等价；`uv run cold-world-game game --help` 查看下表参数。Windows PowerShell 和 Linux shell 使用相同参数，不需要平台专用启动脚本。
 
 | 参数 | 默认值 | 用途 |
 | --- | --- | --- |
@@ -18,7 +20,7 @@
 | `--log-level` | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
 
 ```sh
-uv run cold-world-game --host 0.0.0.0 --port 5000 --password your-server-password --save-path ./saves --log-level INFO
+uv run cold-world-game game --host 0.0.0.0 --port 5000 --password your-server-password --save-path ./saves --log-level INFO
 ```
 
 ## 连接与离线
@@ -45,11 +47,17 @@ Windows与Linux采用相同Python包及uv依赖管理，内置Flask网页和同�
 
 ## 保存与故障处理
 
-物品转移、制作、交易、使用、拆除掉落、金币与伤害相关变更，在SQLite事务中一起保存，落盘成功才确认；其他连续状态每累计运行2秒保存，登录、退出、全员离线及正常关闭也会保存。WAL与 `synchronous=FULL` 保证提交边界。
+物品转移、制作、交易、使用、拆除掉落、金币与伤害先在世界锁内原子结算，成功后确认并发布事件；校验失败整次回退。**确认表示服务器内存已完成操作，不表示已经落盘**。服务器按一致性快照合并多次操作，由单独线程在SQLite事务中保存；背包、容器、地面、金额、实体和随机状态来自同一个快照，恢复后不会留下半次转移。WAL与 `synchronous=FULL` 保持开启。
+
+正常每15秒检查保存，繁忙时延到约60秒；持续高负载时最迟在未保存约150秒发起强制保存，预留提交时间。以现实单调时间计时，不依赖游戏时钟。全员离线和正常停服强制保存。正常磁盘条件下不让未提交进度超过3分钟；如果提交迟迟不能完成，达到180秒就暂停新操作与模拟，而不是一边保存失败一边无限接受变更。单个玩家离线不要求其他在线玩家一起等待写盘。
+
+后台写盘期间，游戏继续使用内存状态，新变化留给下一份快照；不会为每次开枪、命中、拾取或转移同步等待磁盘。代价是断电、强制结束进程或系统崩溃可能丢失最近未提交的一段进度，回到上次完整提交。不要把操作确认当作断电安全证明。
 
 世界状态按名称分区保存在 `world_parts`。可确定性重建的自然地形只保存生成配置和区块清单，改变后才按实体ID保存覆盖或删除标记；玩家建筑及无法重建的旧区块保留实际记录。容器取放、机枪弹药和采集状态也属于覆盖，不会重启补满。保存和回滚只处理变化对象，建筑增删不重写全图ID索引，普通战斗不编码全部静态建筑。存储格式兼容读取旧格式，正常提交后使用稀疏格式；不需要删库或换地图。机制见[确定性地图](../development/terrain.md)，运行效率见[实时性与性能](../development/performance.md)。
 
-写盘失败回退当前操作并暂停世界，终端输出错误；不要重复发消费命令。先保留数据库，检查磁盘空间、权限和设备，再重启。被占用时先确认没有第二个服务器进程；不要删世界来处理锁或存储故障。
+后台写盘失败时，SQLite整次回退，保留完整待保存批次并重试；不把已经确认的内存操作逐条撤销。连续失败3次或超过180秒未完成保存时暂停世界，并记录错误；保存恢复后解除这个存储暂停，不清除其他模拟故障。检查磁盘空间、权限和设备，不要盲目重复发送消费命令，也不要删除世界或存档锁。`/health` 的 `persistence` 提供保存模式、未提交时间、失败次数与错误。
+
+按Ctrl+C后停止接受新命令、断开连接并停止模拟/发布线程，再等待最终快照提交及保存线程退出，最后关闭数据库和释放存档锁。成功终端会出现 `Final world snapshot committed` 与 `Final world snapshot saved. Server stopped.`；失败会输出 `FINAL SAVE FAILED` 并以非零状态退出，不能当作已保存。请等待退出后再关闭终端；任务管理器强杀、`kill -9` 和断电无法执行最终保存。
 
 ## 备份与更新
 

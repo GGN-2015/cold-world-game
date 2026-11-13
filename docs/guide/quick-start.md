@@ -12,13 +12,13 @@
 
 ```sh
 uv sync --frozen
-uv run cold-world-game
+uv run cold-world-game game
 ```
 
 默认只监听 `127.0.0.1:5000`，启动时在终端显示随机服务器口令和存档路径。允许局域网玩家连接，并指定口令及存档目录：
 
 ```sh
-uv run cold-world-game --host 0.0.0.0 --port 5000 --password your-server-password --save-path ./saves
+uv run cold-world-game game --host 0.0.0.0 --port 5000 --password your-server-password --save-path ./saves
 ```
 
 启动后在本机浏览器打开 **http://127.0.0.1:5000/**，填写玩家名字和终端显示的服务器口令即可游玩，不需要另外启动前端、安装 Node.js 或执行 npm 构建。同名角色恢复原存档；不同窗口可以使用不同名字同时加入，包括新建角色救援自己的倒地角色。

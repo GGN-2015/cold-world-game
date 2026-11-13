@@ -9,12 +9,14 @@ import { isMobileDevice, MobileControls } from './mobile.js';
 import { PlayerRoster } from './roster.js';
 import { LocalCombat } from './combat.js';
 import { AdminConsole } from './admin.js';
+import { GameCompass } from './compass.js';
 
 const byId = (identifier) => document.getElementById(identifier);
 const canvas = byId('world');
 const connection = new GameConnection();
 const audio = new GameAudio();
 const music = new GameMusic();
+const compass = new GameCompass();
 const keys = new Set();
 let renderer;
 let ui;
@@ -131,6 +133,7 @@ function input(force = false) {
 
 function leave() {
   stop();
+  compass.reset();
   music.leave();
   localCombat.reset();
   audio.reset();
@@ -189,6 +192,7 @@ connection.addEventListener('welcome', (event) => {
   state = null;
   localCombat.reset();
   renderer.reset();
+  compass.configure(event.detail.navigation_config);
   stop();
   audio.reset(event.detail.state.event_sequence || 0);
   music.enter();
@@ -479,6 +483,7 @@ function frame(now) {
   mobileControls?.sync();
   updateMovement();
   renderer.draw(delta);
+  compass.update(now, Boolean(state && connection.ready && ui.hasCompass), renderer.camera, renderer.camera, renderer.viewport());
   if (now - lastInput >= 50) input();
   if (state && connection.ready && now - lastMusic >= 500) {
     music.observe(state, renderer.camera, renderer.viewport(), renderer.positions, renderer.catalog.monster_types, now);

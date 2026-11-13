@@ -19,7 +19,7 @@ BACKPACK_SLOTS = 30
 DROP_DISTANCE = 2.0
 PICKUP_RADIUS = 0.75
 WORLD_RADIUS = 120
-TERRAIN_VERSION = 20
+TERRAIN_VERSION = 21
 CHEST_GUN_CHANCE = 0.2
 LANDMINE_CHANCE = 0.02
 CHAINSAW_CHANCE = 0.02
@@ -75,6 +75,7 @@ READY_TO_EAT_FOODS = frozenset({"cola", "oreos", "compressed_biscuits"})
 DRINKS = {"vodka": {"duration": 0.5, "effect_duration": 30.0, "felt_temperature": 30.0}}
 PASSIVE_ITEMS = {"sheriff_badge": {"damage_multiplier": 2, "monster_kinds": ["small", "fast"], "stackable": False}}
 EQUIPPED_ITEMS = {"swiftness_ring": {"speed_multiplier": 3}}
+NAVIGATION_ITEMS = {"compass": {"chance": 0.02}}
 HEALING_ITEMS = {"first_aid_kit": {"duration": 0.5, "temperature": 36.0, "hunger": 10.0}, "heat_patch": {"duration": 0.5, "temperature": 36.0}}
 REVIVAL_ITEMS = {"defibrillator": {"duration": 1.5, "range": 2.0, "temperature": 36.0, "hunger": 10.0}}
 RETURN_ITEMS = {"return_staff": {"duration": 1.5, "uses": 20}}
@@ -139,7 +140,7 @@ COMMON_CHEST_IGNITERS = tuple(IGNITERS)
 FOODS["durian"] = 3
 READY_TO_EAT_FOODS = READY_TO_EAT_FOODS | {"durian"}
 EXPLOSIVE_WEAPONS["durian_peel"] = {**EXPLOSIVE_WEAPONS["grenade"]}
-RARE_CHEST_ITEMS = {"durian": DURIAN_CHANCE, "chainsaw": CHAINSAW_CHANCE, "landmine": LANDMINE_CHANCE, **{kind: definition["chance"] for kind, definition in EXPANSION_ITEMS.items()}}
+RARE_CHEST_ITEMS = {"durian": DURIAN_CHANCE, "chainsaw": CHAINSAW_CHANCE, "landmine": LANDMINE_CHANCE, **{kind: definition["chance"] for kind, definition in NAVIGATION_ITEMS.items()}, **{kind: definition["chance"] for kind, definition in EXPANSION_ITEMS.items()}}
 for item_kind, definition in EXPANSION_ITEMS.items():
     mechanic, settings = definition["mechanic"], definition["settings"]
     if mechanic == "food":
@@ -151,4 +152,4 @@ for item_kind, definition in EXPANSION_ITEMS.items():
     else:
         {"gun": GUNS, "melee": MELEE_WEAPONS, "explosive": EXPLOSIVE_WEAPONS, "healing": HEALING_ITEMS, "revival": REVIVAL_ITEMS, "return": RETURN_ITEMS, "passive": PASSIVE_ITEMS, "equipment": EQUIPPED_ITEMS}[mechanic][item_kind] = settings
 
-ITEM_KINDS = frozenset({"wood", "coin"}) | BUILDINGS | FOODS.keys() | DRINKS.keys() | PASSIVE_ITEMS.keys() | EQUIPPED_ITEMS.keys() | HEALING_ITEMS.keys() | REVIVAL_ITEMS.keys() | RETURN_ITEMS.keys() | IGNITERS.keys() | GUNS.keys() | MELEE_WEAPONS.keys() | EXPLOSIVE_WEAPONS.keys()
+ITEM_KINDS = frozenset({"wood", "coin"}) | BUILDINGS | FOODS.keys() | DRINKS.keys() | PASSIVE_ITEMS.keys() | EQUIPPED_ITEMS.keys() | NAVIGATION_ITEMS.keys() | HEALING_ITEMS.keys() | REVIVAL_ITEMS.keys() | RETURN_ITEMS.keys() | IGNITERS.keys() | GUNS.keys() | MELEE_WEAPONS.keys() | EXPLOSIVE_WEAPONS.keys()

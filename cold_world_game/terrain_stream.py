@@ -1,6 +1,7 @@
 from collections import OrderedDict, deque
 import hashlib
 import json
+import random
 import secrets
 
 from .constants import CHUNK_SIZE, TERRAIN_VERSION
@@ -100,10 +101,23 @@ class TerrainStream:
         self.terrain_profile()
         return {"session": self.terrain_session, "seed": str(self.seed), "profiles": self.generation_profiles}
 
-    def terrain_updates(self, player_id, previous):
+    def navigation_bootstrap(self):
+        if not hasattr(self, "_navigation_config"):
+            legacy = []
+            for horizontal, vertical in sorted(point for point, version in self.chunk_versions.items() if version < 18):
+                digest = hashlib.blake2b(f"{self.seed}:{horizontal}:{vertical}".encode(), digest_size=16).digest()
+                building = (horizontal, vertical) == (0, 0) or random.Random(int.from_bytes(digest, "big")).random() >= 0.9
+                legacy.append([horizontal, vertical, building])
+            self._navigation_config = {"seed": str(self.seed), "size": CHUNK_SIZE, "algorithm": 1, "legacy": legacy}
+        return self._navigation_config
+
+    def terrain_points(self, player_id):
         player = self.players[player_id]
         center_x, center_y = chunk(player.x), chunk(player.y)
-        points = {(center_x + offset_x, center_y + offset_y) for offset_x in range(-2, 3) for offset_y in range(-2, 3)} & self.chunks
+        return {(center_x + offset_x, center_y + offset_y) for offset_x in range(-2, 3) for offset_y in range(-2, 3)} & self.chunks
+
+    def terrain_updates(self, player_id, previous):
+        points = self.terrain_points(player_id)
         current = {point: self._chunk_revisions.get(point, 0) for point in points}
         updates = []
         for point in sorted(points):
@@ -126,7 +140,10 @@ class TerrainStream:
                 updates.append(self.chunk_view(point))
         return {"add": updates, "remove": [f"{horizontal},{vertical}" for horizontal, vertical in sorted(previous.keys() - points)]}, current
 
-    def structure_states(self, player):
+    def active_demolitions(self):
+        return {monster.demolition for monster in self.monsters.values() if monster.demolition and not self.monster_inactive(monster)}
+
+    def structure_states(self, player, demolitions=None):
         nearby = {(chunk(player.x) + horizontal, chunk(player.y) + vertical) for horizontal in range(-2, 3) for vertical in range(-2, 3)}
         states = {structure.id: {"id": structure.id, "lit": True} for structure in self._campfires.values() if structure.lit and abs(structure.x-player.x)<=38 and abs(structure.y-player.y)<=38}
         for player_id, controls in self.controls.items():
@@ -138,10 +155,10 @@ class TerrainStream:
                 for identifier in self._seats_by_chunk.get((horizontal, vertical), ()):
                     seat = self.structures[identifier]
                     states.setdefault(identifier, {"id": identifier, "occupant": None})["ammo"] = seat.ammo
-        for monster in self.monsters.values():
-            target = self.structures.get(monster.demolition)
-            if target and (chunk(target.x), chunk(target.y)) in nearby and not self.monster_inactive(monster):
-                states.setdefault(monster.demolition, {"id": monster.demolition})["monster_demolition"] = True
+        for identifier in self.active_demolitions() if demolitions is None else demolitions:
+            target = self.structures.get(identifier)
+            if target and (chunk(target.x), chunk(target.y)) in nearby:
+                states.setdefault(identifier, {"id": identifier})["monster_demolition"] = True
         return sorted(states.values(), key=lambda value: value["id"])
 
     def event_random(self, system, entity="world"):

@@ -638,6 +638,30 @@ def equipment():
         save(kind, image)
 
 
+def compass():
+    image, drawing = canvas()
+    drawing.polygon(((10, 2), (21, 2), (29, 10), (29, 21), (21, 29), (10, 29), (2, 21), (2, 10)), fill=PALETTE["outline"])
+    drawing.polygon(((11, 4), (20, 4), (27, 11), (27, 20), (20, 27), (11, 27), (4, 20), (4, 11)), fill="#91b9c2")
+    drawing.polygon(((11, 6), (20, 6), (25, 11), (25, 20), (20, 25), (11, 25), (6, 20), (6, 11)), fill="#152d3a")
+    drawing.line((7, 10, 11, 6, 20, 6), fill="#e3f5eb", width=1)
+    drawing.line((10, 26, 20, 26, 26, 20), fill="#507888", width=1)
+    for points in ((15, 7, 16, 9), (15, 22, 16, 24), (7, 15, 9, 16), (22, 15, 24, 16)):
+        drawing.rectangle(points, fill=PALETTE["gold"])
+    drawing.line((10, 11, 21, 22), fill="#274551", width=1)
+    drawing.line((10, 21, 21, 10), fill="#274551", width=1)
+    save("compass_base", image)
+    needle, drawing = canvas()
+    drawing.polygon(((15, 7), (19, 16), (16, 24), (12, 15)), fill="#0c1b27")
+    drawing.polygon(((15, 7), (18, 15), (13, 16)), fill="#f15d58")
+    drawing.polygon(((15, 9), (15, 15), (13, 16)), fill="#ffb1a0")
+    drawing.polygon(((13, 16), (18, 15), (16, 24)), fill="#c6e1e2")
+    drawing.polygon(((16, 17), (18, 15), (16, 24)), fill="#638d9f")
+    drawing.rectangle((14, 14, 17, 17), fill=PALETTE["gold"])
+    drawing.rectangle((15, 15, 16, 16), fill="#fff0b2")
+    save("compass_needle", needle)
+    save("compass", Image.alpha_composite(image, needle))
+
+
 def swiftness_ring():
     image, drawing = canvas()
     drawing.ellipse((5, 25, 27, 29), fill=(38, 62, 72, 65))
@@ -1231,6 +1255,7 @@ def main():
     heat_patch()
     sheriff_badge()
     swiftness_ring()
+    compass()
     vodka()
     defibrillator()
     return_staff()
