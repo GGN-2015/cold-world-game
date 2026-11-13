@@ -120,6 +120,8 @@ class Terrain:
                 feature = self.feature_generator(settings["stream"], chunk_x, chunk_y)
                 if feature.random() < settings["chance"]:
                     candidates = [(center_x + horizontal, center_y + vertical) for horizontal in range(-6, 7) for vertical in range(-6, 7) if self.structure_at(center_x + horizontal, center_y + vertical) is None]
+                    if kind == "mounted_gun":
+                        candidates = [position for position in candidates if self.structure_at(position[0] + 1, position[1]) is None]
                     if candidates:
                         position = feature.choice(candidates)
                         self.add_structure(Structure(kind, *position, ammo=settings.get("ammo")))

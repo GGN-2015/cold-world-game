@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="配置起始物品栏，在实时战斗中测试配装的生存能力。">
+  <title>寒境 · 武器试验场</title>
+  <link rel="icon" href="/static/assets/handgun.png" type="image/png">
+  <link rel="stylesheet" href="/static/css/arena.css">
+  <script type="module" src="/static/js/arena.js"></script>
+</head>
+<body data-page-title="arena.title" data-page-description="arena.description">
+  <main>
+    <header class="page-header">
+      <div><p class="eyebrow" data-i18n="arena.eyebrow"></p><h1 data-i18n="arena.heading"></h1><p class="muted" data-i18n="arena.subtitle"></p></div>
+      <button type="button" data-language-toggle>EN</button>
+    </header>
+    <div class="workspace">
+      <section class="panel setup" aria-labelledby="setup-heading">
+        <div class="actions"><button id="start" class="primary" type="submit" form="configuration" disabled data-i18n="arena.start"></button></div>
+        <p class="hint" data-i18n="arena.restartHint"></p>
+        <p id="error" class="error" role="alert" hidden></p>
+        <h2 id="setup-heading" data-i18n="arena.setup"></h2>
+        <form id="configuration">
+          <fieldset id="settings" disabled>
+            <div class="fields">
+              <label><span data-i18n="arena.ai"></span><select id="ai"></select></label>
+              <label><span data-i18n="arena.limit"></span><input id="monster-limit" type="number" min="0" step="1" value="32" required></label>
+              <label class="wide"><span data-i18n="arena.seed"></span><input id="seed" type="text" inputmode="numeric" value="45" maxlength="20" pattern="-?[0-9]+" required spellcheck="false"></label>
+              <label class="wide"><span data-i18n="arena.ambientTemperature"></span><input id="ambient-temperature" type="number" min="-100" max="100" step="any" value="-15" required></label>
+              <label class="wide"><span data-i18n="arena.timeLimit"></span><input id="time-limit" type="number" min="0.05" step="any" placeholder="N/A" aria-describedby="time-limit-hint"></label>
+            </div>
+            <p id="time-limit-hint" class="hint" data-i18n="arena.timeLimitHint"></p>
+            <label class="checkbox"><input id="hunger-drain" type="checkbox" checked><span data-i18n="arena.hungerDrain"></span></label>
+            <p class="hint" data-i18n="arena.environmentHint"></p>
+            <p class="hint" data-i18n="arena.seedHint"></p>
+            <label class="checkbox"><input id="mounted" type="checkbox"><span data-i18n="arena.mounted"></span></label>
+            <label id="mounted-ammo-field" hidden><span data-i18n="arena.mountedAmmo"></span><input id="mounted-ammo" type="number" min="0" step="1" value="5000" required></label>
+            <div class="section-heading"><h3 data-i18n="arena.inventory"></h3><span id="slot-target" class="hint"></span></div>
+            <p class="hint" data-i18n="arena.inventoryHint"></p>
+            <div id="inventory" class="inventory"></div>
+            <label class="search-label"><span data-i18n="arena.search"></span><input id="search" type="search" autocomplete="off" data-i18n-placeholder="arena.searchPlaceholder"></label>
+            <p id="search-count" class="hint" aria-live="polite"></p>
+            <div id="results" class="results"></div>
+            <p id="unused-warning" class="hint warning" data-i18n="arena.unusedHint" hidden></p>
+            <label id="password-field" hidden><span data-i18n="arena.password"></span><input id="password" type="password" autocomplete="current-password"></label>
+            <section class="item-preview" aria-labelledby="item-heading" aria-live="polite">
+              <h3 id="item-heading" data-i18n="arena.itemInfo"></h3>
+              <div id="item-description"></div>
+            </section>
+          </fieldset>
+        </form>
+      </section>
+      <section class="panel battle" aria-labelledby="battle-heading">
+        <div class="battle-header"><div><h2 id="battle-heading" data-i18n="arena.live"></h2><span id="status" role="status" data-i18n="arena.loading"></span></div><div class="battle-controls"><button id="sound-button" type="button" aria-pressed="true"></button><button id="music-button" type="button" aria-pressed="true"></button><button id="pause" type="button" disabled data-i18n="arena.pause"></button></div></div>
+        <div class="stage"><canvas id="world" data-i18n-aria-label="arena.map"></canvas><div id="stage-hint" data-i18n="arena.waitingHint"></div></div>
+        <div class="timeline">
+          <label for="timeline" data-i18n="arena.timeline"></label>
+          <input id="timeline" type="range" min="0" max="0" value="0" step="1" disabled>
+          <div class="timeline-controls"><span id="timeline-time">0.00 / 0.00 s</span><button id="return-live" type="button" disabled data-i18n="arena.returnLive"></button></div>
+          <div id="replay-controls" class="replay-controls" hidden>
+            <button id="replay-play" type="button" data-i18n="arena.playReplay"></button>
+            <label for="replay-speed" data-i18n="arena.playbackSpeed"></label>
+            <select id="replay-speed"><option value="0.5">0.5x</option><option value="1" selected>1.0x</option><option value="1.25">1.25x</option><option value="1.5">1.5x</option><option value="2">2.0x</option></select>
+          </div>
+          <p class="hint" data-i18n="arena.timelineHint"></p>
+        </div>
+        <div class="metrics">
+          <div><span data-i18n="arena.elapsed"></span><strong id="elapsed">0.00 s</strong></div>
+          <div><span data-i18n="arena.monsters"></span><strong id="alive">0</strong></div>
+          <div><span data-i18n="arena.kills"></span><strong id="kills">0</strong></div>
+          <div><span data-i18n="arena.temperature"></span><strong id="temperature">—</strong></div>
+          <div><span data-i18n="arena.hunger"></span><strong id="hunger">—</strong></div>
+          <div><span data-i18n="arena.ammo"></span><strong id="mounted-remaining">—</strong></div>
+        </div>
+        <div class="battle-details"><p id="decision"></p><h3 data-i18n="arena.currentInventory"></h3><div id="current-inventory" class="current-inventory"></div><p class="hint" data-i18n="arena.timeNote"></p></div>
+        <details class="rules"><summary data-i18n="arena.ai.bold"></summary><p data-i18n="arena.policy"></p><p data-i18n="arena.rules"></p></details>
+      </section>
+    </div>
+    <section class="panel history" aria-labelledby="history-heading">
+      <div class="section-heading"><h2 id="history-heading" data-i18n="arena.history"></h2><div class="history-actions"><button id="history-refresh" type="button" data-i18n="arena.historyRefresh"></button><button id="history-delete-all" type="button" disabled data-i18n="arena.historyDeleteAll"></button></div></div>
+      <p class="hint" data-i18n="arena.historyHint"></p><p id="history-directory" class="hint"></p>
+      <div id="history-list" class="history-list" aria-live="polite"></div>
+    </section>
+  </main>
+</body>
+</html>

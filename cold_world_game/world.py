@@ -12,6 +12,7 @@ from .admin import Administration, admin_id
 from .combat import Combat
 from .constants import STARVATION_AMBIENT, STARVATION_HUNGER, STARVATION_TEMPERATURE, WORLD_START_HOUR
 from .constants import NAVIGATION_ITEMS
+from .constants import GROUND_ITEM_UNSEEN_SECONDS
 from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BODY_TEMPERATURE_RATES, BULLET_BLOCKERS, BURN_SECONDS, CHAINSAW_CHANCE, CHUNK_SIZE, DAY_SECONDS, DEFAULT_VIEWPORT, DEFIBRILLATOR_CHANCE, DRINKS, DROP_DISTANCE, EQUIPPED_ITEMS, EXPLOSIVE_WEAPONS, FAST_MONSTER_SPEED, FIRST_AID_KIT_CHANCE, FLAME_STAFF_CHANCE, FOODS, GRENADE_CHANCE, GUNS, HARVEST_TOOLS, GUN_MACHINE_CHANCE, HEALING_ITEMS, HOMING_MISSILE_CHANCE, HEAT_PATCH_CHANCE, ICE_STAFF, ICE_STAFF_CHANCE, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, LANDMINE_CHANCE, MACHINE_OFFERS, MATCH_MACHINE_CHANCE, MAX_COINS, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_SPEED, NIGHT_MONSTER_HOURS, OPAQUE, PASSIVE_ITEMS, PICKUP_RADIUS, PIGGY_BANK_CHANCE, PLAYER_SPEED, READY_TO_EAT_FOODS, RECIPES, RETURN_ITEMS, RETURN_STAFF_CHANCE, REVIVAL_ITEMS, SEASONS, SEASON_DAYS, SEASON_OFFSETS, SHERIFF_BADGE_CHANCE, SMALL_MONSTER_FOOD_CHANCE, SMALL_MONSTER_FOOD_WEIGHTS, SOLID, SWIFTNESS_RING_CHANCE, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS, VODKA_CHANCE
 from .expansion import DURIAN_CHANCE, EXPANSION_CATEGORIES, EXPANSION_ITEMS, carried_modifier
 from .room_machines import ROOM_MACHINES
@@ -355,7 +356,7 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                 self.update_fires(seconds)
                 for player_id in list(self.online):
                     player, controls = self.players[player_id], self.controls[player_id]
-                    if time.monotonic() - controls.last_input > 1:
+                    if self.input_expired(controls):
                         controls.move_x = controls.move_y = 0.0
                         controls.velocity_x = controls.velocity_y = 0.0
                         controls.stop_attack()
@@ -372,10 +373,14 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                     self.update_player_attack(player, controls, seconds)
                     self.pickup(player)
                     self.validate_container(player, controls)
+                self.update_ground_items()
                 self.detonate_mines()
                 self.spawn_monster()
                 if self._persistence is None and self.elapsed >= self.next_save and self._backup is None:
                     self.touch()
+
+    def input_expired(self, controls):
+        return time.monotonic() - controls.last_input > 1
 
     @contextmanager
     def monster_collisions(self):
@@ -539,6 +544,9 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
             ceiling = STARVATION_TEMPERATURE if starving else 36.0
             player.temperature = max(0.0, min(ceiling, player.temperature + self.body_temperature_rate(ambient) * seconds / 60))
 
+    def drain_hunger(self, player, seconds):
+        player.hunger = max(0.0, player.hunger - seconds / 60 * carried_modifier(player, "hunger_drain_multiplier", minimum=True))
+
     def update_player(self, player, controls, seconds):
         previous_temperature = player.temperature
         excited_seconds = min(seconds, player.excitement_remaining)
@@ -548,7 +556,7 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
         if seconds > excited_seconds:
             ambient = self.actual_temperature_at(player) + carried_modifier(player, "ambient_bonus", 0.0)
             self.change_body_temperature(player, ambient, seconds - excited_seconds)
-        player.hunger = max(0.0, player.hunger - seconds / 60 * carried_modifier(player, "hunger_drain_multiplier", minimum=True))
+        self.drain_hunger(player, seconds)
         if (previous_temperature < 5) != (player.temperature < 5):
             controls.movement_epoch += 1
         if player.temperature < 5:
@@ -571,6 +579,21 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                 self.ensure_terrain(player.x, player.y)
         else:
             controls.velocity_x = controls.velocity_y = 0.0
+
+    def update_ground_items(self):
+        viewers = [(self.players[identifier], self.controls[identifier]) for identifier in sorted(self.online)]
+        for identifier, ground in list(self.ground.items()):
+            seen = any(abs(ground.x - player.x) <= min(20, controls.view_width / 2 + 0.285) and abs(ground.y - player.y) <= min(13, controls.view_height / 2 + 0.33) for player, controls in viewers)
+            if seen:
+                if ground.unseen_since is not None:
+                    self.touch()
+                    ground.unseen_since = None
+            elif ground.unseen_since is None:
+                self.touch()
+                ground.unseen_since = self.elapsed
+            elif self.elapsed - ground.unseen_since + 1e-9 >= GROUND_ITEM_UNSEEN_SECONDS:
+                self.touch()
+                del self.ground[identifier]
 
     def pickup(self, player):
         empty_slots = ((storage, slot) for storage in (player.inventory, player.backpack) for slot, item in enumerate(storage) if item is None)

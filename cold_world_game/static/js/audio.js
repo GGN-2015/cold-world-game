@@ -1,7 +1,7 @@
-const clips = ['chainsaw', 'handgun', 'shotgun', 'rifle', 'eat', 'place', 'hurt', 'chop', 'break', 'hit', 'axe', 'monster_attack', 'monster_death', 'throw', 'explosion'];
+const clips = ['chainsaw', 'handgun', 'shotgun', 'rifle', 'eat', 'place', 'hurt', 'chop', 'break', 'hit', 'ricochet', 'axe', 'monster_attack', 'monster_death', 'throw', 'explosion'];
 
 export class GameAudio extends EventTarget {
-  constructor() {
+  constructor({ preferenceKey = 'cold-world-muted-v1' } = {}) {
     super();
     this.context = null;
     this.master = null;
@@ -10,8 +10,9 @@ export class GameAudio extends EventTarget {
     this.sequence = 0;
     this.suppressedUntil = 0;
     this.muted = false;
+    this.preferenceKey = preferenceKey;
     this.available = Boolean(window.AudioContext || window.webkitAudioContext);
-    try { this.muted = localStorage.getItem('cold-world-muted-v1') === 'true'; } catch {}
+    try { this.muted = preferenceKey ? localStorage.getItem(preferenceKey) === 'true' : false; } catch {}
     this.rawBuffers = this.available ? this.load().catch(() => {
       this.available = false;
       this.dispatchEvent(new Event('change'));
@@ -51,7 +52,7 @@ export class GameAudio extends EventTarget {
 
   toggleMute() {
     this.muted = !this.muted;
-    try { localStorage.setItem('cold-world-muted-v1', String(this.muted)); } catch {}
+    try { if (this.preferenceKey) localStorage.setItem(this.preferenceKey, String(this.muted)); } catch {}
     if (this.master) this.master.gain.value = this.muted ? 0 : 0.45;
     if (this.muted) this.stopAll();
     else this.unlock();

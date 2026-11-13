@@ -70,18 +70,24 @@ class Monsters:
             return False
         return len(self.monsters) + 1 <= MONSTER_LIMIT * (1 + farthest / MONSTER_LIMIT_GROWTH_DISTANCE)
 
+    def monster_spawn_radius(self, stream):
+        return math.sqrt(stream.uniform(20 ** 2, 120 ** 2))
+
+    def monster_perceives(self, monster, player):
+        return True
+
     def spawn_monster(self):
         if not self.online or not self.monster_spawn_available():
             return
         stream = self.event_random("spawn")
         player = self.players[stream.choice(sorted(self.online))]
         angle = stream.uniform(0, math.tau)
-        radius = math.sqrt(stream.uniform(20 ** 2, 120 ** 2))
+        radius = self.monster_spawn_radius(stream)
         position_x = player.x + math.cos(angle) * radius
         position_y = player.y + math.sin(angle) * radius
         if not self.generated(position_x, position_y) or self.structure_at(tile(position_x), tile(position_y)):
             return
-        if any(math.hypot(position_x - self.players[player_id].x, position_y - self.players[player_id].y) < 20 for player_id in self.online):
+        if any(math.hypot(position_x - self.players[player_id].x, position_y - self.players[player_id].y) < 20 - 1e-9 for player_id in self.online):
             return
         if not self.can_stand(position_x, position_y, monster_id="spawning"):
             return
@@ -142,15 +148,16 @@ class Monsters:
             if target is None or not (xray or monster.big) and distance(monster, target) > 40:
                 self.clear_target(monster)
                 target = None
-            can_see = target is not None and (xray or self.visible(monster.x, monster.y, target.x, target.y))
-            if target is not None and (monster.big or can_see):
+            perceives = target is not None and self.monster_perceives(monster, target)
+            can_see = perceives and (xray or self.visible(monster.x, monster.y, target.x, target.y))
+            if perceives and (monster.big or can_see):
                 monster.seen_x, monster.seen_y = target.x, target.y
                 monster.last_seen = self.elapsed
             elif target is not None and self.elapsed - monster.last_seen >= 8:
                 self.clear_target(monster)
                 target = None
             if target is None:
-                candidates = [player for player in standing_players.values() if xray or distance(monster, player) <= 32 and self.visible(monster.x, monster.y, player.x, player.y)]
+                candidates = [player for player in standing_players.values() if self.monster_perceives(monster, player) and (xray or distance(monster, player) <= 32 and self.visible(monster.x, monster.y, player.x, player.y))]
                 if candidates:
                     target = min(candidates, key=lambda player: (distance(monster, player), player.id))
                     self.set_monster_target(monster, target)

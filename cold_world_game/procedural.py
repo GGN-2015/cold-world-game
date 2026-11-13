@@ -207,6 +207,8 @@ def plan(seed, horizontal, vertical, settings):
             if feature.random() < definition["chance"]:
                 occupied = {(structure.x, structure.y) for structure in objects}
                 candidates = [(center_x + offset_x, center_y + offset_y) for offset_x in range(-6, 7) for offset_y in range(-6, 7) if (center_x + offset_x, center_y + offset_y) not in occupied]
+                if settings["version"] >= 22 and kind == "mounted_gun":
+                    candidates = [position for position in candidates if (position[0] + 1, position[1]) not in occupied]
                 if candidates:
                     objects.append(Structure(kind, *feature.choice(candidates), ammo=definition.get("ammo")))
     for structure in objects:

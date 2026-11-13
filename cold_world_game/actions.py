@@ -277,6 +277,9 @@ class Actions:
             raise GameError("out_of_range", "Placement must be within 3 units in a generated chunk")
         if self.structure_at(target_x, target_y):
             raise GameError("occupied", "This tile is occupied")
+        neighbor = self.structure_at(target_x - 1, target_y)
+        if item.kind != "floor" and neighbor is not None and neighbor.kind == "mounted_gun":
+            raise GameError("seat_exit_reserved", "Only flooring can be placed to the right of a mounted gun")
         if item.kind in CONTAINERS:
             for offset_x, offset_y in DIRECTIONS:
                 neighbor = self.structure_at(target_x + offset_x, target_y + offset_y)

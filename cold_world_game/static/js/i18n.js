@@ -1,7 +1,9 @@
 import { expansionMessages } from './expansion-data.js';
 import { roomMachineMessages } from './machine-data.js';
+import { arenaMessages } from './arena-copy.js';
 
 const messages = {
+  ...arenaMessages,
   'item.landmine': ['地雷', 'Landmine'],
   'item.park_bench': ['公园椅子', 'Park bench'],
   'item.mounted_gun': ['固定机枪', 'Mounted machine gun'],
@@ -19,6 +21,8 @@ const messages = {
   'error.invalid_seat': ['这个座位已经不存在。', 'This seat no longer exists.'],
   'error.seat_occupied': ['另一个玩家正在使用这个座位。', 'Another player is already using this seat.'],
   'error.seat_unsafe': ['机枪2格内有怪物，暂时不能坐上去。', 'A monster is within 2 tiles of the mounted gun.'],
+  'error.seat_empty': ['机枪弹药已耗尽，不能入座。', 'This mounted gun is empty and cannot be occupied.'],
+  'error.seat_exit_reserved': ['机枪右侧是下座出口，只能铺设地板。', 'The tile to the right of a mounted gun is an exit; only flooring is allowed.'],
   'music.on': ['配乐 开', 'BGM On'],
   'music.off': ['配乐 关', 'BGM Off'],
   'music.enable': ['开启背景钢琴配乐', 'Enable piano background music'],
@@ -498,15 +502,15 @@ try {
 
 export const getLanguage = () => language;
 export const hasTranslation = (key) => Object.hasOwn(messages, key);
-export function t(key, parameters = {}) {
-  const message = messages[key]?.[language === 'en' ? 1 : 0] ?? key;
+export function t(key, parameters = {}, locale = language) {
+  const message = messages[key]?.[locale === 'en' ? 1 : 0] ?? key;
   return message.replace(/\{(\w+)\}/g, (match, name) => String(parameters[name] ?? match));
 }
 
 export function translatePage() {
   document.documentElement.lang = language === 'en' ? 'en' : 'zh-CN';
-  document.title = t('page.title');
-  document.querySelector('meta[name="description"]').content = t('page.description');
+  document.title = t(document.body.dataset.pageTitle || 'page.title');
+  document.querySelector('meta[name="description"]').content = t(document.body.dataset.pageDescription || 'page.description');
   for (const node of document.querySelectorAll('[data-i18n]')) node.textContent = t(node.dataset.i18n);
   for (const node of document.querySelectorAll('[data-i18n-html]')) node.innerHTML = t(node.dataset.i18nHtml);
   for (const attribute of ['title', 'aria-label', 'placeholder', 'alt']) {

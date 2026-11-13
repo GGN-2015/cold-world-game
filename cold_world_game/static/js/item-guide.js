@@ -1,8 +1,9 @@
 import { buildings, containers, itemDetail } from './catalog.js';
-import { t } from './i18n.js';
+import { t as translate } from './i18n.js';
 
-export function itemGuide(item, catalog) {
+export function itemGuide(item, catalog, language) {
   if (!item) return null;
+  const t = (key, parameters) => translate(key, parameters, language);
   const kind = item.kind;
   let category, effect, use;
   if (catalog.expansion_items?.[kind]) {

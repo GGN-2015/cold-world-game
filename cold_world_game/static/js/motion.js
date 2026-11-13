@@ -48,7 +48,7 @@ class ProjectileMotion {
       }
       track.velocity = velocity;
       track.hostile = Boolean(entity.hostile);
-      track.renderVelocity = state.paused || entity.downed ? { x: 0, y: 0 } : velocity;
+      track.renderVelocity = entity.downed ? { x: 0, y: 0 } : velocity;
       track.serverX = entity.x;
       track.serverY = entity.y;
       track.serverTime = state.elapsed;

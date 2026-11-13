@@ -16,6 +16,10 @@ def parser():
     game = commands.add_parser("game", help="Start the browser game server", description="Start the Flask/WebSocket game server")
     game_arguments(game)
     game.set_defaults(handler=run_game, command_parser=game)
+    from . import arena
+    arena_command = commands.add_parser("arena", help="Start the isolated weapon arena server", description="Live, deterministic weapon trials without opening a game save")
+    arena.configure_parser(arena_command)
+    arena_command.set_defaults(handler=arena.run, command_parser=arena_command)
     tests = commands.add_parser("test", help="Run isolated performance tests", description="Performance tests use disposable worlds and never open the game save")
     tests.set_defaults(handler=None, command_parser=tests)
     checks = tests.add_subparsers(title="tests")

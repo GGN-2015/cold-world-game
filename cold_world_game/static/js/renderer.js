@@ -47,11 +47,13 @@ function demoWorld() {
 }
 
 export class WorldRenderer {
-  constructor(canvas, images, animations = {}, effects = {}, catalog = {}) {
+  constructor(canvas, images, animations = {}, effects = {}, catalog = {}, viewport = null) {
     this.canvas = canvas;
     this.context = canvas.getContext('2d', { alpha: false });
     this.images = images;
     this.catalog = catalog;
+    this.fixedViewport = viewport;
+    this.recordedFrames = false;
     this.animator = new ActorAnimator(animations);
     this.effects = new CombatEffects(effects);
     this.collision = new CollisionMap(catalog);
@@ -79,7 +81,7 @@ export class WorldRenderer {
     this.canvas.height = Math.round(this.height * ratio);
     this.context.setTransform(ratio, 0, 0, ratio, 0, 0);
     this.context.imageSmoothingEnabled = false;
-    this.scale = isMobileDevice ? Math.max(this.width / 28, this.height / 24) : this.width / 32;
+    this.scale = this.fixedViewport ? this.width / this.fixedViewport[0] : isMobileDevice ? Math.max(this.width / 28, this.height / 24) : this.width / 32;
     this.pixelRatio = ratio;
     this.snow = null;
     this.projectileGlows = new Map();
@@ -157,7 +159,7 @@ export class WorldRenderer {
   }
 
   smooth(entity) {
-    const point = this.state ? (entity.id === this.state.you.id && this.movement.enabled ? this.movement.sample() : this.motion.sample(entity)) : { x: entity.x, y: entity.y };
+    const point = this.state && !this.recordedFrames ? (entity.id === this.state.you.id && this.movement.enabled ? this.movement.sample() : this.motion.sample(entity)) : { x: entity.x, y: entity.y };
     const previous = this.positions.get(entity.id) || point;
     const displacement = distance(previous, point);
     this.positions.set(entity.id, point);
@@ -198,13 +200,13 @@ export class WorldRenderer {
     this.effects.advance(delta);
     this.fps += (1 / Math.max(delta, 0.001) - this.fps) * 0.04;
     const state = this.state || this.demo;
-    this.motion.advance(delta);
+    if (!this.recordedFrames) this.motion.advance(delta);
     const monsters = state.monsters.map((entity) => this.smooth(entity));
-    const worldTime = state.elapsed + (state.paused ? 0 : Math.max(0, Math.min(0.3, performance.now() / 1000 - this.motion.arrival)));
+    const worldTime = state.elapsed + (this.recordedFrames || state.paused ? 0 : Math.max(0, Math.min(0.3, performance.now() / 1000 - this.motion.arrival)));
     this.movement.selected = this.selected;
-    this.movement.advance(delta, monsters);
+    if (!this.recordedFrames) this.movement.advance(delta, monsters);
     const players = state.players.map((entity) => this.smooth(entity));
-    if (this.state) this.animator.observe({ elapsed: this.motion.time ?? state.elapsed, paused: state.paused, players, monsters });
+    if (this.state) this.animator.observe({ elapsed: this.recordedFrames ? state.elapsed : this.motion.time ?? state.elapsed, paused: state.paused, players, monsters });
     const local = players.find((entity) => entity.id === state.you.id) || state.you;
     if (this.state) {
       this.camera.x = local.x;
@@ -264,7 +266,7 @@ export class WorldRenderer {
           this.effects.frame(this, 'fx_sleep_zzz', entity.x + pose.x + 0.28, entity.y + pose.y - (entity.big ? 1.15 : 0.9), entity.big ? 0.95 : 0.8, sleepPhase - Math.floor(sleepPhase));
         } else if (entity.big && entity.rising != null) {
           const duration = this.catalog.monster_activity?.rise_seconds ?? 1;
-          const elapsed = state.paused ? 0 : Math.max(0, Math.min(0.3, performance.now() / 1000 - this.motion.arrival));
+          const elapsed = this.recordedFrames || state.paused ? 0 : Math.max(0, Math.min(0.3, performance.now() / 1000 - this.motion.arrival));
           this.effects.frame(this, 'monster_big_rise', entity.x, entity.y - 0.3, 1.6, Math.min(1, entity.rising + elapsed / duration), 0, 1.9);
         } else {
           const kind = `monster_${entity.species || (entity.big ? 'big' : entity.fast ? 'fast' : 'small')}`;
@@ -289,10 +291,10 @@ export class WorldRenderer {
       context.fillRect(point.x - radius, point.y - radius, radius * 2, radius * 2);
       this.sprite('spark', fire.x + Math.sin(this.elapsed * 2) * 0.12, fire.y - (this.elapsed * 0.8 % 1) - 0.4, 0.3);
     }
-    this.drawProjectiles(state.projectiles.filter((projectile) => !this.catalog.explosive_weapons?.[projectile.kind] && projectile.kind !== 'homing_missile').map((projectile) => ({ ...projectile, ...this.motion.sample(projectile) })));
+    this.drawProjectiles(state.projectiles.filter((projectile) => !this.catalog.explosive_weapons?.[projectile.kind] && projectile.kind !== 'homing_missile').map((projectile) => this.recordedFrames ? projectile : ({ ...projectile, ...this.motion.sample(projectile) })));
     for (const projectile of state.projectiles) {
       if (projectile.kind === 'homing_missile') {
-        const missileTime = this.motion.time == null ? worldTime : this.motion.time + (state.paused ? 0 : this.motion.delay);
+        const missileTime = this.recordedFrames || this.motion.time == null ? worldTime : this.motion.time + (state.paused ? 0 : this.motion.delay);
         const point = homingPosition(projectile, missileTime, this.catalog.guns.homing_missile, this.positions.get(projectile.target_id));
         if (visible(point)) this.sprite(point.asset, point.x, point.y, 0.8);
         continue;

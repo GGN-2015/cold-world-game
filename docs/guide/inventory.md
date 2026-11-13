@@ -38,6 +38,10 @@
 
 普通物品必须在玩家中心欧氏距离0.75米内、交互路径畅通，且物品栏或背包有空位时才自动拾取。优先从左到右填入10格物品栏的空位，物品栏满后再填入30格背包的空位；两者都满则留在地面，不覆盖已有物品，也不自动切换选中格。拾荒手套可增加半径；硬币直接计入金钱，不受格位限制。自己的手动丢弃物有1秒拾取冷却，其他玩家可立即按条件拾取。这里的优先顺序只适用于地面自动拾取，制作、兑换、管理员给予和容器取物仍遵守各自的存放规则。
 
+地面掉落物连续离开所有在线玩家画面180秒后清理。站立和倒地玩家均计入观看者，按各自实际视口及掉落物贴图边缘判定；只要有人能看见就不计时，再次被看见立即重置，下一次无人观看重新计满180秒。计时使用世界模拟秒，世界暂停或服务器关闭期间不推进；剩余计时随存档保存，旧存档缺少计时字段时从未开始计时读取。
+
+Ground drops expire after 180 continuous simulation seconds outside every online player's viewport, including downed players. Visibility resets the timer; a later unseen period starts a fresh three minutes. The timer persists across saves and does not advance while the world is paused or the server is stopped. Older saves default to an unstarted timer.
+
 ## 即时显示与原子保存
 
 拖放、Shift点击、双击和手机转移会先本地即时预览，再依序发送请求，不等待每次往返才更新格子。服务器确认后合并，操作拒绝时以权威结果回退；不会重新创建整套格子或中断正在输入的数量。

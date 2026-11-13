@@ -85,6 +85,14 @@ def hit(seconds, generator):
     return envelope * (impact * 0.6 + generator.uniform(-1, 1) * 0.3)
 
 
+def ricochet(seconds, generator):
+    envelope = min(1.0, seconds / 0.001) * math.exp(-seconds * 15)
+    ping = math.sin(math.tau * (2300 * seconds - 1600 * seconds * seconds))
+    metal = math.sin(math.tau * 3470 * seconds) * math.exp(-seconds * 23)
+    click = generator.uniform(-1, 1) * math.exp(-seconds * 140)
+    return envelope * (ping * 0.42 + metal * 0.2 + click * 0.3)
+
+
 def swing(seconds, generator, monster=False):
     center = 0.1 if monster else 0.065
     envelope = math.exp(-((seconds - center) / (0.055 if monster else 0.035)) ** 2)
@@ -137,13 +145,14 @@ def main():
     export("chop", 0.2, chop)
     export("break", 0.4, wood_break)
     export("hit", 0.25, hit)
+    export("ricochet", 0.28, ricochet)
     export("axe", 0.3, axe_sweep)
     export("chainsaw", 0.3, chainsaw)
     export("monster_attack", 0.3, lambda seconds, generator: swing(seconds, generator, monster=True))
     export("monster_death", 0.65, monster_death)
     export("throw", 0.22, throw)
     export("explosion", 0.65, explosion)
-    print(f"Exported 15 replaceable WAV sound effects to {DESTINATION}")
+    print(f"Exported 16 replaceable WAV sound effects to {DESTINATION}")
 
 
 if __name__ == "__main__":

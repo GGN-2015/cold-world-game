@@ -59,13 +59,16 @@ class Combat:
         else:
             controls.stop_attack()
 
+    def homing_targets(self, player):
+        return self.monsters.values()
+
     def fire_gun(self, player, controls, item):
         if self.elapsed + 1e-9 < player.next_shot or player.last_shot_tick == self.tick_number:
             return
         direction_x, direction_y = normalized(controls.aim_x - player.x, controls.aim_y - player.y)
         target = None
         if item.kind == "homing_missile":
-            target = min((monster for monster in self.monsters.values() if monster.hp > 0), key=lambda monster: ((monster.x - player.x) ** 2 + (monster.y - player.y) ** 2, monster.id), default=None)
+            target = min((monster for monster in self.homing_targets(player) if monster.hp > 0), key=lambda monster: ((monster.x - player.x) ** 2 + (monster.y - player.y) ** 2, monster.id), default=None)
             if target is None:
                 return
             if direction_x == direction_y == 0:
@@ -100,7 +103,8 @@ class Combat:
                 projectile.remaining = self.projectile_range(projectile)
             self.projectiles[projectile.id] = projectile
         if item.ammo == 0:
-            player.inventory[player.selected] = None
+            if player.inventory[player.selected] is item:
+                player.inventory[player.selected] = None
             controls.stop_attack()
 
     def eat(self, player, controls, item, seconds):
@@ -559,7 +563,7 @@ class Combat:
                 if not (left <= player.x <= right and top <= player.y <= bottom):
                     continue
                 seat = self.seated_structure(self.controls[player_id])
-                if player.temperature <= 0 or player_id == projectile.owner or (projectile.hostile and (player.temperature < 5 or seat and seat.kind == "mounted_gun" and projectile.weapon_kind in {None, "monster_big"})):
+                if player.temperature <= 0 or player_id == projectile.owner or (projectile.hostile and (player.temperature < 5 or seat and seat.kind == "mounted_gun")):
                     continue
                 fraction = segment_circle(projectile.x, projectile.y, end_x, end_y, player.x, player.y)
                 if fraction is not None:
@@ -572,6 +576,8 @@ class Combat:
             blocked = False
             for fraction, priority, kind, target in sorted(candidates, key=lambda candidate: (candidate[0], candidate[1])):
                 if kind == "structure":
+                    if projectile.hostile and target.kind == "mounted_gun":
+                        self.emit_event("ricochet", projectile.owner, "mounted_gun", projectile.x + (end_x - projectile.x) * fraction, projectile.y + (end_y - projectile.y) * fraction, target=target.id)
                     blocked = True
                     break
                 target_key = f"{kind}:{target.id}"

@@ -111,7 +111,7 @@ export function plan(seed,horizontal,vertical,settings) {
     for(const [kind,definition]of Object.entries(settings.outdoors)) {
       const feature=new RandomStream(derive(base,'feature',definition.stream));if(feature.random()>=definition.chance)continue;
       const occupied=new Set(objects.map(object=>object.position)),candidates=[];
-      for(let offsetX=-6;offsetX<=6;offsetX++)for(let offsetY=-6;offsetY<=6;offsetY++){const position=key(centerX+offsetX,centerY+offsetY);if(!occupied.has(position))candidates.push(position);}
+      for(let offsetX=-6;offsetX<=6;offsetX++)for(let offsetY=-6;offsetY<=6;offsetY++){const position=key(centerX+offsetX,centerY+offsetY);if(!occupied.has(position)&&(settings.version<22||kind!=='mounted_gun'||!occupied.has(key(centerX+offsetX+1,centerY+offsetY))))candidates.push(position);}
       if(candidates.length)objects.push({kind,position:feature.choice(candidates)});
     }
   }

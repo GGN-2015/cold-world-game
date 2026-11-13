@@ -15,11 +15,12 @@ export function visibleThreat(state, camera, viewport, positions, types = {}) {
 }
 
 export class GameMusic extends EventTarget {
-  constructor() {
+  constructor({ preferenceKey = 'cold-world-music-muted-v1' } = {}) {
     super();
     this.available = Boolean(window.AudioContext || window.webkitAudioContext);
     this.muted = false;
-    try { this.muted = localStorage.getItem('cold-world-music-muted-v1') === 'true'; } catch {}
+    this.preferenceKey = preferenceKey;
+    try { this.muted = preferenceKey ? localStorage.getItem(preferenceKey) === 'true' : false; } catch {}
     this.tracks = [];
     this.urls = new Map();
     this.slots = [];
@@ -80,7 +81,7 @@ export class GameMusic extends EventTarget {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         this.context = new AudioContext();
         this.master = this.context.createGain();
-        this.master.gain.value = 0.075;
+        this.master.gain.value = 0.10;
         this.master.connect(this.context.destination);
         for (let index = 0; index < 2; index++) {
           const audio = new Audio();
@@ -153,7 +154,7 @@ export class GameMusic extends EventTarget {
 
   toggle() {
     this.muted = !this.muted;
-    try { localStorage.setItem('cold-world-music-muted-v1', String(this.muted)); } catch {}
+    try { if (this.preferenceKey) localStorage.setItem(this.preferenceKey, String(this.muted)); } catch {}
     if (this.muted) this.fadeOut();
     else { clearTimeout(this.fadeTimer); this.unlock(); this.nextAt = 0; }
     this.changed();

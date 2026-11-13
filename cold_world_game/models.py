@@ -1,12 +1,27 @@
 from dataclasses import dataclass, field, is_dataclass
+from contextlib import contextmanager
+from contextvars import ContextVar
 from uuid import uuid4
 
 from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, GUNS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MELEE_WEAPONS, RETURN_ITEMS
 from .wildlife import MONSTER_TYPES
 
 
+_identifier_factory = ContextVar("cold_world_identifier_factory", default=None)
+
+
 def identifier() -> str:
-    return uuid4().hex
+    factory = _identifier_factory.get()
+    return factory() if factory is not None else uuid4().hex
+
+
+@contextmanager
+def identifier_scope(factory):
+    token = _identifier_factory.set(factory)
+    try:
+        yield
+    finally:
+        _identifier_factory.reset(token)
 
 
 @dataclass
@@ -110,6 +125,7 @@ class GroundItem:
     id: str = field(default_factory=identifier)
     dropped_by: str | None = None
     immune_until: float = 0.0
+    unseen_since: float | None = None
 
 
 @dataclass

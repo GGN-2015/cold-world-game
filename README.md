@@ -25,10 +25,11 @@ uv run cold-world-game game --host 0.0.0.0 --password your-password --save-path 
 
 ## 统一命令入口
 
-`uv run cold-world-game game ...` 启动游戏，`uv run cold-world-game test ...` 运行隔离测试；直接运行根命令或 `test` 只显示帮助，不会启动服务器或压测。
+`uv run cold-world-game game ...` 启动游戏，`uv run cold-world-game arena ...` 启动独立武器试验场，`uv run cold-world-game test ...` 运行隔离测试；直接运行根命令或 `test` 只显示帮助，不会启动服务器或压测。
 
 ```sh
 uv run cold-world-game game --help
+uv run cold-world-game arena --help
 uv run cold-world-game test --help
 uv run cold-world-game test terrain
 uv run cold-world-game test sync
@@ -36,6 +37,14 @@ uv run --frozen --group benchmark cold-world-game test combat --browser-channel 
 ```
 
 战斗压测需安装 `benchmark` 依赖组，由用户手动执行；安装、参数、延迟与报告说明见[战斗压测手册](docs/development/combat-benchmark.md)，其他测试见[开发维护](docs/development/development.md#测试入口)。
+
+## 武器试验场
+
+```sh
+uv run cold-world-game arena --host 127.0.0.1 --port 5001
+```
+
+打开 `http://127.0.0.1:5001/`，搜索中英文名称或效果描述来编辑 10 格物品栏，设置种子、存活怪物上限、环境温度、饥饿消耗、开局机枪与可选模拟时间上限（留空 N/A）。冒进型 AI 会边打边突围，倒地、武器耗尽或达到时限后结束并保存。支持随时重新模拟、暂停回看、音效/音乐切换、五档回放倍速，以及单条或全部历史删除。历史默认保存在 `~/.cold-world-arena/history`，可通过 `--history-dir` 指定，与正式存档 `~/.cold-world-game` 分开。试验场使用独立内存世界，不打开正式 SQLite 存档，不需要 `benchmark` 依赖。局域网分享建议加 `--host 0.0.0.0 --password your-password`。详见[武器试验场](docs/guide/arena.md)。
 
 ## 手册树
 

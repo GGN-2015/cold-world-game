@@ -35,6 +35,7 @@ export class ActorAnimator {
       motion.moving = timeStep > 0 && !state.paused && !entity.downed && !entity.sleeping && entity.rising == null && displacement > 0.00001 && displacement <= 5 && Math.hypot(directionX, directionY) > 0.00001;
       if (motion.moving) motion.direction = movementDirection(directionX, directionY, motion.direction);
       else motion.travel = 0;
+      if (['up', 'down', 'left', 'right'].includes(entity.facing)) motion.direction = entity.facing;
       motion.x = entity.x;
       motion.y = entity.y;
       this.actors.set(entity.id, motion);

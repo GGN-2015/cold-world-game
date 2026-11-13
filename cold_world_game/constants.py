@@ -4,6 +4,7 @@ from .room_machines import ROOM_MACHINES
 TICK_RATE = 20
 CHUNK_SIZE = 15
 BODY_RADIUS = 0.35
+GROUND_ITEM_UNSEEN_SECONDS = 180.0
 PLAYER_SPEED = 4.0
 MONSTER_SPEED = 1.2
 FAST_MONSTER_SPEED = PLAYER_SPEED * 1.2
@@ -19,7 +20,7 @@ BACKPACK_SLOTS = 30
 DROP_DISTANCE = 2.0
 PICKUP_RADIUS = 0.75
 WORLD_RADIUS = 120
-TERRAIN_VERSION = 21
+TERRAIN_VERSION = 22
 CHEST_GUN_CHANCE = 0.2
 LANDMINE_CHANCE = 0.02
 CHAINSAW_CHANCE = 0.02
@@ -103,7 +104,7 @@ CONTAINERS = frozenset({"chest", "campfire", "piggy_bank"}) | TRADING_MACHINES
 SOLID = frozenset({"tree", "wall", "fence"}) | CONTAINERS
 OPAQUE = frozenset({"tree", "wall"})
 BULLET_BLOCKERS = frozenset({"tree"})
-MONSTER_BULLET_BLOCKERS = BULLET_BLOCKERS | CONTAINERS
+MONSTER_BULLET_BLOCKERS = BULLET_BLOCKERS | CONTAINERS | {"mounted_gun"}
 DEMOLITION = {"tree": 0.5, "fence": 0.5, "wall": 1.5, "floor": 0.5, "chest": 1.5, "campfire": 1.5, "piggy_bank": 1.5, "vending_machine": 1.5, "match_machine": 1.5, "gun_machine": 1.5}
 DEMOLITION.update({kind: 1.5 for kind in ROOM_MACHINES})
 HARVEST_TOOLS = {"axe": DEMOLITION, "chainsaw": {**DEMOLITION, "tree": 0.25}}

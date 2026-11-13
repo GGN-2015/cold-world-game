@@ -39,6 +39,17 @@ export class CombatEffects {
 
   predict(event) { this.append(event); }
 
+  restore(state) {
+    this.reset(state.event_sequence || 0);
+    for (const event of state.events || []) {
+      if (!lifetimes[event.type] || event.time > state.elapsed) continue;
+      if (event.type === 'death') this.active = this.active.filter(effect => effect.event.actor !== event.actor || !['shot', 'melee', 'chop'].includes(effect.event.type));
+      this.append(event);
+      this.active[this.active.length - 1].age = state.elapsed - event.time;
+    }
+    this.active = this.active.filter(effect => effect.age < effect.duration).slice(-96);
+  }
+
   cancelPrediction(identifier) {
     this.active = this.active.filter((effect) => !effect.event.predicted || effect.event.attack_id !== identifier);
     this.poses = null;
