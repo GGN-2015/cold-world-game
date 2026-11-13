@@ -4,7 +4,7 @@ import time
 from collections import deque
 from functools import lru_cache
 
-from .constants import BODY_RADIUS, CHUNK_SIZE, DAY_SECONDS, ICE_STAFF, KNOCKBACK, MONSTER_DEMOLITION, MONSTER_LIMIT, MONSTER_LIMIT_DOUBLING_DISTANCE, MONSTER_PROJECTILE_SPEED, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_XRAY_CHANCE, NIGHT_MONSTER_HOURS, SOLID
+from .constants import BODY_RADIUS, CHUNK_SIZE, DAY_SECONDS, ICE_STAFF, KNOCKBACK, MONSTER_DEMOLITION, MONSTER_LIMIT, MONSTER_LIMIT_GROWTH_DISTANCE, MONSTER_PROJECTILE_SPEED, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_XRAY_CHANCE, NIGHT_MONSTER_HOURS, SOLID
 from .geometry import DIRECTIONS, distance, normalized, tile
 from .models import Monster, Projectile
 from .wildlife import MONSTER_TYPES
@@ -51,6 +51,13 @@ class Monsters:
         monster.next_demolition_feedback = 0.0
         monster.next_plan = 0.0
 
+    def set_monster_target(self, monster, player):
+        self.clear_target(monster)
+        self._path_jobs.pop(monster.id, None)
+        monster.target = player.id
+        monster.seen_x, monster.seen_y = player.x, player.y
+        monster.last_seen = self.elapsed
+
     def monster_spawn_chances(self):
         hour = self.environment()["hour"]
         start, end = NIGHT_MONSTER_HOURS
@@ -60,10 +67,7 @@ class Monsters:
         farthest = max((math.hypot(player.x, player.y) for player in self.players.values() if player.temperature >= 5), default=None)
         if farthest is None:
             return False
-        population = len(self.monsters)
-        if population < MONSTER_LIMIT:
-            return True
-        return farthest / MONSTER_LIMIT_DOUBLING_DISTANCE >= math.log2((population + 1) / MONSTER_LIMIT)
+        return len(self.monsters) + 1 <= MONSTER_LIMIT * (1 + farthest / MONSTER_LIMIT_GROWTH_DISTANCE)
 
     def spawn_monster(self):
         if not self.online or not self.monster_spawn_available():
@@ -99,7 +103,7 @@ class Monsters:
         if getattr(self, "_xray_night", None) != night:
             self._xray_night = night
             for monster in self.monsters.values():
-                if monster.xray:
+                if monster.xray and not monster.big:
                     self.clear_target(monster)
                     self._path_jobs.pop(monster.id, None)
         inactive = {monster.id for monster in self.monsters.values() if ((monster.big or monster.fast) and resting) or (monster.big and rising is not None)}
@@ -122,17 +126,17 @@ class Monsters:
             self._path_cursor = due[min(len(due), PATH_PLANS_PER_TICK) - 1]
         for monster_id, monster in list(self.monsters.items()):
             xray = monster.xray and night
-            if not xray and all(distance(monster, self.players[player_id]) > 120 for player_id in self.online):
+            target = standing_players.get(monster.target)
+            if not xray and not (monster.big and target is not None) and all(distance(monster, self.players[player_id]) > 120 for player_id in self.online):
                 del self.monsters[monster_id]
                 continue
             if monster_id in inactive:
                 continue
-            target = standing_players.get(monster.target)
-            if target is None or target.temperature < 5 or not xray and distance(monster, target) > 40:
+            if target is None or not (xray or monster.big) and distance(monster, target) > 40:
                 self.clear_target(monster)
                 target = None
             can_see = target is not None and (xray or self.visible(monster.x, monster.y, target.x, target.y))
-            if can_see:
+            if target is not None and (monster.big or can_see):
                 monster.seen_x, monster.seen_y = target.x, target.y
                 monster.last_seen = self.elapsed
             elif target is not None and self.elapsed - monster.last_seen >= 8:
@@ -142,9 +146,7 @@ class Monsters:
                 candidates = [player for player in standing_players.values() if xray or distance(monster, player) <= 32 and self.visible(monster.x, monster.y, player.x, player.y)]
                 if candidates:
                     target = min(candidates, key=lambda player: (distance(monster, player), player.id))
-                    monster.target = target.id
-                    monster.seen_x, monster.seen_y = target.x, target.y
-                    monster.last_seen = self.elapsed
+                    self.set_monster_target(monster, target)
                     can_see = True
             if target is None:
                 self.wander(monster, seconds)
@@ -290,7 +292,7 @@ class Monsters:
         start = tile(monster.x), tile(monster.y)
         goal_x, goal_y = monster.seen_x, monster.seen_y
         span = max(abs(goal_x - start[0]), abs(goal_y - start[1]))
-        if self.monster_has_xray(monster) and span > 32:
+        if (monster.big or self.monster_has_xray(monster)) and span > 32:
             goal_x = start[0] + (goal_x - start[0]) * 32 / span
             goal_y = start[1] + (goal_y - start[1]) * 32 / span
         occupied = set()

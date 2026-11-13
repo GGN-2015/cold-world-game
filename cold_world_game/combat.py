@@ -267,7 +267,7 @@ class Combat:
         controls.ui = False
         controls.stop_attack()
         for monster in self.monsters.values():
-            if monster.target == player.id:
+            if monster.target == player.id and not monster.big:
                 self.clear_target(monster)
         self.emit_event("teleport_out", player.id, kind, departure_x, departure_y)
         self.emit_event("teleport_in", player.id, kind, player.x, player.y)
@@ -410,6 +410,10 @@ class Combat:
         if monster.kind in {"small", "fast"} and attacker and any(item and item.kind == "sheriff_badge" for storage in (attacker.inventory, attacker.backpack) for item in storage):
             amount *= PASSIVE_ITEMS["sheriff_badge"]["damage_multiplier"]
         monster.hp -= amount
+        if monster.big and monster.hp > 0 and amount > 0 and not self.monster_inactive(monster) and attacker and attacker.id in self.online and attacker.temperature >= 5:
+            target = self.players.get(monster.target)
+            if target is None or target.id not in self.online or target.temperature < 5 or attacker.id != target.id and distance(monster, attacker) < distance(monster, target):
+                self.set_monster_target(monster, attacker)
         impacts = self.shot_impacts.setdefault(shot, set()) if shot else None
         if impacts is None or monster.id not in impacts:
             position_x, position_y = monster.x, monster.y

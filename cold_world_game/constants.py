@@ -40,7 +40,7 @@ GRENADE_CHANCE = 0.02
 FLAME_STAFF_CHANCE = 0.02
 DEFIBRILLATOR_CHANCE = 0.02
 MONSTER_LIMIT = 70
-MONSTER_LIMIT_DOUBLING_DISTANCE = 1200.0
+MONSTER_LIMIT_GROWTH_DISTANCE = 400.0
 MONSTER_XRAY_CHANCE = 0.05
 STARVATION_HUNGER = 1.0
 STARVATION_TEMPERATURE = 18.0
@@ -106,7 +106,7 @@ MONSTER_BULLET_BLOCKERS = BULLET_BLOCKERS | CONTAINERS
 DEMOLITION = {"tree": 0.5, "fence": 0.5, "wall": 1.5, "floor": 0.5, "chest": 1.5, "campfire": 1.5, "piggy_bank": 1.5, "vending_machine": 1.5, "match_machine": 1.5, "gun_machine": 1.5}
 DEMOLITION.update({kind: 1.5 for kind in ROOM_MACHINES})
 HARVEST_TOOLS = {"axe": DEMOLITION, "chainsaw": {**DEMOLITION, "tree": 0.25}}
-MONSTER_DEMOLITION = {"fence": 1.0, "wall": 3.0}
+MONSTER_DEMOLITION = {"fence": 3.0, "wall": 10.0}
 RECIPES = {
     "fence": {"inputs": {"wood": 1}, "output": "fence", "count": 2},
     "wall": {"inputs": {"wood": 1}, "output": "wall", "count": 1},
