@@ -6,6 +6,7 @@ import { CombatEffects } from './effects.js';
 import { SnapshotMotion } from './motion.js';
 import { homingPosition } from './missiles.js';
 import { ClientMovement, CollisionMap } from './movement.js';
+import { MonsterHitboxes, monsterSprite } from './monster-hitboxes.js';
 
 export async function loadAssets() {
   const response = await fetch('/static/assets/manifest.json');
@@ -18,7 +19,7 @@ export async function loadAssets() {
     await image.decode();
     images.set(name, image);
   }));
-  return { images, animations: manifest.animations || {}, effects: manifest.effects || {} };
+  return { images, animations: manifest.animations || {}, effects: manifest.effects || {}, monsterHitboxes: manifest.monster_hitboxes || {} };
 }
 
 function demoWorld() {
@@ -47,11 +48,12 @@ function demoWorld() {
 }
 
 export class WorldRenderer {
-  constructor(canvas, images, animations = {}, effects = {}, catalog = {}, viewport = null) {
+  constructor(canvas, images, animations = {}, effects = {}, catalog = {}, viewport = null, monsterHitboxes = {}) {
     this.canvas = canvas;
     this.context = canvas.getContext('2d', { alpha: false });
     this.images = images;
     this.catalog = catalog;
+    this.monsterHitboxes = new MonsterHitboxes(monsterHitboxes);
     this.fixedViewport = viewport;
     this.recordedFrames = false;
     this.animator = new ActorAnimator(animations);
@@ -155,7 +157,8 @@ export class WorldRenderer {
   actorSprite(kind, entity, width, height, offset) {
     const pose = this.effects.pose(entity.id);
     const frame = this.animator.frame(kind, entity, entity.renderDistance, pose);
-    this.sprite(frame?.asset || kind, entity.x + pose.x, entity.y + pose.y, width, height, offset, frame);
+    const anchored = kind.startsWith('monster_');
+    this.sprite(frame?.asset || kind, entity.x + (anchored ? 0 : pose.x), entity.y + (anchored ? 0 : pose.y), width, height, offset, frame);
   }
 
   smooth(entity) {
@@ -174,7 +177,10 @@ export class WorldRenderer {
       const player = this.state.players.find((entity) => entity.id !== this.state.you.id && entity.temperature < 5 && distance(this.positions.get(entity.id) || entity, point) <= 0.75);
       if (player) return { ...player, category: 'player' };
     }
-    const monster = this.state.monsters.find((entity) => distance(this.positions.get(entity.id) || entity, point) < (entity.big ? 0.65 : 0.5));
+    const monster = this.state.monsters.find((entity) => {
+      const position = this.positions.get(entity.id) || entity;
+      return this.monsterHitboxes.contains({ ...entity, x: position.x, y: position.y }, point, this.motion.time ?? this.state.elapsed);
+    });
     if (monster) return { ...monster, category: 'monster' };
     const structure = this.state.structures.find((entity) => entity.x === tileAt(point.x) && entity.y === tileAt(point.y));
     return structure ? { ...structure, category: 'structure' } : null;
@@ -259,18 +265,20 @@ export class WorldRenderer {
           if (!owned) this.bar(entity.x, entity.y - 0.94, entity.temperature / 36, '#8fcede', 0.7);
         }
       } else {
+        const profile = this.monsterHitboxes.profile(entity, worldTime);
+        const width = profile?.width ?? (entity.big ? 1.6 : 1.1);
+        const height = profile?.height ?? (entity.big ? 1.9 : 1.25);
+        const offset = profile?.offset ?? (entity.big ? 0.3 : 0.13);
         if (entity.sleeping) {
-          const pose = this.effects.pose(entity.id);
-          this.sprite(entity.big ? 'monster_big_sleep' : 'monster_fast_sleep', entity.x + pose.x, entity.y + pose.y, entity.big ? 1.6 : 1.1, entity.big ? 1.9 : 1.25, entity.big ? 0.3 : 0.13);
+          this.sprite(monsterSprite(entity, worldTime), entity.x, entity.y, width, height, offset);
           const sleepPhase = this.elapsed / (this.effects.definitions.fx_sleep_zzz?.duration || 2.4) + entity.x * 0.137 + entity.y * 0.173;
-          this.effects.frame(this, 'fx_sleep_zzz', entity.x + pose.x + 0.28, entity.y + pose.y - (entity.big ? 1.15 : 0.9), entity.big ? 0.95 : 0.8, sleepPhase - Math.floor(sleepPhase));
+          this.effects.frame(this, 'fx_sleep_zzz', entity.x + 0.28, entity.y - (entity.big ? 1.15 : 0.9), entity.big ? 0.95 : 0.8, sleepPhase - Math.floor(sleepPhase));
         } else if (entity.big && entity.rising != null) {
           const duration = this.catalog.monster_activity?.rise_seconds ?? 1;
           const elapsed = this.recordedFrames || state.paused ? 0 : Math.max(0, Math.min(0.3, performance.now() / 1000 - this.motion.arrival));
-          this.effects.frame(this, 'monster_big_rise', entity.x, entity.y - 0.3, 1.6, Math.min(1, entity.rising + elapsed / duration), 0, 1.9);
+          this.effects.frame(this, 'monster_big_rise', entity.x, entity.y - offset, width, Math.min(1, entity.rising + elapsed / duration), 0, height);
         } else {
-          const kind = `monster_${entity.species || (entity.big ? 'big' : entity.fast ? 'fast' : 'small')}`;
-          this.actorSprite(worldTime < (entity.frozen_until ?? 0) ? `${kind}_frozen` : kind, entity, entity.big ? 1.6 : 1.1, entity.big ? 1.9 : 1.25, entity.big ? 0.3 : 0.13);
+          this.actorSprite(monsterSprite(entity, worldTime), entity, width, height, offset);
         }
         if (worldTime < (entity.burning_until ?? 0)) this.effects.frame(this, 'fx_burning', entity.x, entity.y - 0.35, entity.big ? 1.3 : 0.9, worldTime * 2 % 1);
         this.bar(entity.x, entity.y - (entity.sleeping ? 0.3 : entity.big ? 1.2 : 0.8), entity.hp / (entity.max_hp || (entity.big ? 50 : 10)), '#dc8372', entity.big ? 1 : 0.65);
@@ -415,7 +423,7 @@ export class WorldRenderer {
       context.stroke();
       context.fillStyle = color;
       context.beginPath();
-      context.arc(point.x, point.y, width * 0.65, 0, Math.PI * 2);
+      context.arc(point.x, point.y, this.monsterHitboxes.bulletRadius * this.scale, 0, Math.PI * 2);
       context.fill();
     }
     context.restore();

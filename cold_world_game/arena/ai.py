@@ -2,6 +2,7 @@ import math
 
 from ..constants import DEFAULT_VIEWPORT, EQUIPPED_ITEMS, EXPLOSIVE_WEAPONS, GUNS, MELEE_WEAPONS, PASSIVE_ITEMS
 from ..geometry import distance, normalized, tile
+from ..hitboxes import monster_aim
 from ..wildlife import MONSTER_TYPES
 
 
@@ -19,7 +20,7 @@ def item_support(kind):
 
 
 class BoldAI:
-    version = 4
+    version = 5
 
     def __init__(self):
         self.decision = "waiting"
@@ -45,6 +46,8 @@ class BoldAI:
             if seated:
                 self.decision = "mounted"
                 attack = target is not None and distance(player, target) < math.hypot(*DEFAULT_VIEWPORT) / 2 - 0.5
+                if target:
+                    aim = list(monster_aim(world, target))
             elif safe:
                 movement = list(normalized(mounted.x - player.x, mounted.y - player.y))
                 self.decision = "mounting"
@@ -123,7 +126,8 @@ class BoldAI:
         if weapon.kind in EXPLOSIVE_WEAPONS:
             flight = EXPLOSIVE_WEAPONS[weapon.kind]["flight_duration"]
         velocity = world._velocities.get(target.id, (0, 0))
-        return [target.x + velocity[0] * flight, target.y + velocity[1] * flight]
+        horizontal, vertical = monster_aim(world, target) if speed and weapon.kind not in EXPLOSIVE_WEAPONS else (target.x, target.y)
+        return [horizontal + velocity[0] * flight, vertical + velocity[1] * flight]
 
     def dodge(self, world, player, movement):
         for projectile in world.visible_projectiles(player):

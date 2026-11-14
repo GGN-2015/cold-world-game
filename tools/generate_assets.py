@@ -1,3 +1,4 @@
+import argparse
 import colorsys
 import importlib.util
 import json
@@ -39,6 +40,32 @@ def save(name, image):
     width, height = image.width * 3, image.height * 3
     image.resize((width, height), Image.Resampling.NEAREST).save(DESTINATION / f"{name}.png", optimize=True)
     ASSETS[name] = {"file": f"{name}.png", "width": width, "height": height}
+
+
+def monster_hitboxes():
+    definitions = {}
+    sources = {}
+    for name, animation in ANIMATIONS.items():
+        if name.startswith("monster_"):
+            sources[name] = (animation["asset"], animation["frame_width"], animation["frame_height"])
+    for name in ("monster_big_sleep", "monster_fast_sleep"):
+        sources[name] = (name, 96, 96)
+    rising = COMBAT_EFFECTS["monster_big_rise"]
+    sources["monster_big_rise"] = (rising["asset"], rising["frame_width"], rising["frame_height"])
+    for name, (asset, frame_width, frame_height) in sources.items():
+        rows = [0] * 32
+        threshold = 255 if name == "monster_big_rise" else 128
+        with Image.open(DESTINATION / f"{asset}.png") as image:
+            for frame_y in range(0, image.height, frame_height):
+                for frame_x in range(0, image.width, frame_width):
+                    alpha = image.crop((frame_x, frame_y, frame_x + frame_width, frame_y + frame_height)).getchannel("A").resize((32, 32), Image.Resampling.NEAREST)
+                    for vertical in range(32):
+                        for horizontal in range(32):
+                            if alpha.getpixel((horizontal, vertical)) >= threshold:
+                                rows[vertical] |= 1 << horizontal
+        big = name.startswith("monster_big")
+        definitions[name] = {"width": 1.6 if big else 1.1, "height": 1.9 if big else 1.25, "offset": 0.3 if big else 0.13, "alpha_threshold": threshold, "rows": rows}
+    return {"size": 32, "alpha_threshold": 128, "bullet_radius": 0.1, "profiles": definitions}
 
 
 def snow():
@@ -1236,7 +1263,16 @@ def directional_weapon_sweeps(kind, effect, arc=180):
     COMBAT_EFFECTS[effect].update(directions=names, direction_frame_width=192, direction_frame_height=192, radius_ratio=30 / 64)
 
 
-def main():
+def main(hitboxes_only=False):
+    if hitboxes_only:
+        path = DESTINATION / "manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        ANIMATIONS.update(manifest["animations"])
+        COMBAT_EFFECTS.update(manifest["effects"])
+        manifest["monster_hitboxes"] = monster_hitboxes()
+        path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print("Updated monster collision profiles without replacing PNG assets")
+        return
     DESTINATION.mkdir(parents=True, exist_ok=True)
     snow()
     tree()
@@ -1293,9 +1329,11 @@ def main():
     manual_art = importlib.util.module_from_spec(specification)
     specification.loader.exec_module(manual_art)
     manual_art.illustrate(Path(__file__).resolve().parents[1], ASSETS)
-    (DESTINATION / "manifest.json").write_text(json.dumps({"version": 2, "pixel_art": True, "assets": ASSETS, "animations": ANIMATIONS, "effects": COMBAT_EFFECTS}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (DESTINATION / "manifest.json").write_text(json.dumps({"version": 2, "pixel_art": True, "assets": ASSETS, "animations": ANIMATIONS, "effects": COMBAT_EFFECTS, "monster_hitboxes": monster_hitboxes()}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Exported {len(ASSETS)} replaceable PNG assets to {DESTINATION}")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Generate pixel art assets and monster collision profiles")
+    parser.add_argument("--hitboxes-only", action="store_true", help="Refresh collision profiles from existing PNG files without redrawing assets")
+    main(parser.parse_args().hitboxes_only)

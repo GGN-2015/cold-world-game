@@ -420,7 +420,7 @@ async function initialize() {
     if (!response.ok) throw new Error('catalog_unavailable');
     const catalog = await response.json();
     if (catalog.protocol !== 1) throw new Error('protocol_mismatch');
-    renderer = new WorldRenderer(canvas, assets.images, assets.animations, assets.effects, catalog);
+    renderer = new WorldRenderer(canvas, assets.images, assets.animations, assets.effects, catalog, null, assets.monsterHitboxes);
     localCombat = new LocalCombat(renderer, audio, catalog);
     ui = new GameUI(connection, catalog, { stop, select, selected: () => selected, leave, focus, adminOpen: () => adminConsole?.expanded, closeAdmin: () => adminConsole?.toggle(false), closeRoster: () => playerRoster?.collapse(), dropItem: (source) => {
       stop(); input();

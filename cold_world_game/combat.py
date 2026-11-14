@@ -3,6 +3,7 @@ import math
 from .constants import BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, DRINKS, EXPLOSIVE_WEAPONS, FLAME_STAFF, FOODS, GUNS, HARVEST_TOOLS, HEALING_ITEMS, KNOCKBACK, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, PANEL_DEMOLITION, PASSIVE_ITEMS, PROJECTILE_RANGE, READY_TO_EAT_FOODS, RETURN_ITEMS, REVIVAL_ITEMS, SMALL_MONSTER_FOOD_CHANCE, SMALL_MONSTER_FOOD_WEIGHTS
 from .expansion import carried_modifier
 from .geometry import distance, normalized, segment_box, segment_circle, tile
+from .hitboxes import MONSTER_BOUNDS, monster_hitbox, segment_monster
 from .models import Item, Projectile, identifier
 from .missiles import homing_position
 
@@ -532,6 +533,7 @@ class Combat:
             self.step_projectiles(seconds)
 
     def step_projectiles(self, seconds):
+        activity = self.monster_activity()
         for projectile_id, projectile in list(self.projectiles.items()):
             if projectile.kind == "homing_missile":
                 self.update_homing_missile(projectile)
@@ -569,8 +571,13 @@ class Combat:
                 if fraction is not None:
                     candidates.append((fraction, 1, "player", player))
             if not projectile.hostile:
-                for monster in self.nearby_monsters(left, top, right, bottom):
-                    fraction = segment_circle(projectile.x, projectile.y, end_x, end_y, monster.x, monster.y)
+                monster_left = min(projectile.x, end_x) - MONSTER_BOUNDS[2] - 1e-9
+                monster_top = min(projectile.y, end_y) - MONSTER_BOUNDS[3] - 1e-9
+                monster_right = max(projectile.x, end_x) - MONSTER_BOUNDS[0] + 1e-9
+                monster_bottom = max(projectile.y, end_y) - MONSTER_BOUNDS[1] + 1e-9
+                for monster in self.nearby_monsters(monster_left, monster_top, monster_right, monster_bottom):
+                    shape = monster_hitbox(monster, self.elapsed, activity)
+                    fraction = segment_monster(projectile.x, projectile.y, end_x, end_y, monster, shape)
                     if fraction is not None:
                         candidates.append((fraction, 2, "monster", monster))
             blocked = False

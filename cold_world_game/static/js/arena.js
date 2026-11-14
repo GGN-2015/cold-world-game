@@ -332,7 +332,7 @@ try {
   options = await response.json();
   const assets = await loadAssets();
   byId('world').style.aspectRatio = options.viewport.join(' / ');
-  renderer = new WorldRenderer(byId('world'), assets.images, assets.animations, assets.effects, options.catalog, options.viewport);
+  renderer = new WorldRenderer(byId('world'), assets.images, assets.animations, assets.effects, options.catalog, options.viewport, assets.monsterHitboxes);
   inventory = [...options.default_inventory];
   searchIndex = createSearchIndex(options.items, options.catalog);
   byId('monster-limit').max = options.max_monsters;
