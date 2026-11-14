@@ -24,7 +24,7 @@ class ProjectileMotion {
     const age = state.paused ? 0 : Math.max(0, Math.min(0.3, now - Math.min(...this.offsets) - state.elapsed));
     const active = new Set();
     for (const entity of state.projectiles || []) {
-      if (entity.kind && entity.kind !== 'bullet') continue;
+      if (entity.kind && entity.kind !== 'bullet' && entity.kind !== 'durian_peel') continue;
       active.add(entity.id);
       let track = this.tracks.get(entity.id);
       const interval = state.elapsed - (track?.serverTime ?? state.elapsed);
@@ -48,6 +48,7 @@ class ProjectileMotion {
       }
       track.velocity = velocity;
       track.hostile = Boolean(entity.hostile);
+      track.kind = entity.kind;
       track.renderVelocity = entity.downed ? { x: 0, y: 0 } : velocity;
       track.serverX = entity.x;
       track.serverY = entity.y;

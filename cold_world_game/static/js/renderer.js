@@ -281,6 +281,10 @@ export class WorldRenderer {
           this.actorSprite(monsterSprite(entity, worldTime), entity, width, height, offset);
         }
         if (worldTime < (entity.burning_until ?? 0)) this.effects.frame(this, 'fx_burning', entity.x, entity.y - 0.35, entity.big ? 1.3 : 0.9, worldTime * 2 % 1);
+        if (entity.impaled) {
+          const anchor = this.monsterHitboxes.impaleAnchor(entity, worldTime);
+          this.sprite('durian_peel_impaled', entity.x, entity.y + anchor.y, anchor.size);
+        }
         this.bar(entity.x, entity.y - (entity.sleeping ? 0.3 : entity.big ? 1.2 : 0.8), entity.hp / (entity.max_hp || (entity.big ? 50 : 10)), '#dc8372', entity.big ? 1 : 0.65);
       }
     }
@@ -299,8 +303,16 @@ export class WorldRenderer {
       context.fillRect(point.x - radius, point.y - radius, radius * 2, radius * 2);
       this.sprite('spark', fire.x + Math.sin(this.elapsed * 2) * 0.12, fire.y - (this.elapsed * 0.8 % 1) - 0.4, 0.3);
     }
-    this.drawProjectiles(state.projectiles.filter((projectile) => !this.catalog.explosive_weapons?.[projectile.kind] && projectile.kind !== 'homing_missile').map((projectile) => this.recordedFrames ? projectile : ({ ...projectile, ...this.motion.sample(projectile) })));
+    this.drawProjectiles(state.projectiles.filter((projectile) => !this.catalog.explosive_weapons?.[projectile.kind] && !this.catalog.throwable_weapons?.[projectile.kind] && projectile.kind !== 'homing_missile').map((projectile) => this.recordedFrames ? projectile : ({ ...projectile, ...this.motion.sample(projectile) })));
     for (const projectile of state.projectiles) {
+      if (projectile.kind === 'durian_peel' && projectile.detonates_at == null) {
+        const point = this.recordedFrames ? projectile : this.motion.sample(projectile);
+        const center = this.positions.get(projectile.range_player) || { x: projectile.range_x, y: projectile.range_y };
+        const viewport = projectile.range_player === state.you.id ? this.viewport() : [projectile.view_width ?? 32, projectile.view_height ?? 18];
+        const direction = (Math.round(Math.atan2(projectile.velocity_y, projectile.velocity_x) / (Math.PI / 4)) + 8) % 8;
+        if (visible(point) && Math.abs(point.x - center.x) <= viewport[0] / 2 && Math.abs(point.y - center.y) <= viewport[1] / 2) this.sprite(`durian_peel_flight_${['e', 'se', 's', 'sw', 'w', 'nw', 'n', 'ne'][direction]}`, point.x, point.y, 0.7);
+        continue;
+      }
       if (projectile.kind === 'homing_missile') {
         const missileTime = this.recordedFrames || this.motion.time == null ? worldTime : this.motion.time + (state.paused ? 0 : this.motion.delay);
         const point = homingPosition(projectile, missileTime, this.catalog.guns.homing_missile, this.positions.get(projectile.target_id));
@@ -320,7 +332,7 @@ export class WorldRenderer {
       const held = state.you.inventory[this.selected];
       const returning = state.interaction.target?.startsWith('return:');
       const reviving = state.interaction.target?.startsWith('revive:');
-      const duration = returning ? this.catalog.return_items?.[held?.kind]?.duration ?? 1.5 : reviving ? this.catalog.revival_items?.[held?.kind]?.duration ?? 1.5 : this.catalog.healing_items?.[held?.kind]?.duration ?? this.catalog.explosive_weapons?.[held?.kind]?.duration ?? this.catalog.harvest_tools?.[held?.kind]?.[target?.kind] ?? (target?.kind === 'wall' || containers.has(target?.kind) ? 1.5 : 0.5);
+      const duration = returning ? this.catalog.return_items?.[held?.kind]?.duration ?? 1.5 : reviving ? this.catalog.revival_items?.[held?.kind]?.duration ?? 1.5 : this.catalog.throwable_weapons?.[held?.kind]?.throw_duration ?? this.catalog.healing_items?.[held?.kind]?.duration ?? this.catalog.explosive_weapons?.[held?.kind]?.duration ?? this.catalog.harvest_tools?.[held?.kind]?.[target?.kind] ?? (target?.kind === 'wall' || containers.has(target?.kind) ? 1.5 : 0.5);
       if (returning) this.effects.frame(this, 'fx_teleport', local.x, local.y - 0.4, 2.6, (this.elapsed * 0.7) % 1);
       this.bar(local.x, local.y + 0.7, Math.min(1, state.interaction.progress / duration), returning ? '#ac9afa' : '#efbb78', 0.9);
     }

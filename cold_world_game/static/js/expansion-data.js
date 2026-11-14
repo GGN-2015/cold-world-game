@@ -712,12 +712,12 @@ export const expansionMessages = {
     "Fuel supply pack"
   ],
   "guide.effect.fuel_pack": [
-    "一次性拆出5木材，优先放背包，再放物品栏，不改变饥饿或体温。",
-    "Single-use; unpacks 5 wood, preferring bag then hotbar. No temperature or hunger change."
+    "每包拆出5木材，先掉落脚边再自动拾取，优先物品栏、再背包；放不下的留在地上。不改变饥饿或体温，物品栏每格最多叠16包。",
+    "Each pack drops 5 wood at your feet, then auto-pickup fills the hotbar before the backpack. Excess stays on the ground. No hunger or temperature change. Up to 16 packs per hotbar slot."
   ],
   "guide.use.fuel_pack": [
-    "选中长按1秒，无需火；需要含补给包原格在内至少5个空格，不足时不消耗、不产出。手机按住使用。",
-    "Equip and hold 1 s without fire. Needs at least 5 free slots including its own consumed slot. Insufficient space consumes or produces nothing. Hold Use on mobile."
+    "选中长按1秒，无需火；每次消耗1包，背包和物品栏全满也可拆包。手机按住使用。",
+    "Equip and hold 1 s without fire; uses one pack, even when both storage areas are full. Hold Use on mobile."
   ],
   "item.durian": [
     "榴莲",
@@ -736,12 +736,12 @@ export const expansionMessages = {
     "No fire needed. Equip and hold left click or Use for 0.5 s. Cannot eat above 10 hunger. Its peel replaces the fruit even with full storage; operation failure rolls everything back; complete snapshots are saved in the background."
   ],
   "guide.effect.durian_peel": [
-    "一次性投掷物，与手榴弹相同：半径3格内怪物受20伤害，玩家和方块不受伤害，播放相同爆炸。",
-    "Single-use throwable with grenade behavior: 20 damage to monsters within radius 3, no harm to players or blocks, with the same explosion."
+    "短按松开时挥出斧头同范围的3格、180°近战群攻，伤害6（斧头1.5倍），间隔0.5秒；近战不消耗。投掷沿瞄准直线以20格/秒飞行，扎入第一个怪物，每0.5秒造成4点持续伤害，不击退，直到死亡；同类扎伤不叠加。",
+    "Release a short tap for an axe-sized radius-3, 180° melee sweep: 6 damage (1.5× axe), 0.5 s cooldown, no consumption. A thrown peel flies straight at 20 tiles/s, impaling the first monster for 4 damage every 0.5 s until death, without knockback or stacking."
   ],
   "guide.use.durian_peel": [
-    "选中后朝落点长按0.5秒；手机可直接长按场景，或瞄准后按住使用。消耗一片皮，飞行0.45秒后爆炸，最多每秒一次。",
-    "Equip and hold 0.5 s toward the landing point. Hold the scene on mobile, or aim then hold Use. Consumes one peel; explodes after a 0.45 s flight, at most once per second."
+    "选中后短按左键近战，长按0.5秒投掷，不会先挥一次；手机短按/长按场景或使用按钮。成功投出消耗一片，最多每秒一次；不爆炸、不伤玩家或方块，穿过方块，飞出射手当前矩形视野即消失。扎伤随存档保存，离线停服暂停。Arena AI只投掷。",
+    "Equip, tap left click for melee or hold 0.5 s to throw without a preceding swing. On phones, tap/hold the scene or Use. Throwing consumes one peel, at most once/s. No explosion or harm to players/blocks; passes through blocks and disappears outside the shooter's current rectangular viewport. Impalement is saved and pauses when the world stops. Arena AI only throws."
   ]
 };
 

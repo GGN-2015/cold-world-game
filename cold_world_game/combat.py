@@ -7,6 +7,7 @@ from .hitboxes import MONSTER_BOUNDS, monster_hitbox, segment_monster
 from .inventory import clear_selected_if, consume_selected, consume_use, has_personal_item
 from .models import Item, Projectile, identifier
 from .missiles import homing_position
+from .constants import DEFAULT_VIEWPORT, DURIAN_PEEL, THROWABLE_WEAPONS
 
 
 class Combat:
@@ -47,7 +48,9 @@ class Combat:
         if player.temperature < 5:
             controls.stop_attack()
             return
-        if item.kind in EXPLOSIVE_WEAPONS:
+        if item.kind in THROWABLE_WEAPONS:
+            self.throw_durian_peel(player, controls, item, seconds)
+        elif item.kind in EXPLOSIVE_WEAPONS:
             self.use_explosive(player, controls, item, seconds)
         elif item.kind in GUNS:
             if controls.pending_shot or item.kind == "rifle" or GUNS[item.kind].get("automatic", False):
@@ -159,6 +162,43 @@ class Combat:
         if settings["coin_cost"] == 0:
             consume_selected(player)
             controls.stop_attack()
+
+    def throw_durian_peel(self, player, controls, item, seconds):
+        if controls.charge_item != item.id:
+            controls.stop_attack()
+            return
+        direction_x, direction_y = normalized(controls.aim_x - player.x, controls.aim_y - player.y)
+        self.progress(controls, f"throw:{item.id}", seconds)
+        controls.progress = min(DURIAN_PEEL["throw_duration"], controls.progress)
+        if controls.progress + 1e-9 < DURIAN_PEEL["throw_duration"] or self.elapsed + 1e-9 < player.next_shot or self.elapsed + 1e-9 < player.next_axe_attack or player.last_shot_tick == self.tick_number or direction_x == direction_y == 0:
+            return
+        self.touch()
+        projectile = Projectile(player.x, player.y, direction_x * DURIAN_PEEL["speed"], direction_y * DURIAN_PEEL["speed"], 0, 0, player.id, kind="durian_peel", weapon_kind="durian_peel", origin_x=player.x, origin_y=player.y, spawned_at=self.elapsed, range_player=player.id)
+        projectile.remaining = self.projectile_range(projectile)
+        self.projectiles[projectile.id] = projectile
+        player.next_shot = self.elapsed + DURIAN_PEEL["throw_interval"]
+        player.next_axe_attack = self.elapsed + DURIAN_PEEL["interval"]
+        player.last_shot_tick = self.tick_number
+        consume_selected(player)
+        controls.stop_attack()
+        self.emit_event("throw", player.id, "durian_peel", player.x, player.y, direction=[direction_x, direction_y])
+
+    def impale_monster(self, monster, owner, direction):
+        self.touch()
+        if not monster.impaled:
+            monster.impaled = True
+            monster.next_impale = self.elapsed + DURIAN_PEEL["impale_interval"]
+            monster.impale_owner = owner
+        self.emit_event("hit", owner, "durian_peel", monster.x, monster.y, target=monster.id, target_type="monster", direction=list(normalized(*direction)), knockback=[0.0, 0.0])
+
+    def update_impalement(self):
+        for monster in list(self.monsters.values()):
+            if not monster.impaled or monster.next_impale > self.elapsed + 1e-9:
+                continue
+            self.touch()
+            while monster.id in self.monsters and monster.next_impale <= self.elapsed + 1e-9:
+                monster.next_impale += DURIAN_PEEL["impale_interval"]
+                self.hurt_monster(monster, DURIAN_PEEL["impale_damage"], monster.impale_owner, "durian_peel", (0.0, 0.0), knockback=False, feedback=False)
 
     def explode(self, projectile):
         settings = EXPLOSIVE_WEAPONS[projectile.kind]
@@ -495,6 +535,16 @@ class Combat:
             projectile.range_y = projectile.origin_y if projectile.origin_y is not None else projectile.y
         if projectile.range_radius is None:
             projectile.range_radius = PROJECTILE_RANGE
+        if projectile.kind == "durian_peel":
+            controls = self.controls.get(projectile.range_player)
+            projectile.view_width = controls.view_width if controls else projectile.view_width or DEFAULT_VIEWPORT[0]
+            projectile.view_height = controls.view_height if controls else projectile.view_height or DEFAULT_VIEWPORT[1]
+            offset_x, offset_y = projectile.x - projectile.range_x, projectile.y - projectile.range_y
+            if abs(offset_x) > projectile.view_width / 2 + 1e-9 or abs(offset_y) > projectile.view_height / 2 + 1e-9:
+                return -1.0
+            direction_x, direction_y = normalized(projectile.velocity_x, projectile.velocity_y)
+            edges = [(half - offset * (1 if direction > 0 else -1)) / abs(direction) for offset, direction, half in ((offset_x, direction_x, projectile.view_width / 2), (offset_y, direction_y, projectile.view_height / 2)) if abs(direction) > 1e-9]
+            return max(0.0, min(edges, default=0.0))
         offset_x, offset_y = projectile.x - projectile.range_x, projectile.y - projectile.range_y
         radius_squared = projectile.range_radius ** 2
         distance_squared = offset_x * offset_x + offset_y * offset_y
@@ -547,12 +597,12 @@ class Combat:
             top, bottom = min(projectile.y, end_y) - padding, max(projectile.y, end_y) + padding
             candidates = []
             blockers = MONSTER_BULLET_BLOCKERS if projectile.hostile else BULLET_BLOCKERS
-            for structure in self.nearby_structures(projectile.x, projectile.y, end_x, end_y):
+            for structure in (() if projectile.kind == "durian_peel" else self.nearby_structures(projectile.x, projectile.y, end_x, end_y)):
                 if structure.kind in blockers:
                     fraction = segment_box(projectile.x, projectile.y, end_x, end_y, structure.x, structure.y)
                     if fraction is not None:
                         candidates.append((fraction, 0, "structure", structure))
-            for player_id in self.online:
+            for player_id in (() if projectile.kind == "durian_peel" else self.online):
                 player = self.players[player_id]
                 if not (left <= player.x <= right and top <= player.y <= bottom):
                     continue
@@ -593,6 +643,10 @@ class Combat:
                     self.hurt_player(target, 5 if projectile.hostile else 1, source=projectile.owner, direction=(projectile.velocity_x, projectile.velocity_y), knockback=KNOCKBACK["monster_bullet" if projectile.hostile else "player_bullet"])
                     hit_players.add(target.id)
                 elif kind == "monster" and target.id in self.monsters:
+                    if projectile.kind == "durian_peel":
+                        self.impale_monster(target, projectile.owner, (projectile.velocity_x, projectile.velocity_y))
+                        blocked = True
+                        break
                     self.touch()
                     projectile.hit_targets.append(target_key)
                     self.apply_weapon_status(target, GUNS.get(projectile.weapon_kind, {}), projectile.owner)

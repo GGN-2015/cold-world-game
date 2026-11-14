@@ -4,6 +4,8 @@ import { arenaMessages } from './arena-copy.js';
 
 const messages = {
   ...arenaMessages,
+  'hint.durianPeel': ['短按松开近战 · 半径 {range} 格 · {damage} 伤害 · 长按 {throw_duration} 秒直线投掷，扎伤至怪物死亡', 'Release a tap for melee · Radius {range} · {damage} damage · Hold {throw_duration} s to throw straight and impale until death'],
+  'hint.impaled': [' · 榴莲皮扎伤', ' · Impaled by durian peel'],
   'item.stack': ['{name} · {count} 个 · 普通物品格每格最多 {limit} 个', '{name} · {count} · up to {limit} per normal storage slot'],
   'guide.use.stack': ['可在物品栏、背包和箱子中与同类物品合并，单格最多 {limit} 个。制作、转移和拾取按实际数量结算；篝火、火种和机器专用槽仍按各自规则。', 'Stacks with matching items in the hotbar, backpack or chest, up to {limit} per normal storage slot. Crafting, transfers and pickup use the actual quantity; campfire, igniter and machine slots keep their special rules.'],
   'item.landmine': ['地雷', 'Landmine'],

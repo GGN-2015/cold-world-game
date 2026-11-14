@@ -6,6 +6,7 @@ from .geometry import DIRECTIONS, circle_square, distance, normalized, segment_b
 from .inventory import clone_storages, consume_kind, count_kind, insert_item, mergeable, stack_limit, storage_slots, take_item
 from .models import GroundItem, Item, Structure
 from .wildlife import SEATS
+from .constants import THROWABLE_WEAPONS
 
 
 class GameError(Exception):
@@ -86,13 +87,20 @@ class Actions:
         elif kind == "attack":
             pressed = boolean(command.get("pressed"), "pressed")
             shift = boolean(command.get("shift", False), "shift")
+            cancelled = boolean(command.get("cancelled", False), "cancelled")
+            throw_only = boolean(command.get("throw_only", False), "throw_only")
             attack_id = command.get("attack_id")
             if attack_id is not None and (not isinstance(attack_id, str) or not attack_id or len(attack_id) > 64 or not attack_id.isprintable()):
                 raise GameError("invalid_argument", "attack_id must be a printable token of 1-64 characters")
             controls.last_input = time.monotonic()
             if not pressed:
+                item = player.inventory[player.selected]
+                swing = False
+                if not cancelled and not controls.ui and controls.held and not controls.throw_only and item and item.kind in THROWABLE_WEAPONS and controls.charge_item == item.id and controls.progress + 1e-9 < THROWABLE_WEAPONS[item.kind]["throw_duration"]:
+                    controls.attack_id = attack_id
+                    swing = bool(self.strike_melee(player, controls))
                 controls.stop_attack()
-                return {"accepted": True}
+                return {"accepted": True, "swing": swing, **({"attack_id": attack_id} if attack_id is not None else {})}
             if controls.ui:
                 return {"accepted": False}
             seat = self.seated_structure(controls)
@@ -103,7 +111,7 @@ class Actions:
             target = self.structure_at(tile(controls.aim_x), tile(controls.aim_y))
             if target and target.kind in SEATS:
                 return self.sit(player, controls, target.id)
-            if target and target.kind in CONTAINERS and (item is None or item.kind not in EXPLOSIVE_WEAPONS and item.kind not in REVIVAL_ITEMS and item.kind != "homing_missile") and (not shift or target.kind in PANEL_DEMOLITION) and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
+            if target and target.kind in CONTAINERS and (item is None or item.kind not in EXPLOSIVE_WEAPONS and item.kind not in THROWABLE_WEAPONS and item.kind not in REVIVAL_ITEMS and item.kind != "homing_missile") and (not shift or target.kind in PANEL_DEMOLITION) and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
                 self.open_container(player, controls, target.id)
                 return {"opened": target.id}
             if player.temperature < 5 and item and item.kind not in FOODS and item.kind not in HEALING_ITEMS and item.kind not in RETURN_ITEMS and item.kind not in REVIVAL_ITEMS and item.kind not in DRINKS:
@@ -112,7 +120,10 @@ class Actions:
             swing = False
             if not controls.held:
                 controls.pending_shot = True
-                if item and item.kind in MELEE_WEAPONS:
+                if item and item.kind in THROWABLE_WEAPONS:
+                    controls.charge_item = item.id
+                    controls.throw_only = throw_only
+                elif item and item.kind in MELEE_WEAPONS:
                     controls.attack_id = attack_id
                     swing = bool(self.strike_melee(player, controls))
             controls.held = player.inventory[player.selected] is not None

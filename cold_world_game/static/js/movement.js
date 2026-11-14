@@ -62,6 +62,7 @@ export class CollisionMap {
   }
 
   trace(point, horizontal, vertical) {
+    if (point.kind === 'durian_peel') return { x: point.x + horizontal, y: point.y + vertical, blocked: false };
     let fraction = 1;
     const blockers = point.hostile ? this.hostileBulletTiles : this.bulletTiles;
     for (let tileX = Math.floor(Math.min(point.x, point.x + horizontal)) - 1; tileX <= Math.ceil(Math.max(point.x, point.x + horizontal)); tileX++) {

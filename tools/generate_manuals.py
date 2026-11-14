@@ -160,6 +160,9 @@ class Manual:
                         usage += "伐木和拆方块需长按；容器取空后在窗口长按拆除。"
                     elif kind == "axe":
                         usage += "采树或拆建筑另用长按，容器/机器须用窗口内拆除按钮。"
+                    elif kind == "durian_peel":
+                        effect += f"近战伤害为斧头的1.5倍，不消耗榴莲皮。投掷沿瞄准直线以{settings['speed']:g}格/秒飞行，扎入第一个接触的怪物；随后每{settings['impale_interval']:g}秒造成{settings['impale_damage']:g}点基础持续伤害，无持续击退，直到怪物死亡。没有爆炸、没有额外投掷直伤；同类扎伤不叠加、不重置跳伤计时，可与灼烧并存。"
+                        usage = f"短按左键并松开时近战；长按{settings['throw_duration']:g}秒投掷，不先触发近战。手机可短按/长按场景或“使用”，Arena AI总是蓄力投掷。挥击使用八方向预渲染PNG扇形刃光；怪物共享一张扎伤overlay，按当前立绘高度定位。"
                 else:
                     effect = f"飞行{settings['flight_duration']:g}秒后在指定坐标爆炸，半径{settings['radius']:g}格内怪物受{settings['damage']:g}基础伤害，无击退。"
                     usage = f"选中后对落点长按{settings['duration']:g}秒，最短间隔{settings['interval']:g}秒。"
@@ -171,6 +174,8 @@ class Manual:
                         limits += "仅伤锁定怪物，忽略其他怪物、玩家与全部方块，不受视野射程限制；目标死亡即消失，不重新索敌；无目标不开火也不扣弹药或冷却。"
                 elif kind in rules.MELEE_WEAPONS:
                     limits = f"初始{settings['uses']}次，一次群攻命中至少一只怪物才扣1次，与命中数量无关；每成功拆除一个方块扣1次。空挥、无效操作和中途取消采集不扣次，用尽消失；不能补充次数。伤害、采集掉落和扣次一起原子保存，失败全部回退。" if kind == "chainsaw" else f"初始{settings['uses']}次，每次有效挥动扣1次，用尽消失。" if "uses" in settings else "无次数限制；攻击仍受冷却、距离、方向和视线限制。不能用Q、拖到场景或手机丢弃，可正常转移背包或存入箱子。"
+                    if kind == "durian_peel":
+                        limits = f"近战不消耗，不能采集方块；成功投出消耗1片，最短投掷间隔{settings['throw_interval']:g}秒。投掷忽略玩家和所有方块，只扎第一个怪物；未命中且超出射手当前矩形视野时消失，移动和转屏会更新范围，射手离线沿用最后视野。不伤玩家或方块。扎伤状态、伤害归属与下一跳时刻随世界存档；全员离线或停服暂停，重启不治愈也不重复施加。消耗与投射物原子结算，保存失败回滚；可正常丢弃或收纳。"
                 else:
                     limits = "本体无弹药计数，每枪消耗1金币，余额为0时不能射击；不产生可回收手榴弹。" if kind == "coin_launcher" else "一次性，成功投出消耗1件；长按完成后须松开再投。"
                     limits += "不伤玩家，不破坏方块；消耗与效果在同一内存事务中结算，按一致性快照保存。"

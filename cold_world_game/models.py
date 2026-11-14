@@ -1,9 +1,10 @@
+import math
 from dataclasses import dataclass, field, is_dataclass
 from contextlib import contextmanager
 from contextvars import ContextVar
 from uuid import uuid4
 
-from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, GUNS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MELEE_WEAPONS, RETURN_ITEMS
+from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, DURIAN_PEEL, GUNS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MELEE_WEAPONS, RETURN_ITEMS
 from .wildlife import MONSTER_TYPES
 
 
@@ -90,6 +91,8 @@ class Controls:
     held: bool = False
     pending_shot: bool = False
     attack_id: str | None = None
+    charge_item: str | None = None
+    throw_only: bool = False
     shift: bool = False
     target: str | None = None
     progress: float = 0.0
@@ -112,6 +115,8 @@ class Controls:
         self.held = False
         self.pending_shot = False
         self.attack_id = None
+        self.charge_item = None
+        self.throw_only = False
         self.target = None
         self.progress = 0.0
         self.next_demolition_feedback = 0.0
@@ -155,6 +160,9 @@ class Monster:
     burning_until: float = 0.0
     next_burn: float = 0.0
     burn_owner: str | None = None
+    impaled: bool = False
+    next_impale: float = 0.0
+    impale_owner: str | None = None
     species: str = "small"
     xray: bool = False
 
@@ -193,6 +201,8 @@ class Projectile:
     detonates_at: float | None = None
     target_id: str | None = None
     weapon_kind: str | None = None
+    view_width: float | None = None
+    view_height: float | None = None
 
 
 def item_from(data: dict | None) -> Item | None:
@@ -203,6 +213,18 @@ def item_from(data: dict | None) -> Item | None:
     if "uses" in settings and values.get("uses") is None:
         values["uses"] = settings["uses"]
     return Item(**values)
+
+
+def projectile_from(data: dict) -> Projectile:
+    values = dict(data)
+    if values.get("kind") == "durian_peel" and values.get("detonates_at") is not None:
+        horizontal = (values.get("target_x") or 0) - values["x"]
+        vertical = (values.get("target_y") or 0) - values["y"]
+        magnitude = math.hypot(horizontal, vertical)
+        if magnitude <= 1e-9:
+            horizontal, vertical, magnitude = 1.0, 0.0, 1.0
+        values.update(velocity_x=horizontal / magnitude * DURIAN_PEEL["speed"], velocity_y=vertical / magnitude * DURIAN_PEEL["speed"], damage=0, detonates_at=None, weapon_kind="durian_peel", range_player=values["owner"])
+    return Projectile(**values)
 
 
 def structure_from(data: dict) -> Structure:

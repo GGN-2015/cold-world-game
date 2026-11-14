@@ -10,10 +10,20 @@ export class MonsterHitboxes {
     this.profiles = definition.profiles || {};
     this.size = definition.size || 32;
     this.bulletRadius = definition.bullet_radius ?? 0.1;
+    this.impaleAnchors = new Map(Object.entries(this.profiles).map(([name, profile]) => {
+      const first = profile.rows.findIndex(row => row !== 0);
+      let last = profile.rows.length - 1;
+      while (last > first && !profile.rows[last]) last--;
+      return [name, { y: ((Math.max(0, first) + last + 1) / (2 * this.size) - 0.5) * profile.height - profile.offset, size: profile.width * 0.6 }];
+    }));
   }
 
   profile(entity, elapsed) {
     return this.profiles[monsterSprite(entity, elapsed)];
+  }
+
+  impaleAnchor(entity, elapsed) {
+    return this.impaleAnchors.get(monsterSprite(entity, elapsed)) || { y: entity.big ? -0.4 : -0.15, size: entity.big ? 0.96 : 0.66 };
   }
 
   contains(entity, point, elapsed) {

@@ -15,7 +15,7 @@ export function itemGuide(item, catalog, language) {
     effect = t('guide.effect.compass');
     use = t('guide.use.compass');
   } else if (kind === 'durian' || kind === 'durian_peel') {
-    category = kind === 'durian' ? 'food' : 'explosive';
+    category = kind === 'durian' ? 'food' : 'melee';
     effect = t(`guide.effect.${kind}`);
     use = t(`guide.use.${kind}`);
   } else if (catalog.equipped_items?.[kind]) {

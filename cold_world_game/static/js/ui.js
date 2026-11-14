@@ -262,6 +262,8 @@ export class GameUI {
       text = t('hint.landmine');
     } else if (this.catalog.revival_items?.[equipped?.kind]) {
       text = t(target?.category === 'player' ? 'hint.reviveTarget' : 'hint.defibrillator', { name: target?.id || '', ...this.catalog.revival_items[equipped.kind] });
+    } else if (this.catalog.throwable_weapons?.[equipped?.kind]) {
+      text = t('hint.durianPeel', this.catalog.throwable_weapons[equipped.kind]);
     } else if (this.catalog.explosive_weapons?.[equipped?.kind]) {
       text = t(equipped.kind === 'coin_launcher' ? 'hint.coinLauncher' : 'hint.grenade', { ...this.catalog.explosive_weapons[equipped.kind], money: this.state.you.money ?? 0 });
     } else if (this.catalog.drinks?.[equipped?.kind] && !(target?.category === 'structure' && containers.has(target.kind) && distance(this.state.you, target) <= 2)) {
@@ -280,6 +282,7 @@ export class GameUI {
       else if (target.rising != null) text += t('hint.rising');
       else if (this.state.elapsed < (target.frozen_until ?? 0)) text += t('hint.frozen');
       if (this.state.elapsed < (target.burning_until ?? 0)) text += t('hint.burning');
+      if (target.impaled) text += t('hint.impaled');
       if (melee) {
         const attackHint = equipped.kind === 'flame_staff' ? 'hint.flameAttack' : equipped.kind === 'ice_staff' ? target.sleeping || target.rising != null ? 'hint.iceRestAttack' : 'hint.iceAttack' : 'hint.attack';
         text += distance(this.state.you, target) <= melee.range ? t(attackHint) : t(equipped.kind === 'chainsaw' ? 'hint.chainsawRange' : equipped.kind === 'flame_staff' ? 'hint.flameRange' : equipped.kind === 'ice_staff' ? 'hint.iceRange' : 'hint.axeRange', { range: melee.range });

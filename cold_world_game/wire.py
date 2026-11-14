@@ -11,13 +11,13 @@ tick elapsed event_sequence you players monsters projectiles ground events envir
 structure_states chunks interaction container terrain inventory backpack slots slot_changes kind
 owner actor source target target_id shot attack_id range_player overlap_player seat_id occupant
 temperature hunger money downed selected move_speed hp max_hp big fast species frozen_until
-burning_until sleeping rising demolition teleport_epoch mode epoch seated seat_direction
+burning_until impaled sleeping rising demolition teleport_epoch mode epoch seated seat_direction
 origin_x origin_y spawned_at remaining hostile range_x range_y range_radius weapon_kind
 target_x target_y detonates_at trajectory flight_at time direction knockback damage target_type radius
 range arc_degrees predicted weapon uses ammo item dropped_by immune_until lit monster_demolition
 fuel igniter burn_remaining balance progress ui_open is_admin tile offset ambient_temperature
 excitement_remaining year season day hour paused fault command_sequence unset online last_login_at
-server_time roster_delta entries version hash patch reset count
+server_time roster_delta entries version hash patch reset count view_width view_height
 """.split()))
 FIELD_CODES = {name: index for index, name in enumerate(FIELDS)}
 REFERENCES = frozenset("id owner actor source target target_id shot attack_id range_player overlap_player seat_id occupant demolition monster_demolition dropped_by remove order".split())
@@ -25,7 +25,7 @@ SCALES = {name: 256 for name in "x y velocity_x velocity_y origin_x origin_y ran
 SCALES.update({name: 1000 for name in "elapsed time spawned_at flight_at frozen_until burning_until detonates_at burn_remaining excitement_remaining immune_until".split()})
 SCALES["direction"] = 4096
 COLLECTIONS = (*ENTITY_COLLECTIONS, "structure_states")
-PROJECTILE_FIELDS = frozenset("id x y velocity_x velocity_y owner hostile origin_x origin_y spawned_at range_player range_x range_y range_radius kind target_x target_y detonates_at target_id weapon_kind".split())
+PROJECTILE_FIELDS = frozenset("id x y velocity_x velocity_y owner hostile origin_x origin_y spawned_at range_player range_x range_y range_radius kind target_x target_y detonates_at target_id weapon_kind view_width view_height".split())
 
 
 class WireEncoder:
@@ -86,11 +86,13 @@ class CompactSync:
         flights = {}
         projectiles = []
         for projectile in state["projectiles"]:
-            if projectile["kind"] == "bullet":
+            if projectile["kind"] in ("bullet", "durian_peel"):
                 flight = self.flights.get(projectile["id"])
                 if flight is None:
                     flight = {key: value for key, value in projectile.items() if key in PROJECTILE_FIELDS}
                     flight.update(x=projectile["x"], y=projectile["y"], flight_at=state["elapsed"], trajectory=True)
+                if projectile["kind"] == "durian_peel":
+                    flight = {**flight, "view_width": projectile["view_width"], "view_height": projectile["view_height"]}
                 flights[projectile["id"]] = flight
                 projectiles.append(flight)
             else:

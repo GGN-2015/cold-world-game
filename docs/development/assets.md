@@ -24,6 +24,7 @@
 | 攻击与受击 | `fx_axe_sweep`、`fx_chainsaw_sweep`、`fx_ice_sweep`、`fx_flame_sweep`及各近战八方向图集，`fx_claw`、`fx_impact`、`fx_muzzle` |
 | 采集、医疗与传送 | `fx_slash`、`fx_debris`、`fx_heal`、`fx_teleport`、进食与拆包共享图集 |
 | 持续状态与爆炸 | `fx_sleep_zzz` 为休眠怪物共享飘字；`fx_burning` 为灼烧怪物共享火苗；`fx_explosion`、冰霜/火焰/脉冲范围动画用于对应攻击 |
+| 榴莲皮战斗 | `fx_durian_sweep` 及 `_e/se/s/sw/w/nw/n/ne` 八方向挥击图集；`durian_peel_flight_*` 八方向直线飞行PNG；`durian_peel_impaled.png` 为所有怪物共享的扎伤overlay，按当前怪物轮廓高度定位 |
 
 表中合并写法仅便于查找，实际每张PNG均独立保存，文件名及尺寸以 `manifest.json` 为准。
 

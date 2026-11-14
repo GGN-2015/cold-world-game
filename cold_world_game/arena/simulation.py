@@ -207,7 +207,7 @@ class Simulation:
             self.status = "downed"
         elif self.config["time_limit"] is not None and self.world.tick_number / TICK_RATE + 1e-9 >= self.config["time_limit"]:
             self.status = "time_limit"
-        elif not self.ai.has_usable_weapon(self.world, self.player_id):
+        elif not self.ai.has_usable_weapon(self.world, self.player_id) and not any(projectile.kind == "durian_peel" for projectile in self.world.projectiles.values()) and not any(monster.impaled for monster in self.world.monsters.values()):
             self.status = "weapons_depleted"
         return self.status in FINISHED_STATUSES
 

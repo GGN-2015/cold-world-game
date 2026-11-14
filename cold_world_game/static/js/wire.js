@@ -138,7 +138,12 @@ export class WireDecoder {
       const offsetX = horizontal - centerX, offsetY = vertical - centerY;
       const projection = speed ? (offsetX * projectile.velocity_x + offsetY * projectile.velocity_y) / speed : 0;
       const distanceSquared = offsetX * offsetX + offsetY * offsetY;
-      const remaining = distanceSquared > radius * radius ? 0 : Math.max(0, -projection + Math.sqrt(Math.max(0, projection * projection + radius * radius - distanceSquared)));
+      let remaining = distanceSquared > radius * radius ? 0 : Math.max(0, -projection + Math.sqrt(Math.max(0, projection * projection + radius * radius - distanceSquared)));
+      if (projectile.kind === 'durian_peel') {
+        const width = projectile.view_width ?? 32, height = projectile.view_height ?? 18;
+        const edges = [[offsetX, projectile.velocity_x, width / 2], [offsetY, projectile.velocity_y, height / 2]];
+        remaining = Math.abs(offsetX) > width / 2 || Math.abs(offsetY) > height / 2 ? 0 : Math.max(0, Math.min(...edges.filter(([, velocity]) => Math.abs(velocity) > 1e-9).map(([offset, velocity, half]) => (half - offset * Math.sign(velocity)) * speed / Math.abs(velocity))));
+      }
       return { ...projectile, x: horizontal, y: vertical, remaining, range_x: centerX, range_y: centerY };
     });
     return { ...state, projectiles };

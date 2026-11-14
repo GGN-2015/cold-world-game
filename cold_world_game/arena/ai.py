@@ -1,6 +1,6 @@
 import math
 
-from ..constants import DEFAULT_VIEWPORT, EQUIPPED_ITEMS, EXPLOSIVE_WEAPONS, GUNS, MELEE_WEAPONS, PASSIVE_ITEMS
+from ..constants import DEFAULT_VIEWPORT, EQUIPPED_ITEMS, EXPLOSIVE_WEAPONS, GUNS, MELEE_WEAPONS, PASSIVE_ITEMS, THROWABLE_WEAPONS
 from ..geometry import distance, normalized, tile
 from ..hitboxes import monster_aim
 from ..wildlife import MONSTER_TYPES
@@ -20,7 +20,7 @@ def item_support(kind):
 
 
 class BoldAI:
-    version = 5
+    version = 6
 
     def __init__(self):
         self.decision = "waiting"
@@ -57,7 +57,7 @@ class BoldAI:
             if slot is not None and player.selected != slot:
                 world.execute(player_id, {"type": "select", "slot": slot})
             weapon = player.inventory[player.selected] if slot is not None else None
-            melee = MELEE_WEAPONS.get(weapon.kind, {}) if weapon else {}
+            melee = MELEE_WEAPONS.get(weapon.kind, {}) if weapon and weapon.kind not in THROWABLE_WEAPONS else {}
             reach = melee.get("range", math.hypot(*DEFAULT_VIEWPORT) / 2 - 1)
             if slot is None:
                 equipment = next((index for index, item in enumerate(player.inventory) if item and item.kind in EQUIPPED_ITEMS), None)
@@ -90,13 +90,13 @@ class BoldAI:
             aim = [aim[0] + heading[0] * 2, aim[1] + heading[1] * 2]
         world.execute(player_id, {"type": "input", "move": movement, "aim": aim, "target_id": target.id if target else None, "viewport": list(DEFAULT_VIEWPORT)})
         item = player.inventory[player.selected]
-        repeating = seated or item and (item.kind == "rifle" or GUNS.get(item.kind, {}).get("automatic") or item.kind in EXPLOSIVE_WEAPONS)
+        repeating = seated or item and (item.kind == "rifle" or GUNS.get(item.kind, {}).get("automatic") or item.kind in EXPLOSIVE_WEAPONS or item.kind in THROWABLE_WEAPONS)
         if not attack:
             if controls.held:
                 world.execute(player_id, {"type": "attack", "pressed": False})
         elif repeating:
             if not controls.held:
-                world.execute(player_id, {"type": "attack", "pressed": True})
+                world.execute(player_id, {"type": "attack", "pressed": True, "throw_only": bool(item and item.kind in THROWABLE_WEAPONS)})
         else:
             ready = player.next_axe_attack if item and item.kind in MELEE_WEAPONS else player.next_shot
             if world.elapsed + 1e-9 >= ready:
@@ -113,14 +113,14 @@ class BoldAI:
 
     def choose_weapon(self, player, separation):
         available = self.available_weapons(player)
-        close = next((index for index, item in available if item.kind in MELEE_WEAPONS and separation <= MELEE_WEAPONS[item.kind]["range"]), None)
+        close = next((index for index, item in available if item.kind in MELEE_WEAPONS and item.kind not in THROWABLE_WEAPONS and separation <= MELEE_WEAPONS[item.kind]["range"]), None)
         if close is not None:
             return close
-        ranged = next((index for index, item in available if item.kind in GUNS or item.kind in EXPLOSIVE_WEAPONS), None)
+        ranged = next((index for index, item in available if item.kind in GUNS or item.kind in EXPLOSIVE_WEAPONS or item.kind in THROWABLE_WEAPONS), None)
         return ranged if ranged is not None else available[0][0] if available else None
 
     def aim(self, world, player, target, weapon):
-        settings = GUNS.get(weapon.kind, {})
+        settings = GUNS.get(weapon.kind, THROWABLE_WEAPONS.get(weapon.kind, {}))
         speed = settings.get("speed", 0)
         flight = min(0.8, distance(player, target) / speed) if speed and not settings.get("instant") else 0
         if weapon.kind in EXPLOSIVE_WEAPONS:

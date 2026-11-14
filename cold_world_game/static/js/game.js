@@ -27,6 +27,7 @@ let state = null;
 let selected = 0;
 let pendingSelected = false;
 let attackHeld = false;
+let chargedAttack = null;
 let pointerClient = null;
 let mobileControls;
 let mobileMove = { x: 0, y: 0 };
@@ -48,6 +49,7 @@ function stop() {
   ui?.cancelDemolition();
   keys.clear();
   attackHeld = false;
+  chargedAttack = null;
   mobileMove = { x: 0, y: 0 };
   renderer?.movement.setInput(0, 0);
   mobileControls?.reset();
@@ -94,7 +96,8 @@ function renderConnectionStatus() {
 function select(slot) {
   if (!connection.ready || slot < 0 || slot > 9) return;
   attackHeld = false;
-  connection.send('attack', { pressed: false });
+  chargedAttack = null;
+  connection.send('attack', { pressed: false, cancelled: true });
   selected = slot;
   pendingSelected = true;
   renderer.selected = slot;
@@ -259,13 +262,20 @@ connection.addEventListener('status', (event) => {
   }
 });
 
-function attack(pressed, shift = false) {
+function attack(pressed, shift = false, cancelled = false) {
   const fresh = pressed && !attackHeld;
+  const released = !pressed && attackHeld;
+  const now = performance.now() / 1000;
+  const item = state?.you.inventory[selected];
+  const throwing = renderer?.catalog.throwable_weapons?.[item?.kind];
+  if (fresh) chargedAttack = throwing ? { item: item.id, started: now } : null;
+  const quickSwing = released && !cancelled && chargedAttack && chargedAttack.item === item?.id && now - chargedAttack.started < throwing?.throw_duration;
+  if (!pressed) chargedAttack = null;
   attackHeld = pressed;
   input(true);
-  const attackId = fresh && state.you.seated !== 'mounted_gun' ? localCombat.begin(state, selected, aimPoint()) : null;
-  if (!attackId) { connection.send('attack', { pressed, shift }); return; }
-  connection.command('attack', { pressed, shift, attack_id: attackId }).then((result) => {
+  const attackId = (throwing ? quickSwing : fresh) && state.you.seated !== 'mounted_gun' ? localCombat.begin(state, selected, aimPoint()) : null;
+  if (!attackId) { connection.send('attack', { pressed, shift, cancelled }); return; }
+  connection.command('attack', { pressed, shift, cancelled, attack_id: attackId }).then((result) => {
     if (result.swing !== true) localCombat.reject(attackId);
   }).catch(() => localCombat.reject(attackId));
 }
@@ -296,7 +306,7 @@ canvas.addEventListener('pointerdown', (event) => {
     } else if (buildings.has(item?.kind) && (!container || event.shiftKey)) {
       input(true);
       attackHeld = false;
-      connection.send('attack', { pressed: false });
+      connection.send('attack', { pressed: false, cancelled: true });
       ui.action('place', point);
     } else {
       attack(true, event.shiftKey);
@@ -308,6 +318,9 @@ window.addEventListener('pointerup', (event) => {
   if (event.button === 0 && attackHeld) {
     attack(false);
   }
+});
+window.addEventListener('pointercancel', () => {
+  if (!isMobileDevice && attackHeld) attack(false, false, true);
 });
 canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 const scrollSelect = (event) => {
@@ -454,7 +467,7 @@ async function initialize() {
       use: attack,
       useAtPoint: () => {
         const point = aimPoint();
-        return Boolean(state?.you.seated === 'mounted_gun' || state?.structures.some(entity => seats.has(entity.kind) && entity.x === tileAt(point.x) && entity.y === tileAt(point.y)) || catalog.explosive_weapons?.[state?.you.inventory[selected]?.kind] || catalog.revival_items?.[state?.you.inventory[selected]?.kind]);
+        return Boolean(state?.you.seated === 'mounted_gun' || state?.structures.some(entity => seats.has(entity.kind) && entity.x === tileAt(point.x) && entity.y === tileAt(point.y)) || catalog.throwable_weapons?.[state?.you.inventory[selected]?.kind] || catalog.explosive_weapons?.[state?.you.inventory[selected]?.kind] || catalog.revival_items?.[state?.you.inventory[selected]?.kind]);
       },
       place: () => { input(true); const point = aimPoint(); ui.action('place', { x: tileAt(point.x), y: tileAt(point.y) }); },
       drop: () => { stop(); input(); ui.action('drop', { slot: selected }); },

@@ -147,6 +147,7 @@ def generate(save, canvas, palette, effects, bake, destination):
         drawing.rectangle((3, 29, 5 + index % 5, 29), fill=(*color, 120))
         save(kind, image)
     durian(save, canvas, outline)
+    durian_combat(save, canvas, outline, effects, bake)
     for kind, definition in items.items():
         if definition["mechanic"] != "melee":
             continue
@@ -316,6 +317,37 @@ def durian(save, canvas, outline):
     save("durian_peel", image)
 
 
+def durian_combat(save, canvas, outline, effects, bake):
+    image, drawing = canvas()
+    drawing.ellipse((11, 15, 23, 22), fill="#683a40")
+    drawing.polygon(((5, 17), (8, 10), (14, 12), (19, 5), (25, 10), (24, 17), (19, 23), (11, 22)), fill=outline)
+    drawing.polygon(((7, 17), (10, 12), (15, 15), (20, 8), (23, 11), (22, 17), (18, 20), (11, 20)), fill="#889f4b")
+    drawing.polygon(((10, 16), (12, 14), (16, 18), (21, 11), (22, 14), (18, 21), (13, 20)), fill="#f0df99")
+    for horizontal, vertical in ((7, 17), (10, 21), (18, 7), (24, 12), (22, 20)):
+        drawing.polygon(((horizontal - 2, vertical + 1), (horizontal, vertical - 4), (horizontal + 2, vertical + 1)), fill="#d4d885", outline="#546b3c")
+    drawing.line((20, 22, 24, 25), fill="#d57d68", width=2)
+    save("durian_peel_impaled", image)
+    image, drawing = canvas()
+    drawing.polygon(((3, 12), (12, 8), (29, 16), (12, 24), (3, 20), (9, 16)), fill=outline)
+    drawing.polygon(((6, 12), (12, 10), (26, 16), (12, 21), (6, 20), (12, 16)), fill="#91a84e")
+    drawing.polygon(((10, 13), (14, 12), (24, 16), (14, 19), (11, 18), (16, 16)), fill="#f4e2a0")
+    for horizontal, vertical in ((10, 10), (17, 12), (10, 22), (18, 20)):
+        drawing.polygon(((horizontal - 2, vertical), (horizontal, vertical - 3), (horizontal + 3, vertical)), fill="#cad279", outline="#61783d")
+    for index, direction in enumerate(("e", "se", "s", "sw", "w", "nw", "n", "ne")):
+        save(f"durian_peel_flight_{direction}", image.rotate(-index * 45, resample=Image.Resampling.NEAREST, center=(16, 16)))
+    sheet = Image.new("RGBA", (192, 32))
+    for frame in range(6):
+        image, drawing = canvas()
+        alpha = (80, 165, 240, 255, 180, 65)[frame]
+        drawing.pieslice((1, 1, 31, 31), -90, 90, fill=(174, 207, 94, alpha // 2))
+        drawing.arc((1, 1, 31, 31), -90, 90, fill=(231, 239, 159, alpha), width=2)
+        drawing.arc((3, 3, 29, 29), -90, 90, fill=(130, 178, 75, alpha), width=1)
+        sheet.alpha_composite(image, (frame * 32, 0))
+    save("fx_durian_sweep", sheet)
+    effects["fx_durian_sweep"] = {"asset": "fx_durian_sweep", "frame_width": 96, "frame_height": 96, "frames": 6, "duration": .28}
+    bake("durian_peel", "fx_durian_sweep")
+
+
 def export_text(root, items):
     messages = {}
     sweeps, blasts = {}, {}
@@ -331,8 +363,8 @@ def export_text(root, items):
         "item.durian": ["榴莲", "Durian"], "item.durian_peel": ["榴莲皮", "Durian peel"],
         "guide.effect.durian": ["恢复3点饥饿，可以超过10；吃完后同一个物品栏格子留下一个榴莲皮。自然箱子独立3%概率。", "Restores 3 hunger, including above 10, leaving one durian peel in the same hotbar slot. Independent 3% natural-chest chance."],
         "guide.use.durian": ["无需篝火；选中长按0.5秒，手机按住使用。饥饿大于10时不能吃；背包全满也能在原格产出皮，结算失败整次回滚，后台保存完整快照。", "No fire needed. Equip and hold left click or Use for 0.5 s. Cannot eat above 10 hunger. Its peel replaces the fruit even with full storage; operation failure rolls everything back; complete snapshots are saved in the background."],
-        "guide.effect.durian_peel": ["一次性投掷物，与手榴弹相同：半径3格内怪物受20伤害，玩家和方块不受伤害，播放相同爆炸。", "Single-use throwable with grenade behavior: 20 damage to monsters within radius 3, no harm to players or blocks, with the same explosion."],
-        "guide.use.durian_peel": ["选中后朝落点长按0.5秒；手机可直接长按场景，或瞄准后按住使用。消耗一片皮，飞行0.45秒后爆炸，最多每秒一次。", "Equip and hold 0.5 s toward the landing point. Hold the scene on mobile, or aim then hold Use. Consumes one peel; explodes after a 0.45 s flight, at most once per second."],
+        "guide.effect.durian_peel": ["短按松开时挥出斧头同范围的3格、180°近战群攻，伤害6（斧头1.5倍），间隔0.5秒；近战不消耗。投掷沿瞄准直线以20格/秒飞行，扎入第一个怪物，每0.5秒造成4点持续伤害，不击退，直到死亡；同类扎伤不叠加。", "Release a short tap for an axe-sized radius-3, 180° melee sweep: 6 damage (1.5× axe), 0.5 s cooldown, no consumption. A thrown peel flies straight at 20 tiles/s, impaling the first monster for 4 damage every 0.5 s until death, without knockback or stacking."],
+        "guide.use.durian_peel": ["选中后短按左键近战，长按0.5秒投掷，不会先挥一次；手机短按/长按场景或使用按钮。成功投出消耗一片，最多每秒一次；不爆炸、不伤玩家或方块，穿过方块，飞出射手当前矩形视野即消失。扎伤随存档保存，离线停服暂停。Arena AI只投掷。", "Equip, tap left click for melee or hold 0.5 s to throw without a preceding swing. On phones, tap/hold the scene or Use. Throwing consumes one peel, at most once/s. No explosion or harm to players/blocks; passes through blocks and disappears outside the shooter's current rectangular viewport. Impalement is saved and pauses when the world stops. Arena AI only throws."],
     })
     output = "export const expansionMessages = " + json.dumps(messages, ensure_ascii=False, indent=2) + ";\n\n"
     output += "export const expansionSweeps = " + json.dumps(sweeps, indent=2) + ";\n\n"

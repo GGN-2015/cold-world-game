@@ -27,11 +27,11 @@ export class MobileControls {
         canvasPressed = true;
         controls.use(true, false);
       }
-    }, () => {
+    }, (cancelled) => {
       if (canvasPressed) {
         this.holdOwner = null;
         canvasPressed = false;
-        controls.use(false, false);
+        controls.use(false, false, cancelled);
       }
     });
     this.root.addEventListener('contextmenu', (event) => event.preventDefault());
@@ -67,7 +67,7 @@ export class MobileControls {
     const active = [...this.pointers];
     this.pointers.clear();
     for (const [identifier, entry] of active) {
-      entry.finish();
+      entry.finish(true);
       if (entry.node.hasPointerCapture(identifier)) entry.node.releasePointerCapture(identifier);
     }
   }
@@ -79,14 +79,14 @@ export class MobileControls {
       const entry = this.pointers.get(pointer);
       this.pointers.delete(pointer);
       pointer = null;
-      entry?.finish();
+      entry?.finish(event.type !== 'pointerup');
       if (node.hasPointerCapture(event.pointerId)) node.releasePointerCapture(event.pointerId);
     };
     node.addEventListener('pointerdown', (event) => {
       if (!this.controls.canPlay() || pointer !== null || event.button !== 0) return;
       event.preventDefault();
       pointer = event.pointerId;
-      this.pointers.set(pointer, { node, finish: () => { pointer = null; node.classList.remove('active'); finish(); } });
+      this.pointers.set(pointer, { node, finish: (cancelled) => { pointer = null; node.classList.remove('active'); finish(cancelled); } });
       node.setPointerCapture(pointer);
       node.classList.add('active');
       update(event);
@@ -121,8 +121,8 @@ export class MobileControls {
     let pressed = false;
     this.bindPointer(node, () => {
       if (!pressed && !this.holdOwner) { this.holdOwner = node; pressed = true; this.controls.use(true, shift); }
-    }, () => {
-      if (pressed) { this.holdOwner = null; pressed = false; this.controls.use(false, shift); }
+    }, (cancelled) => {
+      if (pressed) { this.holdOwner = null; pressed = false; this.controls.use(false, shift, cancelled); }
     });
   }
 }

@@ -89,7 +89,9 @@ AXE = {"range": 3, "interval": 0.5, "damage": 4, "arc_degrees": 180}
 CHAINSAW = {"range": 2.5, "interval": 0.5, "damage": 6, "arc_degrees": 180, "uses": 200, "consume_on_hit": True}
 ICE_STAFF = {**AXE, "damage": AXE["damage"] * 2, "uses": 100, "freeze_duration": 4.0, "speed_scale": 0.5}
 FLAME_STAFF = {**AXE, "uses": 100, "burn_duration": 4.0, "burn_interval": 0.5, "burn_damage": AXE["damage"]}
-MELEE_WEAPONS = {"axe": AXE, "chainsaw": CHAINSAW, "ice_staff": ICE_STAFF, "flame_staff": FLAME_STAFF}
+DURIAN_PEEL = {**AXE, "damage": AXE["damage"] * 1.5, "throw_duration": 0.5, "throw_interval": 1.0, "speed": 20.0, "impale_interval": FLAME_STAFF["burn_interval"], "impale_damage": FLAME_STAFF["burn_damage"]}
+MELEE_WEAPONS = {"axe": AXE, "chainsaw": CHAINSAW, "ice_staff": ICE_STAFF, "flame_staff": FLAME_STAFF, "durian_peel": DURIAN_PEEL}
+THROWABLE_WEAPONS = {"durian_peel": DURIAN_PEEL}
 EXPLOSIVE_WEAPONS = {
     "grenade": {"duration": 0.5, "interval": 1.0, "flight_duration": 0.45, "radius": 3.0, "damage": AXE["damage"] * 5, "coin_cost": 0},
     "coin_launcher": {"duration": 0.5, "interval": 1.0, "flight_duration": 0.45, "radius": 3.0, "damage": AXE["damage"] * 5, "coin_cost": 1},
@@ -144,7 +146,6 @@ COMMON_CHEST_FOODS = tuple(FOODS)
 COMMON_CHEST_IGNITERS = tuple(IGNITERS)
 FOODS["durian"] = 3
 READY_TO_EAT_FOODS = READY_TO_EAT_FOODS | {"durian"}
-EXPLOSIVE_WEAPONS["durian_peel"] = {**EXPLOSIVE_WEAPONS["grenade"]}
 RARE_CHEST_ITEMS = {"durian": DURIAN_CHANCE, "chainsaw": CHAINSAW_CHANCE, "landmine": LANDMINE_CHANCE, **{kind: definition["chance"] for kind, definition in NAVIGATION_ITEMS.items()}, **{kind: definition["chance"] for kind, definition in EXPANSION_ITEMS.items()}}
 for item_kind, definition in EXPANSION_ITEMS.items():
     mechanic, settings = definition["mechanic"], definition["settings"]

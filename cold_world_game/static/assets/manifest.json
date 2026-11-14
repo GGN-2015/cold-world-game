@@ -1506,6 +1506,96 @@
       "file": "mounted_gun_ne.png",
       "width": 96,
       "height": 96
+    },
+    "durian_peel_impaled": {
+      "file": "durian_peel_impaled.png",
+      "width": 96,
+      "height": 96
+    },
+    "durian_peel_flight_e": {
+      "file": "durian_peel_flight_e.png",
+      "width": 96,
+      "height": 96
+    },
+    "durian_peel_flight_se": {
+      "file": "durian_peel_flight_se.png",
+      "width": 96,
+      "height": 96
+    },
+    "durian_peel_flight_s": {
+      "file": "durian_peel_flight_s.png",
+      "width": 96,
+      "height": 96
+    },
+    "durian_peel_flight_sw": {
+      "file": "durian_peel_flight_sw.png",
+      "width": 96,
+      "height": 96
+    },
+    "durian_peel_flight_w": {
+      "file": "durian_peel_flight_w.png",
+      "width": 96,
+      "height": 96
+    },
+    "durian_peel_flight_nw": {
+      "file": "durian_peel_flight_nw.png",
+      "width": 96,
+      "height": 96
+    },
+    "durian_peel_flight_n": {
+      "file": "durian_peel_flight_n.png",
+      "width": 96,
+      "height": 96
+    },
+    "durian_peel_flight_ne": {
+      "file": "durian_peel_flight_ne.png",
+      "width": 96,
+      "height": 96
+    },
+    "fx_durian_sweep": {
+      "file": "fx_durian_sweep.png",
+      "width": 576,
+      "height": 96
+    },
+    "fx_durian_sweep_e": {
+      "file": "fx_durian_sweep_e.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_durian_sweep_se": {
+      "file": "fx_durian_sweep_se.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_durian_sweep_s": {
+      "file": "fx_durian_sweep_s.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_durian_sweep_sw": {
+      "file": "fx_durian_sweep_sw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_durian_sweep_w": {
+      "file": "fx_durian_sweep_w.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_durian_sweep_nw": {
+      "file": "fx_durian_sweep_nw.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_durian_sweep_n": {
+      "file": "fx_durian_sweep_n.png",
+      "width": 1152,
+      "height": 192
+    },
+    "fx_durian_sweep_ne": {
+      "file": "fx_durian_sweep_ne.png",
+      "width": 1152,
+      "height": 192
     }
   },
   "animations": {
@@ -2169,6 +2259,26 @@
       "frame_height": 96,
       "frames": 6,
       "duration": 0.65
+    },
+    "fx_durian_sweep": {
+      "asset": "fx_durian_sweep",
+      "frame_width": 96,
+      "frame_height": 96,
+      "frames": 6,
+      "duration": 0.28,
+      "directions": [
+        "fx_durian_sweep_e",
+        "fx_durian_sweep_se",
+        "fx_durian_sweep_s",
+        "fx_durian_sweep_sw",
+        "fx_durian_sweep_w",
+        "fx_durian_sweep_nw",
+        "fx_durian_sweep_n",
+        "fx_durian_sweep_ne"
+      ],
+      "direction_frame_width": 192,
+      "direction_frame_height": 192,
+      "radius_ratio": 0.46875
     }
   },
   "monster_hitboxes": {
