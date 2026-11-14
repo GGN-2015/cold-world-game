@@ -87,5 +87,6 @@ export function itemGuide(item, catalog, language) {
     effect = t('guide.effect.other');
     use = t('guide.use.other');
   }
+  if (catalog.stack_limits?.[kind]) use += ` ${t('guide.use.stack', {limit:catalog.stack_limits[kind]})}`;
   return { category: t(`guide.category.${category}`), effect, use, detail: itemDetail(item, catalog), known: category !== 'other' };
 }

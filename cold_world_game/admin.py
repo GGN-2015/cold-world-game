@@ -4,6 +4,7 @@ import shlex
 from .actions import GameError
 from .constants import ITEM_KINDS
 from .models import Item
+from .inventory import insert_item, personal_storages
 
 
 def admin_id(value):
@@ -66,10 +67,8 @@ class Administration:
             destination = "money balance"
         else:
             item = Item.create(kind)
-            for name in ("backpack", "inventory"):
-                storage = getattr(target, name)
-                if None in storage:
-                    storage[storage.index(None)] = item
+            for name, storage in personal_storages(target, ("backpack", "inventory")):
+                if not insert_item([(name, storage)], item):
                     destination = name
                     break
             else:

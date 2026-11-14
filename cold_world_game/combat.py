@@ -4,6 +4,7 @@ from .constants import BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, DRINKS, EXPLOSI
 from .expansion import carried_modifier
 from .geometry import distance, normalized, segment_box, segment_circle, tile
 from .hitboxes import MONSTER_BOUNDS, monster_hitbox, segment_monster
+from .inventory import clear_selected_if, consume_selected, consume_use, has_personal_item
 from .models import Item, Projectile, identifier
 from .missiles import homing_position
 
@@ -104,8 +105,7 @@ class Combat:
                 projectile.remaining = self.projectile_range(projectile)
             self.projectiles[projectile.id] = projectile
         if item.ammo == 0:
-            if player.inventory[player.selected] is item:
-                player.inventory[player.selected] = None
+            clear_selected_if(player, item)
             controls.stop_attack()
 
     def eat(self, player, controls, item, seconds):
@@ -131,7 +131,7 @@ class Combat:
             return
         self.touch()
         player.excitement_remaining = settings["effect_duration"]
-        player.inventory[player.selected] = None
+        consume_selected(player)
         self.emit_event("eat", player.id, item.kind, player.x, player.y)
         controls.stop_attack()
 
@@ -157,7 +157,7 @@ class Combat:
         self.emit_event("throw", player.id, item.kind, player.x, player.y, target_x=projectile.target_x, target_y=projectile.target_y)
         controls.progress = 0.0
         if settings["coin_cost"] == 0:
-            player.inventory[player.selected] = None
+            consume_selected(player)
             controls.stop_attack()
 
     def explode(self, projectile):
@@ -205,7 +205,7 @@ class Combat:
             return
         self.touch()
         self.restore_player(target, settings["temperature"], settings["hunger"])
-        player.inventory[player.selected] = None
+        consume_selected(player)
         self.emit_event("heal", target.id, item.kind, target.x, target.y, source=player.id)
         controls.stop_attack()
 
@@ -215,9 +215,6 @@ class Combat:
         if controls.progress + 1e-9 < settings["duration"]:
             return
         supplies = settings.get("supplies", {})
-        if sum(storage.count(None) for storage in (player.backpack, player.inventory)) + 1 < sum(supplies.values()):
-            controls.stop_attack()
-            return
         self.touch()
         previous = player.temperature
         if "temperature" in settings:
@@ -230,14 +227,15 @@ class Combat:
             player.hunger = max(player.hunger, min(10.0, player.hunger + settings["hunger_delta"]))
         if previous < 5 <= player.temperature:
             controls.movement_epoch += 1
-        if item.uses is not None:
-            item.uses -= 1
-        if item.uses is None or item.uses <= 0:
-            player.inventory[player.selected] = None
+        if item.uses is None:
+            consume_selected(player)
+        else:
+            consume_use(player.inventory, player.selected, item)
         for kind, count in supplies.items():
             for index in range(count):
-                storage = player.backpack if None in player.backpack else player.inventory
-                storage[storage.index(None)] = Item.create(kind)
+                self.drop_item(Item.create(kind), player.x, player.y)
+        if supplies:
+            self.pickup(player)
         self.emit_event("unpack" if supplies else "heal", player.id, item.kind, player.x, player.y)
         controls.stop_attack()
 
@@ -250,9 +248,7 @@ class Combat:
             return
         self.touch()
         destination = self.return_destination()
-        item.uses -= 1
-        if item.uses == 0:
-            player.inventory[player.selected] = None
+        consume_use(player.inventory, player.selected, item)
         self.teleport_player(player, destination, item.kind)
 
     def teleport_player(self, player, destination, kind):
@@ -315,9 +311,7 @@ class Combat:
             self.apply_weapon_status(monster, settings, player.id)
             self.hurt_monster(monster, settings["damage"], player.id, item.kind, (offset_x, offset_y))
         if item.uses is not None and (targets or not settings.get("consume_on_hit", False)):
-            item.uses -= 1
-            if item.uses <= 0:
-                player.inventory[player.selected] = None
+            if consume_use(player.inventory, player.selected, item):
                 controls.stop_attack()
         return True
 
@@ -377,9 +371,7 @@ class Combat:
             self.emit_event("break", player.id, structure.kind, structure.x, structure.y, target=structure.id)
             self.remove_structure(structure)
             if item.uses is not None:
-                item.uses -= 1
-                if item.uses <= 0:
-                    player.inventory[player.selected] = None
+                consume_use(player.inventory, player.selected, item)
             controls.stop_attack()
 
     def knock_back(self, body, direction, distance, player_id=None, monster_id=None):
@@ -412,7 +404,7 @@ class Combat:
         impact_x, impact_y = monster.x, monster.y
         displacement = [0.0, 0.0]
         attacker = self.players.get(actor)
-        if monster.kind in {"small", "fast"} and attacker and any(item and item.kind == "sheriff_badge" for storage in (attacker.inventory, attacker.backpack) for item in storage):
+        if monster.kind in {"small", "fast"} and attacker and has_personal_item(attacker, "sheriff_badge"):
             amount *= PASSIVE_ITEMS["sheriff_badge"]["damage_multiplier"]
         monster.hp -= amount
         if monster.big and monster.hp > 0 and amount > 0 and not self.monster_inactive(monster) and attacker and attacker.id in self.online and attacker.temperature >= 5:

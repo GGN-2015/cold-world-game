@@ -1,8 +1,9 @@
 import math
 import time
 
-from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DRINKS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FOODS, GUNS, HARVEST_TOOLS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, MAX_COINS, MELEE_WEAPONS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS, SOLID
+from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DRINKS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FOODS, GUNS, HARVEST_TOOLS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, MAX_COINS, MELEE_WEAPONS, NORMAL_STORAGE_KINDS, PANEL_DEMOLITION, PERSONAL_STORAGE_KINDS, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS, SOLID
 from .geometry import DIRECTIONS, circle_square, distance, normalized, segment_box, tile
+from .inventory import clone_storages, consume_kind, count_kind, insert_item, mergeable, stack_limit, storage_slots, take_item
 from .models import GroundItem, Item, Structure
 from .wildlife import SEATS
 
@@ -173,8 +174,8 @@ class Actions:
             position = self.drop_position(player, controls)
             self.touch()
             self.cancel_selected(player, controls, slot)
-            player.inventory[slot] = None
-            ground = self.drop_item(item, *position, player.id)
+            dropped = take_item(player.inventory, slot)
+            ground = self.drop_item(dropped, *position, player.id)
             return {"ground_id": ground.id}
         elif kind == "transfer":
             return self.transfer(player, controls, command)
@@ -236,33 +237,26 @@ class Actions:
         return {"balance": structure.balance, "money": player.money, "amount": amount, "operation": operation}
 
     def consume_and_produce(self, player, controls, recipe):
-        storages = (player.backpack, player.inventory)
-        consumed = []
+        storages = clone_storages(player)
         payment = recipe["inputs"].get("coin", 0)
         if player.money < payment:
             raise GameError("insufficient_money", "Not enough money")
         for item_kind, quantity in recipe["inputs"].items():
             if item_kind == "coin":
                 continue
-            slots = [(storage_index, slot) for storage_index, storage in enumerate(storages) for slot, item in enumerate(storage) if item and item.kind == item_kind]
-            if len(slots) < quantity:
+            if count_kind(storages, item_kind) < quantity:
                 raise GameError("materials_missing", "Not enough required materials")
-            consumed.extend(slots[:quantity])
-        output_slots = 0 if recipe["output"] == "coin" else recipe["count"]
-        if sum(storage.count(None) for storage in storages) + len(consumed) < output_slots:
+            if consume_kind(storages, item_kind, quantity):
+                raise GameError("materials_missing", "Not enough required materials")
+        if recipe["output"] != "coin" and insert_item(storages, Item.create(recipe["output"], recipe["count"])):
             raise GameError("inventory_full", "Not enough room for every output item")
         self.touch()
         player.money -= payment
-        for storage_index, slot in consumed:
-            if storage_index == 1:
-                self.cancel_selected(player, controls, slot)
-            storages[storage_index][slot] = None
+        controls.stop_attack()
+        for kind, storage in storages:
+            setattr(player, kind, storage)
         if recipe["output"] == "coin":
             player.money += recipe["count"]
-        else:
-            for count in range(recipe["count"]):
-                storage = next(storage for storage in storages if None in storage)
-                storage[storage.index(None)] = Item.create(recipe["output"])
         return {"output": recipe["output"], "count": recipe["count"]}
 
     def place(self, player, controls, command):
@@ -293,7 +287,7 @@ class Actions:
         if -7 <= target_x <= 7 and -7 <= target_y <= 7 and not self.origin_spawn_points():
             self.remove_structure(structure)
             raise GameError("spawn_blocked", "The last origin spawn route must remain open")
-        player.inventory[player.selected] = None
+        take_item(player.inventory, player.selected)
         controls.stop_attack()
         for monster in self.monsters.values():
             monster.next_plan = 0
@@ -329,7 +323,7 @@ class Actions:
         if not isinstance(endpoint, dict):
             raise GameError("invalid_endpoint", "Transfer endpoints must be objects")
         kind = endpoint.get("kind")
-        if kind in ("inventory", "backpack"):
+        if kind in PERSONAL_STORAGE_KINDS:
             slot = integer(endpoint.get("slot"), "slot", 0, (INVENTORY_SLOTS if kind == "inventory" else BACKPACK_SLOTS) - 1)
             return kind, player, slot
         if kind == "wallet" and destination:
@@ -357,10 +351,8 @@ class Actions:
     @staticmethod
     def endpoint_item(endpoint):
         kind, owner, slot = endpoint
-        if kind in ("inventory", "backpack"):
-            return getattr(owner, kind)[slot]
-        if kind == "chest":
-            return owner.slots[slot]
+        if kind in NORMAL_STORAGE_KINDS:
+            return storage_slots(owner, kind)[slot]
         if kind == "igniter":
             return owner.igniter
         if kind == "fuel":
@@ -378,9 +370,12 @@ class Actions:
             raise GameError("empty_slot", "The source is empty")
         if "item_id" in command and item.id != command["item_id"]:
             raise GameError("stale_item", "The source item has changed")
+        if "item_kind" in command and item.kind != command["item_kind"]:
+            raise GameError("stale_item", "The source item has changed")
         if item.kind == "coin" and destination[0] in ("inventory", "backpack"):
             destination = "wallet", player, None
         target_kind, target, target_slot = destination
+        amount = item.count
         if target_kind == "ground":
             self.ensure_droppable(item)
         if target_kind == "wallet":
@@ -389,33 +384,53 @@ class Actions:
         elif target_kind == "fuel":
             if item.kind != "wood" or target.fuel >= 16:
                 raise GameError("invalid_fuel", "Fuel accepts wood only, with a capacity of 16")
+            amount = min(amount, 16 - target.fuel)
         elif target_kind == "igniter":
             if item.kind not in IGNITERS or not item.uses or target.igniter is not None:
                 raise GameError("invalid_igniter", "The igniter slot must be empty and the item usable")
-        elif target_kind != "ground" and self.endpoint_item(destination) is not None:
-            raise GameError("occupied_slot", "Destination slot is occupied; move it first")
+        elif target_kind not in ("ground", "wallet"):
+            existing = self.endpoint_item(destination)
+            limit = stack_limit(item.kind, target_kind)
+            if existing is not None and (limit == 1 or not mergeable(existing, item) or existing.count >= limit):
+                raise GameError("occupied_slot", "Destination slot is full or contains a different item")
+            amount = min(amount, limit - (existing.count if existing else 0))
         self.touch()
-        self.set_endpoint(source, None, player, controls)
-        self.set_endpoint(destination, item, player, controls)
-        return {"item_id": item.id}
+        source_kind, owner, slot = source
+        if source_kind in ("chest", "fuel", "igniter"):
+            self.record_structure(owner.id)
+        if source_kind == "inventory":
+            self.cancel_selected(player, controls, slot)
+        if source_kind in NORMAL_STORAGE_KINDS:
+            storage = storage_slots(owner, source_kind)
+            moved = take_item(storage, slot, amount)
+        elif source_kind == "ground" and amount < item.count:
+            item.count -= amount
+            moved = Item.create(item.kind, amount)
+        else:
+            self.set_endpoint(source, None, player, controls)
+            moved = item
+        self.set_endpoint(destination, moved, player, controls)
+        return {"item_id": moved.id, "count": amount}
 
     def set_endpoint(self, endpoint, item, player, controls):
         kind, owner, slot = endpoint
         if kind in ("chest", "igniter", "fuel"):
             self.record_structure(owner.id)
-        if kind == "inventory":
-            self.cancel_selected(player, controls, slot)
-            owner.inventory[slot] = item
-        elif kind == "backpack":
-            owner.backpack[slot] = item
-        elif kind == "chest":
-            owner.slots[slot] = item
+        if kind in NORMAL_STORAGE_KINDS:
+            if kind == "inventory":
+                self.cancel_selected(player, controls, slot)
+            storage = storage_slots(owner, kind)
+            existing = storage[slot]
+            if item and existing and mergeable(existing, item):
+                existing.count += item.count
+            else:
+                storage[slot] = item
         elif kind == "igniter":
             owner.igniter = item
         elif kind == "fuel":
-            owner.fuel += 1 if item else -1
+            owner.fuel += item.count if item else -1
         elif kind == "wallet":
-            owner.money += 1
+            owner.money += item.count
         elif kind == "ground":
             if item:
                 self.drop_item(item, *owner, player.id)

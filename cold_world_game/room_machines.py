@@ -6,7 +6,7 @@ ROOM_MACHINES = {
     "ration_dispenser": {
         "name": ["自动口粮机", "Ration dispenser"], "chance": .018, "art": "ration", "color": "#c39551",
         "description": ["出售小份即食巧克力、节省格子的坚果和需要篝火的燕麦粥，不免费供餐。", "Sells ready-to-eat chocolate, compact nuts and fire-required oatmeal. Meals are never free."],
-        "offers": {"chocolate": offer({"coin": 1}, "chocolate_bar"), "oatmeal": offer({"coin": 1}, "oatmeal"), "nuts": offer({"coin": 2}, "mixed_nuts")},
+        "offers": {"chocolate": offer({"coin": 4}, "chocolate_bar"), "oatmeal": offer({"coin": 4}, "oatmeal"), "nuts": offer({"coin": 8}, "mixed_nuts")},
     },
     "food_dehydrator": {
         "name": ["自助食品脱水机", "Food dehydrator"], "chance": .015, "art": "dehydrator", "color": "#c47959",

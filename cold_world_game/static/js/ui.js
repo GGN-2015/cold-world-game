@@ -3,6 +3,7 @@ import { getLanguage, t } from './i18n.js';
 import { isMobileDevice } from './mobile.js';
 import { StoragePrediction } from './storage.js';
 import { itemGuide } from './item-guide.js';
+import { destinationSlot, isPersonalStorage, itemCount, mergeable, recipeFits } from './items.js';
 
 const element = (tag, className = '', text = '') => {
   const node = document.createElement(tag);
@@ -222,7 +223,7 @@ export class GameUI {
     if (this.touchSelection) {
       const source = this.touchSelection;
       const endpoint = source.endpoint;
-      const current = ['inventory', 'backpack'].includes(endpoint.kind) ? you[endpoint.kind][endpoint.slot]
+      const current = isPersonalStorage(endpoint.kind) ? you[endpoint.kind][endpoint.slot]
         : state.container?.id === endpoint.id ? (endpoint.kind === 'igniter' ? state.container.igniter : state.container.slots?.[endpoint.slot]) : null;
       if (current?.id !== source.item.id) this.touchSelection = null;
     }
@@ -419,13 +420,13 @@ export class GameUI {
     view.detail.textContent = guide.detail;
     const destination = entry.endpoint.kind === 'backpack' ? 'inventory' : 'backpack';
     view.move.textContent = t(destination === 'inventory' ? 'guide.toHotbar' : 'guide.toBackpack');
-    view.move.disabled = this.busy || !this.state.you[destination].some(item => !item);
+    view.move.disabled = this.busy || destinationSlot(this.state.you, destination, entry.item, this.catalog) < 0;
   }
 
   movePersonalItem(endpoint, item) {
     if (this.busy) return;
     const destination = endpoint.kind === 'backpack' ? 'inventory' : 'backpack';
-    const slot = this.state.you[destination].findIndex(entry => !entry);
+    const slot = destinationSlot(this.state.you, destination, item, this.catalog);
     if (slot < 0) return this.toast(() => t(destination === 'inventory' ? 'storage.hotbarFull' : 'storage.backpackFull'));
     return this.transfer(endpoint, { kind: destination, slot }, item);
   }
@@ -585,6 +586,12 @@ export class GameUI {
   }
 
   touchTransferTo(endpoint, item) {
+    if (this.touchSelection && mergeable(this.catalog, item, this.touchSelection.item, endpoint.kind) && this.touchSelection.item.id !== item.id) {
+      const source = this.touchSelection;
+      this.setTouchSelection(null);
+      this.transfer(source.endpoint, endpoint, source.item);
+      return;
+    }
     if (item) {
       const same = this.touchSelection?.item.id === item.id;
       this.setTouchSelection(same ? null : { endpoint, item });
@@ -611,15 +618,15 @@ export class GameUI {
       node.addEventListener('pointerdown', (event) => { event.stopPropagation(); this.controls.stop(); });
       node.addEventListener('focus', () => {
         const { item, endpoint } = node.slotState;
-        if (['inventory', 'backpack'].includes(endpoint.kind)) this.inspectItem(item, false);
+        if (isPersonalStorage(endpoint.kind)) this.inspectItem(item, false);
       });
       node.addEventListener('dblclick', (event) => {
         const { item, endpoint } = node.slotState;
-        if (!isMobileDevice && this.panel && item && !event.shiftKey && ['inventory', 'backpack'].includes(endpoint.kind)) this.movePersonalItem(endpoint, item);
+        if (!isMobileDevice && this.panel && item && !event.shiftKey && isPersonalStorage(endpoint.kind)) this.movePersonalItem(endpoint, item);
       });
       node.onclick = (event) => {
         const { item, endpoint } = node.slotState;
-        if (['inventory', 'backpack'].includes(endpoint.kind)) this.inspectItem(item);
+        if (isPersonalStorage(endpoint.kind)) this.inspectItem(item);
         if (this.busy) return;
         if (item?.kind === 'coin') return this.quickTake(endpoint, item);
         if (isMobileDevice && this.touchTransfer && this.panel) return this.touchTransferTo(endpoint, item);
@@ -645,7 +652,7 @@ export class GameUI {
         if (!this.isOpen()) this.connection.send('ui', { open: true });
       });
       node.addEventListener('dragover', (event) => {
-        if (!this.dragSource || node.slotState.item || this.busy) return;
+        if (!this.dragSource || this.busy || node.slotState.item && !mergeable(this.catalog, node.slotState.item, this.dragSource.item, node.slotState.endpoint.kind)) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';
         node.classList.add('drop-target');
@@ -654,7 +661,7 @@ export class GameUI {
       node.addEventListener('drop', (event) => {
         event.preventDefault();
         node.classList.remove('drop-target');
-        if (this.dragSource && !node.slotState.item) this.transfer(this.dragSource.endpoint, node.slotState.endpoint, this.dragSource.item);
+        if (this.dragSource && (!node.slotState.item || mergeable(this.catalog, node.slotState.item, this.dragSource.item, node.slotState.endpoint.kind))) this.transfer(this.dragSource.endpoint, node.slotState.endpoint, this.dragSource.item);
       });
     }
     node.slotState = { item, endpoint };
@@ -665,7 +672,7 @@ export class GameUI {
     node.slotSignature = signature;
     node.className = `item-slot${item ? '' : ' empty'}${selected ? ' selected' : ''}${inspected ? ' inspected' : ''}${item && this.touchSelection?.item.id === item.id ? ' touch-selected' : ''}`;
     node.title = itemDetail(item, this.catalog);
-    node.setAttribute('aria-label', t('slot.label', { area: t(`slot.${['inventory', 'backpack'].includes(endpoint.kind) ? endpoint.kind : 'container'}`), slot: endpoint.slot == null ? '' : endpoint.slot + 1, item: itemDetail(item, this.catalog) }));
+    node.setAttribute('aria-label', t('slot.label', { area: t(`slot.${isPersonalStorage(endpoint.kind) ? endpoint.kind : 'container'}`), slot: endpoint.slot == null ? '' : endpoint.slot + 1, item: itemDetail(item, this.catalog) }));
     node.dataset.kind = endpoint.kind;
     if (endpoint.slot != null) node.dataset.slot = endpoint.slot;
     node.draggable = Boolean(item) && !isMobileDevice;
@@ -687,7 +694,7 @@ export class GameUI {
       }
     } else needle?.remove();
     let count = node.querySelector('.item-count');
-    const value = item?.ammo ?? item?.uses;
+    const value = item?.ammo ?? item?.uses ?? (this.catalog.stack_limits?.[item?.kind] ? itemCount(item) : null);
     if (value != null) {
       if (!count) { count = element('span', 'item-count'); node.append(count); }
       count.textContent = String(value);
@@ -703,9 +710,10 @@ export class GameUI {
     }
     this.cancelDemolition();
     this.dragSource = null;
-    if (item.kind === 'coin' && ['inventory', 'backpack'].includes(destination.kind)) destination = { kind: 'wallet' };
+    if (item.kind === 'coin' && isPersonalStorage(destination.kind)) destination = { kind: 'wallet' };
     const payload = { from: source, to: destination };
-    if (source.kind !== 'fuel') payload.item_id = item.id;
+    if (this.catalog.stack_limits?.[item.kind]) payload.item_kind = item.kind;
+    else if (source.kind !== 'fuel') payload.item_id = item.id;
     return this.connection.command('transfer', payload).then(() => true).catch((error) => {
       this.toast(() => errorText(error));
       return false;
@@ -714,9 +722,11 @@ export class GameUI {
 
   quickTake(endpoint, item) {
     if (item.kind === 'coin') return this.transfer(endpoint, { kind: 'wallet' }, item);
-    const slot = this.state.you.backpack.findIndex((entry) => !entry);
-    if (slot < 0) return this.toast(() => t('storage.backpackFull'));
-    this.transfer(endpoint, { kind: 'backpack', slot }, item);
+    for (const kind of endpoint.kind === 'inventory' ? ['backpack'] : ['backpack', 'inventory']) {
+      const slot = destinationSlot(this.state.you, kind, item, this.catalog);
+      if (slot >= 0) return this.transfer(endpoint, { kind, slot }, item);
+    }
+    this.toast(() => t('storage.backpackFull'));
   }
 
   quickDeposit(endpoint, item) {
@@ -736,15 +746,14 @@ export class GameUI {
     body.append(element('p', 'craft-description', t('craft.description')));
     const inventory = [...this.state.you.backpack, ...this.state.you.inventory];
     const counts = {};
-    for (const item of inventory.filter(Boolean)) counts[item.kind] = (counts[item.kind] || 0) + 1;
+    for (const item of inventory.filter(Boolean)) counts[item.kind] = (counts[item.kind] || 0) + itemCount(item);
     const list = element('div', 'recipe-list');
     for (const [identifier, recipe] of Object.entries(this.catalog.recipes)) {
       const card = element('button', 'recipe-card');
       card.type = 'button';
       card.dataset.recipe = identifier;
       const enough = Object.entries(recipe.inputs).every(([kind, amount]) => (counts[kind] || 0) >= amount);
-      const free = inventory.filter((item) => !item).length + Object.values(recipe.inputs).reduce((total, amount) => total + amount, 0);
-      card.disabled = this.busy || !enough || free < recipe.count;
+      card.disabled = this.busy || !enough || !recipeFits(this.state.you, recipe, this.catalog);
       const icon = element('span', 'recipe-icon');
       const image = element('img'); image.src = assetUrl(recipe.output); image.alt = '';
       icon.append(image, element('small', '', `×${recipe.count}`));
@@ -761,7 +770,7 @@ export class GameUI {
   renderVending(body, container) {
     const inventory = this.playerItems().map((entry) => entry.item);
     const counts = {};
-    for (const item of inventory.filter(Boolean)) counts[item.kind] = (counts[item.kind] || 0) + 1;
+    for (const item of inventory.filter(Boolean)) counts[item.kind] = (counts[item.kind] || 0) + itemCount(item);
     counts.coin = this.state.you.money ?? 0;
     body.append(element('p', 'craft-description', t('vending.balance', { wood: counts.wood || 0, coin: counts.coin || 0 })));
     const list = element('div', 'recipe-list vending-offers');
@@ -772,9 +781,8 @@ export class GameUI {
       card.type = 'button';
       card.dataset.offer = identifier;
       const enough = Object.entries(offer.inputs).every(([kind, amount]) => (counts[kind] || 0) >= amount);
-      const free = inventory.filter((item) => !item).length + Object.entries(offer.inputs).reduce((total, [kind, amount]) => total + (kind === 'coin' ? 0 : amount), 0);
-      const required = offer.output === 'coin' ? 0 : offer.count;
-      card.disabled = this.busy || !enough || free < required;
+      const fits = recipeFits(this.state.you, offer, this.catalog);
+      card.disabled = this.busy || !enough || !fits;
       const icon = element('span', 'recipe-icon');
       const image = element('img'); image.src = assetUrl(offer.output); image.alt = '';
       icon.append(image, element('small', '', `×${offer.count}`));
@@ -782,7 +790,7 @@ export class GameUI {
       const cost = Object.entries(offer.inputs).map(([kind, amount]) => `${amount} × ${itemName(kind)}`).join(' + ');
       copy.append(element('strong', '', `${cost} → ${offer.count} × ${itemName(offer.output)}`));
       copy.append(element('span', enough ? '' : 'missing', Object.entries(offer.inputs).map(([kind, amount]) => `${itemName(kind)} ${counts[kind] || 0}/${amount}`).join(' · ')));
-      card.title = t(free < required ? 'error.inventory_full' : 'vending.exchange');
+      card.title = t(fits ? 'vending.exchange' : 'error.inventory_full');
       card.append(icon, copy, element('span', '', '→'));
       card.onclick = () => this.action('trade', { id: container.id, offer: identifier }, () => t('vending.success', { count: offer.count, name: itemName(offer.output) }));
       list.append(card);

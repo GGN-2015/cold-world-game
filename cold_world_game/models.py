@@ -30,11 +30,12 @@ class Item:
     id: str = field(default_factory=identifier)
     ammo: int | None = None
     uses: int | None = None
+    count: int = 1
 
     @classmethod
-    def create(cls, kind: str) -> "Item":
+    def create(cls, kind: str, count=1) -> "Item":
         settings = RETURN_ITEMS.get(kind) or MELEE_WEAPONS.get(kind) or HEALING_ITEMS.get(kind, {})
-        return cls(kind, ammo=GUNS[kind]["ammo"] if kind in GUNS else None, uses=settings.get("uses", IGNITERS.get(kind)))
+        return cls(kind, ammo=GUNS[kind]["ammo"] if kind in GUNS else None, uses=settings.get("uses", IGNITERS.get(kind)), count=count)
 
 
 @dataclass
@@ -230,7 +231,10 @@ def encode(value):
     if value is None or isinstance(value, (str, int, float)):
         return value
     if type(value) is Item:
-        return vars(value).copy()
+        result = vars(value).copy()
+        if value.count == 1:
+            result.pop("count")
+        return result
     if type(value) is Structure:
         return {**vars(value), "slots": [encode(item) for item in value.slots], "igniter": encode(value.igniter)}
     if type(value) is Monster:

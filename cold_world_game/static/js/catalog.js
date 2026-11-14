@@ -13,6 +13,7 @@ export const distance = (first, second) => Math.hypot(first.x - second.x, first.
 
 export function itemDetail(item, catalog) {
   if (!item) return t('slot.empty');
+  if (catalog?.stack_limits?.[item.kind]) return t('item.stack', {name:itemName(item.kind), count:item.count ?? 1, limit:catalog.stack_limits[item.kind]});
   if (catalog?.expansion_items?.[item.kind]) return item.ammo != null ? t('item.ammo', { name: itemName(item.kind), count: item.ammo }) : item.uses != null ? t('item.uses', { name: itemName(item.kind), count: item.uses }) : itemName(item.kind);
   if (catalog?.equipped_items?.[item.kind]) return t('item.equipped', { name: itemName(item.kind), ...catalog.equipped_items[item.kind] });
   if (catalog?.passive_items?.[item.kind]) return t('item.passive', { name: itemName(item.kind), ...catalog.passive_items[item.kind] });

@@ -143,8 +143,8 @@ tool("insulated_lunchbox", "保鲜饭盒", "Insulated lunchbox", "passive", .006
      ["携带时自然饥饿消耗降低20%，不降低受击损失，不增加食品回复值。", "While carried, reduces natural hunger drain by 20%, not damage losses, and does not boost food restoration."],
      ["放背包或物品栏即生效，不消耗、多件不叠加；离线仍不消耗饥饿。", "Carry in bag or hotbar. Not consumed or stacked. Hunger still does not drain offline."], "lunchbox")
 tool("fuel_pack", "燃料补给包", "Fuel supply pack", "healing", .012, {"duration": 1, "supplies": {"wood": 5}},
-     ["一次性拆出5木材，优先放背包，再放物品栏，不改变饥饿或体温。", "Single-use; unpacks 5 wood, preferring bag then hotbar. No temperature or hunger change."],
-     ["选中长按1秒，无需火；需要含补给包原格在内至少5个空格，不足时不消耗、不产出。手机按住使用。", "Equip and hold 1 s without fire. Needs at least 5 free slots including its own consumed slot. Insufficient space consumes or produces nothing. Hold Use on mobile."], "crate")
+     ["每包拆出5木材，先掉落脚边再自动拾取，优先物品栏、再背包；放不下的留在地上。不改变饥饿或体温，物品栏每格最多叠16包。", "Each pack drops 5 wood at your feet, then auto-pickup fills the hotbar before the backpack. Excess stays on the ground. No hunger or temperature change. Up to 16 packs per hotbar slot."],
+     ["选中长按1秒，无需火；每次消耗1包，背包和物品栏全满也可拆包。手机按住使用。", "Equip and hold 1 s without fire; uses one pack, even when both storage areas are full. Hold Use on mobile."], "crate")
 
 
 DURIAN_CHANCE = .03
