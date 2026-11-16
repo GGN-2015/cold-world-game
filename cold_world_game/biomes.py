@@ -7,8 +7,8 @@ from itertools import chain
 from .actions import GameError
 from .biome_layout import BIOME_RING
 from .constants import CHAIN_CHARM_CHANCE, CHUNK_SIZE, EXPLOSIVE_WEAPONS, FOG_CAMPFIRE_RADIUS, FOG_LANTERN_RADIUS, FOG_STREET_LAMP_RADIUS, FOG_VIEW_RADIUS, GUNS, MELEE_WEAPONS, MONSTER_PROJECTILE_SPEED
-from .constants import HARVEST_CHAIN_LIMIT, HARVEST_CHAIN_RADIUS
-from .geometry import chunk, distance, normalized, tile
+from .constants import HARVEST_CHAIN_COSTS, HARVEST_CHAIN_LIMIT
+from .geometry import DIRECTIONS, chunk, distance, normalized, tile
 from .inventory import consume_use, take_item
 from .models import Item, Monster, Projectile, Structure
 from .wildlife import BIOME_GUARDS, MONSTER_TYPES
@@ -40,8 +40,11 @@ class Biomes:
                    for effect in self.biome_effects)
 
     def exposed_lake(self, x, y):
-        return ("lake" in self.biomes_at(x, y)
-                and not self.supports_lake_fire(self.structure_at(tile(x), tile(y)))
+        if "lake" not in self.biomes_at(x, y):
+            return False
+        surface = self.structure_at(tile(x), tile(y))
+        return (not (surface and surface.kind == "bridge_pier")
+                and not self.supports_lake_fire(surface)
                 and not self.frozen_lake(x, y))
 
     def biome_speed_scale(self, player):
@@ -145,8 +148,36 @@ class Biomes:
         stream = self.event_random("harvest-chain", tree.id)
         if tool == "axe" and stream.random() >= CHAIN_CHARM_CHANCE:
             return [tree]
-        nearby = [target for target in self.trees_in_radius(tree.x, tree.y, HARVEST_CHAIN_RADIUS) if target.id != tree.id]
-        return [tree, *stream.sample(nearby, min(len(nearby), HARVEST_CHAIN_LIMIT - 1))]
+        felled = [tree]
+        remaining = HARVEST_CHAIN_LIMIT - 1
+        while remaining:
+            frontier = [(origin.x, origin.y) for origin in felled]
+            visited = set(frontier)
+            selected = None
+            for cost in HARVEST_CHAIN_COSTS:
+                if cost > remaining:
+                    break
+                empty, choices = [], []
+                for x, y in frontier:
+                    for dx, dy in DIRECTIONS:
+                        point = x + dx, y + dy
+                        if point in visited:
+                            continue
+                        visited.add(point)
+                        target = self.structure_at(*point)
+                        if target is None:
+                            empty.append(point)
+                        elif target.kind == "tree":
+                            choices.append(target)
+                if choices:
+                    selected = stream.choice(choices)
+                    break
+                frontier = empty
+            if selected is None:
+                break
+            felled.append(selected)
+            remaining -= cost
+        return felled
 
     def copy_scroll(self, player, controls, kind):
         if not isinstance(kind, str) or kind not in SCROLLS:
@@ -178,6 +209,8 @@ class Biomes:
         return {"output": kind}
 
     def linked_device(self, position, kind):
+        if not position:
+            return None
         cx, cy = chunk(position[0]), chunk(position[1])
         for x in range(cx * CHUNK_SIZE - CHUNK_SIZE // 2, cx * CHUNK_SIZE + CHUNK_SIZE // 2 + 1):
             for y in range(cy * CHUNK_SIZE - CHUNK_SIZE // 2, cy * CHUNK_SIZE + CHUNK_SIZE // 2 + 1):
@@ -197,25 +230,27 @@ class Biomes:
         return {"crossed": True}
 
     def crossing_endpoint(self, device):
-        if device.kind in {"cable_station", "bridge_pier"}:
-            self.ensure_terrain(*device.biome_link)
-            other = self.linked_device(device.biome_link, device.kind)
-            if not other and device.kind == "cable_station":
-                raise GameError("crossing_unavailable", "The other end of this cable is unavailable")
-            return other
-        return None
+        if not device.biome_link:
+            raise GameError("crossing_unavailable", "This device has no linked crossing")
+        self.ensure_terrain(*device.biome_link)
+        other = self.linked_device(device.biome_link, device.kind)
+        if not other:
+            raise GameError("crossing_unavailable", "The other end of this cable is unavailable")
+        return other
 
-    def finish_crossing_repair(self, device, other):
-        if device.kind == "cable_station":
-            self.record_structure(other.id)
-            other.repaired = True
-            self.invalidate_chunk(other)
-        elif device.kind == "bridge_pier":
-            endpoint = (other.x, other.y) if other else device.biome_link
-            for x, y in line_points((device.x, device.y), endpoint):
-                if not self.structure_at(x, y):
-                    self.add_structure(Structure("bridge_deck", x, y))
-        self.invalidate_chunk(device)
+    def bridge_deck_tiles(self, device):
+        if not device.biome_link:
+            raise GameError("crossing_unavailable", "This pier has no linked crossing")
+        endpoint = self.linked_device(device.biome_link, "bridge_pier")
+        end = (endpoint.x, endpoint.y) if endpoint else device.biome_link
+        missing = []
+        for x, y in line_points((device.x, device.y), end):
+            structure = self.structure_at(x, y)
+            if structure is None:
+                missing.append((x, y))
+            elif not (structure.kind == "bridge_pier" or not structure.solid and self.supports_lake_fire(structure)):
+                raise GameError("bridge_blocked", "Clear the planned bridge deck before repairing")
+        return missing
 
     def reveal_guards(self, player):
         previous = self.controls[player.id].next_biome_scan

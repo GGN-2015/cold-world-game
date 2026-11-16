@@ -60,6 +60,7 @@ class Structure:
     ammo: int | None = None
     owner: str | None = None
     repaired: bool = False
+    repair_parts: int = 0
     door_open: bool = False
     biome_link: list[int] | None = None
     biome_anchor: list[int] | None = None

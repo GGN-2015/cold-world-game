@@ -7,7 +7,8 @@ self.onmessage = async ({ data }) => {
   const current = ++generation;
   if (data.config) {
     config = data.config;
-    legacy = new Map(config.legacy.map(([horizontal, vertical, building]) => [`${horizontal},${vertical}`, building]));
+    const bridgeChunks = (config.barrier?.bridge_chunks ?? []).map(([horizontal, vertical]) => [`${horizontal},${vertical}`, false]);
+    legacy = new Map([...bridgeChunks, ...config.legacy.map(([horizontal, vertical, building]) => [`${horizontal},${vertical}`, building])]);
     cache.clear();
     return;
   }

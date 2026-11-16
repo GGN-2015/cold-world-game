@@ -4,7 +4,7 @@ from functools import lru_cache
 from math import atan2, cos, floor, sin, tau
 
 from . import constants as rules
-from .biome_layout import BIOME_RING, add_biome_terrain
+from .biome_layout import BIOME_RING, add_biome_terrain, bridge_layout, chunk_biomes, ring_parameters
 from .loot import CHEST_LOOT
 from .models import Item, Structure
 from .room_machines import ROOM_MACHINES
@@ -300,6 +300,14 @@ def add_devices(horizontal, vertical, builder, center_x, center_y, objects, inte
             objects.append(Structure(kind, *stream.choice(candidates), ammo=0 if kind == "service_gun" else None))
 
 
+def room_excluded(seed, horizontal, vertical, settings):
+    if not settings.get("biome_ring", {}).get("axis_bridges"):
+        return False
+    parameters = ring_parameters(settings)
+    return bool(chunk_biomes(seed, horizontal, vertical, *parameters)
+                or (horizontal, vertical) in bridge_layout(seed, *parameters)[1])
+
+
 def plan(seed, horizontal, vertical, settings):
     if settings["algorithm"] != 1:
         raise ValueError("Unsupported procedural terrain algorithm")
@@ -308,7 +316,7 @@ def plan(seed, horizontal, vertical, settings):
     center_x, center_y = horizontal * settings["size"], vertical * settings["size"]
     roll = stream.random()
     interior = []
-    if (horizontal, vertical) == (0, 0) or roll >= .9:
+    if (horizontal, vertical) == (0, 0) or roll >= .9 and not room_excluded(seed, horizontal, vertical, settings):
         objects, interior = builder.building(stream, center_x, center_y)
         for kind, feature, chance in settings["machines"]:
             builder.populate_machine(objects, interior, horizontal, vertical, kind, feature, chance, preserve_paths=True)
@@ -344,6 +352,8 @@ def appearance(structure):
         state["door_open"] = structure.door_open
     if structure.kind in {"cable_station", "street_lamp", "bridge_pier"}:
         state["repaired"] = structure.repaired
+    if structure.kind == "cable_station":
+        state["repair_parts"] = structure.repair_parts
     if structure.on_floor:
         state["on_floor"] = True
     return state

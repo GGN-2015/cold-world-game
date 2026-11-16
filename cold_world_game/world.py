@@ -12,7 +12,8 @@ from .admin import Administration, admin_id
 from .biomes import Biomes
 from .combat import Combat
 from .constants import AMMO_PACKS, RELOAD_RULES, CREATIVE_ITEMS, FIXED_HEATER_BURN_SECONDS, HUNGER_PER_MINUTE, MAX_HUNGER, STARVATION_COOLING_PER_MINUTE, STARVATION_HUNGER, STARVATION_TEMPERATURE, WORLD_START_HOUR
-from .constants import BIOME_ITEMS, BIOME_SPAWN_MULTIPLIER, BUILDING_WANDS, ITEM_CATALOG_VERSION, ROOM_MONSTER_CHANCE, ROOM_MONSTER_NOTICE_DISTANCE
+from .biome_layout import BIOME_RING
+from .constants import BIOME_ITEMS, BIOME_SPAWN_MULTIPLIER, BUILDING_WANDS, CHAIN_CHARM_CHANCE, HARVEST_CHAIN_COSTS, HARVEST_CHAIN_LIMIT, ITEM_CATALOG_VERSION, ROOM_MONSTER_CHANCE, ROOM_MONSTER_NOTICE_DISTANCE
 from .constants import BACKPACK_STACK_LIMITS, GROUND_ITEM_UNSEEN_SECONDS, NAVIGATION_ITEMS, STACK_LIMITS, THROWABLE_WEAPONS
 from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BODY_TEMPERATURE_RATES, BULLET_BLOCKERS, BURN_SECONDS, CHUNK_SIZE, DAY_SECONDS, DEFAULT_VIEWPORT, DRINKS, DROP_DISTANCE, EQUIPPED_ITEMS, EXPLOSIVE_WEAPONS, FAST_MONSTER_SPEED, FOODS, GUNS, HARVEST_TOOLS, GUN_MACHINE_CHANCE, HEALING_ITEMS, ICE_STAFF, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, MACHINE_OFFERS, MATCH_MACHINE_CHANCE, MAX_COINS, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_SPEED, NIGHT_MONSTER_HOURS, OPAQUE, PASSIVE_ITEMS, PICKUP_RADIUS, PIGGY_BANK_CHANCE, PLAYER_SPEED, READY_TO_EAT_FOODS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS, SEASONS, SEASON_DAYS, SEASON_OFFSETS, SMALL_MONSTER_FOOD_CHANCE, SMALL_MONSTER_FOOD_WEIGHTS, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS
 from .expansion import EXPANSION_CATEGORIES, EXPANSION_ITEMS, carried_modifier
@@ -22,7 +23,7 @@ from .inventory import can_insert, insert_item, personal_storages
 from .models import Controls, GroundItem, Item, Monster, Player, Projectile, encode, item_from, player_from, projectile_from, structure_from
 from .monsters import PACED_SPAWN_BIOMES, Monsters
 from .outdoors import Outdoors
-from .wildlife import MONSTER_TYPES, OUTDOOR_FEATURES, SEATS
+from .wildlife import BRIDGE_REPAIRS_PER_CROSSING, CABLE_REPAIR_PARTS, DEVICE_REPAIR_SECONDS, MONSTER_TYPES, OUTDOOR_FEATURES, SEATS, SERVICE_GUN_REPAIR_PARTS
 from .storage import WorldDelta
 from .spatial import BodyIndex
 from .publication import capture_entities, compose_snapshot
@@ -718,6 +719,10 @@ class World(Administration, Outdoors, Actions, Combat, Biomes, Monsters, Terrain
                                 if (uses := Item.initial_uses(kind)) is not None}
         catalog["monster_spawning"].update(biome_multiplier=BIOME_SPAWN_MULTIPLIER, accelerated_biomes=PACED_SPAWN_BIOMES)
         catalog["terrain"].update(room_monster_chance=ROOM_MONSTER_CHANCE, room_monster_notice_distance=ROOM_MONSTER_NOTICE_DISTANCE)
+        catalog["terrain"]["barrier"] = BIOME_RING
+        catalog["crossing_repairs"] = {"seconds": DEVICE_REPAIR_SECONDS, "cable_parts": CABLE_REPAIR_PARTS,
+                                       "bridge_piers": BRIDGE_REPAIRS_PER_CROSSING, "service_gun_parts": SERVICE_GUN_REPAIR_PARTS}
+        catalog["harvest_chain"] = {"costs": HARVEST_CHAIN_COSTS, "limit": HARVEST_CHAIN_LIMIT, "charm_chance": CHAIN_CHARM_CHANCE}
         return catalog
 
     def close(self, save=True):

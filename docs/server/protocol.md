@@ -26,7 +26,7 @@
 
 ## 地图订阅
 
-`welcome.navigation_config`独立于地形差分协商，包含`seed`（字符串）、`size`（区块边长）、`algorithm`（共享类型算法）及`legacy`（`[chunk_x,chunk_y,is_building]`旧生成器区块类型表）。这是一次性只读导航元数据，指南针不发送寻向请求、不订阅远方区块。后续状态不重复发送该字段。
+`welcome.navigation_config`独立于地形差分协商，包含`seed`（字符串）、`size`（区块边长）、`algorithm`（共享类型算法）及`legacy`（`[chunk_x,chunk_y,is_building]`已生成区块覆盖表）。`barrier` 提供障碍圈中心半径、半宽和桥线预留区块，供指南针排除禁止生成房屋的区块。已生成区块优先使用覆盖表。这是一次性只读导航元数据，指南针按本地规则寻向。
 
 `procedural_terrain:1`仅在同时启用`state_deltas:true`时生效。服务端在`welcome`附加`terrain_config`（会话标识、字符串种子、按区块版本索引的生成配置）和`terrain`，常规`state.structures`为空，动态外观放在`state.structure_states`。没有协商此能力的连接保持原有建筑快照与字段差分，不要求旧客户端理解种子地图。
 

@@ -159,8 +159,8 @@ class Manual:
                 lines += self.entry(kind, effect, usage, limits)
         lines += ["## 维修用品", ""]
         wrench_price = rules.VENDING_OFFERS["buy_wrench"]["inputs"]["coin"]
-        lines += self.entry("repair_wrench", "12 次耐久。每次维修消耗 1 次及 1 个零件。", "放到物品栏后选中。点击 2 格内的供暖机或待维修机枪，维修索道、桥墩和路灯时长按。", "用尽消失；修好后无需重复维修；机枪弹药另行装填。", f"{self.acquisition('repair_wrench')}售货机售价 {wrench_price} 金币。")
-        lines += self.entry("spare_part", f"固定设备的维修耗材，每格最多 {rules.STACK_LIMITS['spare_part']} 件。", "维修时从背包或物品栏扣除 1 件。", "每次维修保留堆里的其余零件。")
+        lines += self.entry("repair_wrench", f"{self.wildlife.WRENCH_USES} 次耐久。每完成一个维修步骤扣 1 次，零件和木材按设备结算。", "放到物品栏后选中。点击 2 格内的供暖机或待维修机枪，维修索道、桥墩和路灯时长按。", "用尽消失。索道的每个维修步骤分别计次，机枪弹药另行装填。", f"{self.acquisition('repair_wrench')}售货机售价 {wrench_price} 金币。")
+        lines += self.entry("spare_part", f"固定设备的维修耗材，每格最多 {rules.STACK_LIMITS['spare_part']} 件。", "维修时从背包和物品栏扣除设备所需的数量。索道每步 1 件，待维修机枪一次消耗 3 件。", "每次维修保留堆里的其余零件。")
         lines += ["## 创造测试道具", ""]
         creative_effects = {
             "creative_warm_suit": "体温锁定在 36°C，拿到时立即解除倒地。受击仍会产生击退。",
@@ -173,7 +173,7 @@ class Manual:
             lines += self.entry(kind, effect, "放进背包或快捷栏即可生效。", "占 1 格，可随时存入箱子或丢弃来关闭效果。", "通过管理员控制台的 `creative` 或 `give` 命令领取。")
         lines += ["## 群系工具", ""]
         lines += self.entry("lantern", f"照亮 {rules.FOG_LANTERN_RADIUS} 格内的迷雾，范围内的光照由附近玩家共享。", "放在快捷栏并选中。换到另一格时熄灭。", "无耐久消耗。")
-        lines += self.entry("chain_charm", f"普通斧头砍倒树时有 {wiki_tables.percent(rules.CHAIN_CHARM_CHANCE)} 概率触发。以首棵树为中心，随机选半径 {rules.HARVEST_CHAIN_RADIUS:g} 格内的树一起砍，含首棵最多 {rules.HARVEST_CHAIN_LIMIT} 棵，可以隔着空格。", "随身携带，手持斧头长按采伐。", "同类饰品不叠加。")
+        lines += self.entry("chain_charm", f"普通斧头砍倒树时有 {wiki_tables.percent(rules.CHAIN_CHARM_CHANCE)} 概率触发。{wiki_tables.harvest_chain(rules)}", "随身携带，手持斧头长按采伐。", "同类饰品不叠加。")
         lines += self.entry("quill", "复制卷轴需要原件、1份莎草纸与1次羽毛笔耐久，保留原卷轴。", "在背包中查看火球术或冰冻术卷轴，点击“复制卷轴”。", "初始6次，耗尽后消失。")
         lines += self.entry("papyrus", f"用于复制卷轴，每格最多 {rules.STACK_LIMITS['papyrus']} 张。", "随身携带，与羽毛笔、原卷轴一起使用。", "成功复制消耗 1 张纸和 1 次羽毛笔耐久。放不下副本时保留材料。")
         lines += ["## 建造法杖", ""]
@@ -230,7 +230,7 @@ class Manual:
             elif kind == "axe":
                 effect += "携带" + self.link("axe_handle") + f"时攻击半径增加 {rules.PASSIVE_ITEMS['axe_handle']['axe_range_bonus']:g} 格。"
             elif kind == "chain_chainsaw":
-                effect += "以首棵树为中心，随机连砍半径 5 格内的树，含首棵最多 5 棵，可以隔着空格。"
+                effect += wiki_tables.harvest_chain(rules)
                 limits += "完成一次采伐消耗 1 次，包含连锁砍倒的树。"
             lines += self.entry(kind, effect, use, limits)
 

@@ -13,6 +13,12 @@ def percent(rate):
     return f"{rate * 100:.2f}".rstrip("0").rstrip(".") + "%"
 
 
+def harvest_chain(rules):
+    adjacent, one_gap, two_gaps = rules.HARVEST_CHAIN_COSTS
+    return (f"首棵之后有 {rules.HARVEST_CHAIN_LIMIT - 1} 次机会。优先直接相邻，再找隔 1 格、隔 2 格的树，"
+            f"分别花 {adjacent}、{one_gap}、{two_gaps} 次机会。")
+
+
 def render_chest(manual):
     lines = [
         "# 一区普通箱掉率", "",
@@ -91,10 +97,10 @@ def tool_effect(manual, kind):
                         for key, label in fields.items() if key in rules.PASSIVE_ITEMS[kind])
     return {
         "compass": "随身携带时，红针指向最近的合格屏外建筑区块",
-        "repair_wrench": "12 次，每修一次自然设备另耗 1 零件",
-        "spare_part": f"每次维修消耗 1 件，可堆 {rules.STACK_LIMITS['spare_part']} 件／格",
+        "repair_wrench": f"{manual.wildlife.WRENCH_USES} 次，每完成一个维修步骤扣 1 次",
+        "spare_part": f"按设备扣除所需数量，可堆 {rules.STACK_LIMITS['spare_part']} 件／格",
         "lantern": f"选中后照亮 {rules.FOG_LANTERN_RADIUS} 格内迷雾，附近玩家共享光照",
-        "chain_charm": f"斧头砍树有 {percent(rules.CHAIN_CHARM_CHANCE)} 概率触发半径 {rules.HARVEST_CHAIN_RADIUS:g} 格连锁，含首棵最多 {rules.HARVEST_CHAIN_LIMIT} 棵",
+        "chain_charm": f"斧头砍树有 {percent(rules.CHAIN_CHARM_CHANCE)} 概率触发连锁。{harvest_chain(rules)}",
         "quill": f"{rules.BIOME_ITEMS['quill']['uses']} 次，消耗莎草纸复制随身卷轴",
         "papyrus": f"复制卷轴每次消耗 1 张，可堆 {rules.STACK_LIMITS['papyrus']} 张／格",
         "building_wand": "铺 1×3 木墙，滚轮或触屏按钮切换横竖，每成功一格耗 1 木材",
@@ -197,7 +203,7 @@ def render_items(manual):
         if kind in rules.HARVEST_TOOLS:
             status = f"砍树 {rules.HARVEST_TOOLS[kind]['tree']:g} 秒"
         if kind == "chain_chainsaw":
-            status += "，半径 5 格内连锁，含首棵最多 5 棵"
+            status += f"，邻树优先连锁，含首棵最多 {rules.HARVEST_CHAIN_LIMIT} 棵"
         if "knockback" in settings:
             status = f"基础击退 {settings['knockback']:g} 格"
         row(kind, settings.get("uses", "无限"), f"{settings['damage']:g}", f"{settings['interval']:g} 秒",
@@ -254,9 +260,9 @@ def render_items(manual):
         f"| [固定机枪](outdoor-facilities.md#固定机枪) | 每个自然空地区块 {percent(profile['outdoors']['mounted_gun']['chance'])} | {profile['outdoors']['mounted_gun']['ammo']} 发，5 伤、0.15 秒，穿透怪物 |",
         "| [待维修机枪](outdoor-facilities.md#待维修机枪) | 区块独立 1.8% 且有空位；另有区块 (-2, 0) | 修理后可装整包步枪弹，5 伤、0.15 秒，穿透怪物 |",
         f"| [固定供暖机](machines.md#固定供暖机) | 区块独立 1.8% 且有空位；另有区块 (2, 0) | 维修后每份木材 {rules.FIXED_HEATER_BURN_SECONDS:g} 秒 |",
-        "| [林间索道](biome-devices.md#林间索道) | 密林固定成对点位 | 维修任一端后双向通行 |",
+        f"| [林间索道](biome-devices.md#林间索道) | 密林固定成对点位 | 每次 1 零件，共 {manual.wildlife.CABLE_REPAIR_PARTS} 次，两端共享进度 |",
         f"| [路灯](biome-devices.md#路灯) | 迷雾固定点位 | 维修后照亮半径 {rules.FOG_STREET_LAMP_RADIUS} 格 |",
-        "| [桥墩](biome-devices.md#桥墩) / [桥面](biome-devices.md#桥面) | 冰湖预设桥墩，维修后生成一段桥面 | 逐段恢复通行，桥面可承托篝火 |",
+        f"| [桥墩](biome-devices.md#桥墩) / [桥面](biome-devices.md#桥面) | 冰湖主桥 {manual.wildlife.BRIDGE_REPAIRS_PER_CROSSING} 处需修桥墩 | 每段 1 零件，每格新桥面 1 木材，可承托篝火 |",
         "", "数据以[物品与交易常量](../../cold_world_game/constants.py)、[扩展物品](../../cold_world_game/expansion.py)、"
         "[交易机器](../../cold_world_game/room_machines.py)和[自然掉落实现](../../cold_world_game/procedural.py)为准。", "",
     ])
