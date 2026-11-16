@@ -247,13 +247,6 @@ export class WorldRenderer {
     for (const light of this.fogLights) {
       const point = this.screenPoint(light.x, light.y);
       const radius = light.radius * this.scale;
-      if (light.lit) {
-        mask.fillStyle = '#000';
-        mask.beginPath();
-        mask.arc(point.x, point.y, radius, 0, 2 * Math.PI);
-        mask.fill();
-        continue;
-      }
       const edge = mask.createRadialGradient(point.x, point.y, radius * .75, point.x, point.y, radius);
       edge.addColorStop(0, 'rgba(0,0,0,1)');
       edge.addColorStop(1, 'rgba(0,0,0,0)');

@@ -562,7 +562,7 @@ class Actions:
         elif target_kind == "fuel":
             if item.kind != "wood" or target.fuel >= 16:
                 raise GameError("invalid_fuel", "Fuel accepts wood only, with a capacity of 16")
-            amount = min(amount, 16 - target.fuel)
+            amount = 1
         elif target_kind == "igniter":
             if item.kind not in IGNITERS or not item.uses or target.igniter is not None:
                 raise GameError("invalid_igniter", "The igniter slot must be empty and the item usable")

@@ -99,7 +99,7 @@
 | [急救包](../items/tools.md#急救包) · `first_aid_kit` | 长按 0.5 秒，1 次，体温回到 36°C，补到至少 10 饥饿 | 3.9%（1 件） | [自动医疗柜](../building/machines.md#自动医疗柜) 8 金币 → 1 件 |
 | [地板法杖](../items/tools.md#地板法杖) · `floor_wand` | 铺 3×3 木地板，每成功一格耗 1 木材 | 2%（1 件） | — |
 | [燃料补给包](../items/tools.md#燃料补给包) · `fuel_pack` | 长按 1 秒，1 次，产出 5 木材 | 1.2%（1 件） | [木材压缩打包机](../building/machines.md#木材压缩打包机) 5 木材＋1 金币 → 1 件；[木材压缩打包机](../building/machines.md#木材压缩打包机) 10 木材＋1 金币 → 2 件 |
-| [汽油](../items/tools.md#汽油) · `gasoline` | 8 次，可分次点火；装填消耗整件，按剩余耐久补充喷射次数 | 12%（1 件） | — |
+| [汽油](../items/tools.md#汽油) · `gasoline` | 8 次，可分次点火或补充喷射次数。装填后保留未转移的余量 | 12%（1 件） | — |
 | [葡萄糖补给](../items/tools.md#葡萄糖补给) · `glucose_vial` | 长按 0.5 秒，1 次，饥饿 +3 | — | [自动医疗柜](../building/machines.md#自动医疗柜) 2 金币 → 1 件 |
 | [暖宝宝贴](../items/tools.md#暖宝宝贴) · `heat_patch` | 长按 0.5 秒，1 次，体温回到 36°C | 2.9%（1 件） | [自动医疗柜](../building/machines.md#自动医疗柜) 4 金币 → 1 件 |
 | [保鲜饭盒](../items/tools.md#保鲜饭盒) · `insulated_lunchbox` | 自然饥饿消耗 ×0.8 | 2.6%（1 件） | — |

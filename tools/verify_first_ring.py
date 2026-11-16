@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from cold_world_game.actions import GameError
 from cold_world_game.constants import AMMO_PACKS, BURN_SECONDS, CREATIVE_ITEMS, FIXED_HEATER_BURN_SECONDS, PLAYER_SPEED, TERRAIN_VERSION
-from cold_world_game.models import Item, Structure, encode
+from cold_world_game.models import Item, Monster, Structure, encode
 from cold_world_game.procedural import chest_items, plan, profile, ring_boundary
 from cold_world_game.storage import Storage
 from cold_world_game.world import World
@@ -489,6 +489,101 @@ def verify_catalog_save_boundary(path):
         storage.close()
 
 
+def verify_fuel_and_reload(path):
+    world = World(Storage(path), 45)
+    try:
+        world.join("p")
+        player = world.players["p"]
+        controls = world.controls["p"]
+        player.x, player.y = 66, 0
+        for x in range(65, 68):
+            if existing := world.structure_at(x, 0):
+                world.remove_structure(existing)
+        fire = Structure("campfire", 67, 0, fuel=14)
+        world.add_structure(fire)
+        player.inventory[1] = Item.create("wood", 8)
+        command(world, "open", id=fire.id)
+        endpoints = {"from": {"kind": "inventory", "slot": 1}, "to": {"kind": "fuel", "id": fire.id}}
+        assert command(world, "transfer", **endpoints)["count"] == 1
+        assert player.inventory[1].count == 7 and fire.fuel == 15
+        command(world, "transfer", **endpoints)
+        expect_rejection(world, "invalid_fuel", "transfer", **endpoints)
+        assert player.inventory[1].count == 6 and fire.fuel == 16
+
+        command(world, "close")
+        player.inventory[0] = Item.create("flamethrower")
+        player.inventory[0].uses = 1
+        player.backpack[0] = Item.create("gasoline")
+        player.backpack[0].uses = 3
+        player.inventory[2] = Item.create("gasoline")
+        can_id = player.inventory[2].id
+        assert command(world, "reload")["duration"] == 1.5
+        world.elapsed += 1.5
+        with world.transaction():
+            world.update_reload(player, controls)
+        assert player.inventory[0].uses == 8 and player.backpack[0] is None
+        assert player.inventory[2].id == can_id and player.inventory[2].uses == 4
+        player.inventory[0].uses = 7
+        command(world, "reload")
+        world.elapsed += 1.5
+        before = encode(player)
+        with patch.object(world.storage, "save", side_effect=OSError("forced reload save failure")):
+            try:
+                with world.transaction():
+                    world.update_reload(player, controls)
+            except OSError:
+                pass
+            else:
+                raise AssertionError("Fuel transfer must roll back if saving fails")
+        assert encode(world.players["p"]) == before
+    finally:
+        world.close()
+
+
+def verify_biome_pressure_and_room_spawns(path):
+    world = World(Storage(path), 45)
+    try:
+        rooms = [monster for monster in world.monsters.values() if monster.id.startswith("room:")]
+        assert rooms and all(monster.kind == "small" and monster.id != "room:0:0" for monster in rooms)
+        removed = rooms[0].id
+        with world.transaction():
+            world.touch()
+            del world.monsters[removed]
+    finally:
+        world.close()
+
+    world = World(Storage(path))
+    try:
+        assert removed not in world.monsters and all(monster.id in world.monsters for monster in rooms[1:])
+        point = (19, 17)
+        assert point not in world.chunks
+        with world.transaction():
+            world.generate_chunk(*point)
+        assert world.chunk_versions[point] == TERRAIN_VERSION
+        point_monster = world.monsters["room:19:17"]
+        assert point_monster.kind == "small" and world.structure_at(point_monster.x, point_monster.y) is None
+        world.join("p")
+        player, controls = world.players["p"], world.controls["p"]
+        world.monsters.clear()
+        player.x, player.y = 65, 0
+        player.temperature = 36
+        with patch.object(world, "monster_activity", return_value=(True, None)):
+            for zones, factor in (((), 1), (("lake",), 3), (("fog",), 3), (("fog", "lake"), 3)):
+                with patch.object(world, "biomes_at", return_value=zones):
+                    controls.next_paced_spawn = None
+                    world.spawn_monster()
+                    assert 35 / factor <= controls.next_paced_spawn - world.elapsed <= 55 / factor
+            world.monsters = {f"test:{index}": Monster(player.x + 20, index, id=f"test:{index}") for index in range(2)}
+            controls.next_paced_spawn = world.elapsed
+            with patch.object(world, "biomes_at", return_value=("lake",)), patch.object(world, "spawn_near_player", return_value=True) as spawn:
+                controls.paced_spawn_biomes = ("lake",)
+                world.spawn_monster()
+                assert spawn.call_args.args[2] == ("lake",)
+                assert 65 / 3 <= controls.next_paced_spawn - world.elapsed <= 90 / 3
+    finally:
+        world.close()
+
+
 if __name__ == "__main__":
     with TemporaryDirectory() as directory:
         verify_runtime(Path(directory) / "weather.sqlite")
@@ -496,4 +591,6 @@ if __name__ == "__main__":
         verify_material_stacks(Path(directory) / "materials.sqlite")
         verify_creative(Path(directory) / "creative.sqlite")
         verify_catalog_save_boundary(Path(directory) / "before-catalog.sqlite")
-    print("Passed heating, downed construction, hotbar priority, purchases, material stacks, rollback, versioned terrain, creative items and catalog version checks.")
+        verify_fuel_and_reload(Path(directory) / "fuel.sqlite")
+        verify_biome_pressure_and_room_spawns(Path(directory) / "room-monsters.sqlite")
+    print("Passed heating, building, purchases, material stacks, fuel and reload rollback, versioned terrain, room and biome spawning, creative items and catalog checks.")

@@ -53,7 +53,7 @@ def weapon_status(settings):
 def tool_effect(manual, kind):
     rules = manual.rules
     if kind == "gasoline":
-        return f"{rules.IGNITERS[kind]} 次，可分次点火；装填消耗整件，按剩余耐久补充喷射次数"
+        return f"{rules.IGNITERS[kind]} 次，可分次点火或补充喷射次数。装填后保留未转移的余量"
     if kind in rules.IGNITERS:
         return f"点火 {rules.IGNITERS[kind]} 次，每次另耗木材"
     if kind in rules.EQUIPPED_ITEMS:
@@ -277,7 +277,7 @@ def render_monsters(manual):
         "| --- | --- | --- | --- | --- | --- |",
     ]
     features = {"small": "全天近战", "big": "白天休眠，能拆栅栏、墙和闭门", "fast": "白天休眠，受击退量较大",
-                "crawler": "慢速近战", "armored": "较高 HP，无专属减伤", "stalker": "敏捷近战；迷雾另外生成此种",
+                "crawler": "慢速近战", "armored": "较高 HP，无专属减伤", "stalker": "敏捷近战",
                 "tree_spirit": "伪装成树，靠近后现身", "frost_guard": "驻点，弱火，遇光眩晕，命中减速",
                 "ember_guard": "驻点，弱冰，命中附加灼烧"}
     for kind, settings in wildlife.MONSTER_TYPES.items():
@@ -310,10 +310,11 @@ def render_monsters(manual):
         "详见[完整生成与清除规则](combat.md#怪物生成)。",
         "",
         f"全世界同时存在的普通怪上限固定为 **{rules.MONSTER_LIMIT} 只**。超过上限的存档暂停补刷，已有怪物继续按正常规则活动与清除。", "",
-              "### 群系额外生成", "",
+              "### 群系和房屋", "",
               "- 密林树精由预设的伪装树现身。",
-              "- 站立玩家在迷雾中每 3 秒尝试额外生成一只雪狐。该玩家周围 20 格内已有 4 只迷雾额外雪狐时暂缓，落点在 8–15 格内且仍位于迷雾中。",
-              "", "群系额外怪不占普通怪世界上限。详见[群系怪物的生成](combat.md#群系怪物的生成)。", "",
+              f"- 冰湖和迷雾使用 {rules.BIOME_SPAWN_MULTIPLIER} 倍普通刷怪节奏。等待时间除以该倍率，附近活动怪上限乘以该倍率。落点留在对应群系内，两种群系重叠时倍率不叠加。",
+              f"- 非出生房屋首次生成时有 {percent(rules.ROOM_MONSTER_CHANCE)} 概率尝试放入 1 只初始小怪。",
+              "", "详见[群系怪物的生成](combat.md#群系怪物的生成)。", "",
               "## 普通怪物类型概率", "",
               "| 普通刷怪池 | " + " | ".join(names[kind] for kind in rules.MONSTER_SPAWN_CHANCES["day"]) + " |",
               "| --- | " + " | ".join(["---"] * len(rules.MONSTER_SPAWN_CHANCES["day"])) + " |"]
@@ -330,7 +331,7 @@ def render_monsters(manual):
         distribution = dict(rules.MONSTER_COIN_DROPS.get(kind, ((0, 1),)))
         coins = " | ".join(percent(distribution.get(number, 0)) for number in range(3))
         lines.append(f"| {names[kind]} | {coins} | {extra.get(kind, '—')} |")
-    lines += ["", "金币结果互斥。迷雾额外出现的雪狐沿用雪狐掉落。", "",
+    lines += ["", "金币结果互斥。", "",
               "代码来源见[怪物属性](../../cold_world_game/wildlife.py)、[普通生成与索敌](../../cold_world_game/monsters.py)、"
               "[群系怪物](../../cold_world_game/biomes.py)和[战斗结算](../../cold_world_game/combat.py)。", ""]
     return lines

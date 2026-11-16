@@ -38,9 +38,12 @@ class Item:
     def create(cls, kind: str, count=1) -> "Item":
         if kind not in ITEM_KINDS:
             raise ValueError(f"Unknown item kind: {kind}")
+        return cls(kind, ammo=GUNS[kind]["ammo"] if kind in GUNS else AMMO_PACKS.get(kind), uses=cls.initial_uses(kind), count=count)
+
+    @staticmethod
+    def initial_uses(kind):
         settings = RETURN_ITEMS.get(kind) or MELEE_WEAPONS.get(kind) or HEALING_ITEMS.get(kind, {})
-        uses = WRENCH_USES if kind == "repair_wrench" else settings.get("uses", BIOME_ITEMS.get(kind, {}).get("uses", IGNITERS.get(kind)))
-        return cls(kind, ammo=GUNS[kind]["ammo"] if kind in GUNS else AMMO_PACKS.get(kind), uses=uses, count=count)
+        return WRENCH_USES if kind == "repair_wrench" else settings.get("uses", BIOME_ITEMS.get(kind, {}).get("uses", IGNITERS.get(kind)))
 
 
 @dataclass
@@ -148,8 +151,8 @@ class Controls:
     view_width: float = DEFAULT_VIEWPORT[0]
     view_height: float = DEFAULT_VIEWPORT[1]
     next_biome_scan: float = 0.0
-    next_fog_spawn: float = 0.0
     next_paced_spawn: float | None = None
+    paced_spawn_biomes: tuple[str, ...] = ()
     reload_target: str | None = None
     reload_until: float = 0.0
     reload_duration: float = 0.0

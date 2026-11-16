@@ -11,6 +11,10 @@
 
 木材、零件、莎草纸、木墙、木地板、木栅栏、木门和燃料补给包可在物品栏、背包和箱子中堆叠，同类每格最多 16 件。其他普通物品每格 1 件。篝火燃料槽、火种槽和机器专用槽按各自规则处理。武器弹药、火种及法杖次数随物品保存。金币直接计入钱包，见[金币规则](../building/economy.md)。
 
+格子右下角的 `×数量` 表示堆叠件数。右上角的金色数字表示剩余弹药，蓝色数字表示剩余使用次数。底部蓝条表示剩余使用次数占初始容量的比例。
+
+The bottom-right `×number` is the stack count. Top-right gold numbers show ammo and blue numbers show uses left. The blue bar along the bottom shows uses left as a fraction of full capacity.
+
 ## 选择与说明卡
 
 打开背包或容器时，点击非空随身格会在侧边显示物品PNG、名称、类别、效果、用法和剩余弹药/次数；默认介绍已选中的物品栏物品。空格、已消耗或移出的物品不显示说明。单击用于阅读，不会直接移动物品。

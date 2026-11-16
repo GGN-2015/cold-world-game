@@ -264,7 +264,6 @@ class Biomes:
         players = [self.players[player_id] for player_id in sorted(self.online) if self.players[player_id].temperature >= 5]
         for player in players:
             self.reveal_guards(player)
-            self.spawn_fog_monster(player)
         for monster in self.monsters.values():
             if monster.kind not in BIOME_GUARDS:
                 continue
@@ -290,22 +289,6 @@ class Biomes:
             self.projectiles[shot.id] = shot
             self.emit_event("shot", monster.id, weapon, monster.x, monster.y, direction=[dx, dy])
             monster.next_attack = self.elapsed + MONSTER_TYPES[monster.kind]["interval"]
-
-    def spawn_fog_monster(self, player):
-        controls = self.controls[player.id]
-        if self.elapsed < controls.next_fog_spawn or "fog" not in self.biomes_at(player.x, player.y):
-            return
-        controls.next_fog_spawn = self.elapsed + 3
-        if sum(monster.id.startswith("fog:") and distance(monster, player) < 20 for monster in self.monsters.values()) >= 4:
-            return
-        stream = self.event_random("fog-mob", player.id)
-        for _ in range(4):
-            angle, radius = stream.uniform(0, math.tau), stream.uniform(8, 15)
-            x, y = player.x + math.cos(angle) * radius, player.y + math.sin(angle) * radius
-            if "fog" in self.biomes_at(x, y) and self.can_stand(x, y, monster_id="spawning"):
-                identifier = f"fog:{player.id}:{self.tick_number}"
-                self.monsters[identifier] = Monster(x, y, id=identifier, species="stalker", hp=MONSTER_TYPES["stalker"]["hp"])
-                return
 
     def biome_guard_damage(self, monster, kind, amount):
         if monster.kind not in BIOME_GUARDS:

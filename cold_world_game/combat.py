@@ -133,21 +133,19 @@ class Combat:
         if not packs:
             return
         self.touch()
-        if pack == "gasoline":
-            storage, slot, fuel = packs[0]
-            target.uses = (target.uses or 0) + min(room, fuel.uses)
-            storage[slot] = None
-            return
+        field = "uses" if pack == "gasoline" else "ammo"
         if mounted:
             self.record_structure(target.id, checkpoint=True)
         for storage, slot, item in packs:
-            amount = min(room, item.ammo)
-            item.ammo -= amount
+            remaining = getattr(item, field)
+            amount = min(room, remaining)
+            remaining -= amount
+            setattr(item, field, remaining)
             room -= amount
-            target.ammo = (target.ammo or 0) + amount
+            setattr(target, field, (getattr(target, field) or 0) + amount)
             if mounted:
                 target.restocked += amount
-            if item.ammo == 0:
+            if remaining == 0:
                 storage[slot] = None
             if room == 0:
                 break

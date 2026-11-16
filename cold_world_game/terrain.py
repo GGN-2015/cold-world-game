@@ -1,7 +1,9 @@
 import math
 from collections import deque
 
-from .constants import CHUNK_SIZE, TERRAIN_VERSION, WORLD_RADIUS
+from .constants import CHUNK_SIZE, CONTAINERS, ROOM_MONSTER_CHANCE, TERRAIN_VERSION, WORLD_RADIUS
+from .models import Monster
+from .wildlife import MONSTER_TYPES
 from .geometry import chunk
 from .wildlife import SEATS
 
@@ -72,7 +74,7 @@ class Terrain:
         if (chunk_x, chunk_y) in self.chunks:
             return
         self.touch_terrain()
-        from .procedural import plan
+        from .procedural import LayoutV1, plan
         objects, interior = plan(self.seed, chunk_x, chunk_y, self.terrain_profile())
         self.remember_baseline((chunk_x, chunk_y), objects)
         self._stream_generating = True
@@ -86,6 +88,33 @@ class Terrain:
             self.origin_region = interior
         self.chunks.add((chunk_x, chunk_y))
         self.chunk_versions[chunk_x, chunk_y] = TERRAIN_VERSION
+        if interior and (chunk_x, chunk_y) != (0, 0):
+            stream = LayoutV1(self.seed).feature_generator("room_monster:v1", chunk_x, chunk_y)
+            if stream.random() < ROOM_MONSTER_CHANCE:
+                self.populate_room_monster(chunk_x, chunk_y, interior, objects, stream)
+
+    def populate_room_monster(self, chunk_x, chunk_y, interior, objects, stream):
+        center_x, center_y = chunk_x * CHUNK_SIZE, chunk_y * CHUNK_SIZE
+        half = CHUNK_SIZE // 2
+        bounds = center_x - half, center_x + half, center_y - half, center_y + half
+        border = [(x, y) for x in range(bounds[0], bounds[1] + 1) for y in range(bounds[2], bounds[3] + 1)
+                  if x in bounds[:2] or y in bounds[2:]]
+        blocked = {(structure.x, structure.y) for structure in objects if structure.solid}
+        occupied = {(structure.x, structure.y) for structure in objects}
+        facilities = [(structure.x, structure.y) for structure in objects if structure.kind in CONTAINERS]
+        reachable = flood(border, blocked, bounds)
+        inside = set(interior)
+        candidates = sorted((inside & reachable) - occupied)
+        stream.shuffle(candidates)
+        for x, y in candidates:
+            if any((x + dx, y + dy) not in inside for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1))):
+                continue
+            if any(max(abs(x - tx), abs(y - ty)) <= 1 for tx, ty in facilities):
+                continue
+            if self.can_stand(x, y, monster_id="spawning") and reachable - {(x, y)} <= flood(border, blocked | {(x, y)}, bounds):
+                identifier = f"room:{chunk_x}:{chunk_y}"
+                self.monsters[identifier] = Monster(x, y, id=identifier, hp=MONSTER_TYPES["small"]["hp"])
+                return
 
     def origin_spawn_points(self):
         blocked = {(structure.x, structure.y) for structure in self.structures.values() if -7 <= structure.x <= 7 and -7 <= structure.y <= 7 and structure.solid and structure.kind != "door"}

@@ -384,6 +384,7 @@ export class GameUI {
       }
       if (this.panel === 'container' && container.kind !== 'fixed_heater') this.renderContainerDemolition(detail, container);
       this.storageView.warning = element('p', 'panel-warning', t('panel.monsterWarning'));
+      this.storageView.warning.hidden = true;
       detail.append(this.storageView.warning);
     }
     const view = this.storageView;
@@ -774,11 +775,28 @@ export class GameUI {
       }
     } else needle?.remove();
     let count = node.querySelector('.item-count');
-    const value = item?.ammo ?? item?.uses ?? (this.catalog.stack_limits?.[item?.kind] ? itemCount(item) : null);
-    if (value != null) {
+    if (this.catalog.stack_limits?.[item?.kind]) {
       if (!count) { count = element('span', 'item-count'); node.append(count); }
-      count.textContent = String(value);
+      count.textContent = `×${itemCount(item)}`;
     } else count?.remove();
+    let charges = node.querySelector('.item-charges');
+    const remaining = item?.ammo ?? item?.uses;
+    if (remaining != null) {
+      if (!charges) { charges = element('span', 'item-charges'); node.append(charges); }
+      charges.textContent = String(remaining);
+      charges.classList.toggle('ammo', item.ammo != null);
+      charges.setAttribute('aria-hidden', 'true');
+    } else charges?.remove();
+    let meter = node.querySelector('.item-durability');
+    const maximum = this.catalog.item_uses?.[item?.kind];
+    if (item?.uses != null && maximum > 0) {
+      if (!meter) {
+        meter = element('span', 'item-durability');
+        meter.setAttribute('aria-hidden', 'true');
+        node.append(meter);
+      }
+      meter.style.setProperty('--remaining', `${Math.min(100, 100 * item.uses / maximum)}%`);
+    } else meter?.remove();
     return node;
   }
 
@@ -869,7 +887,8 @@ export class GameUI {
       card.dataset.offer = identifier;
       const inputs = Object.entries(offer.inputs).filter(([kind]) => !freePurchases || kind !== 'coin');
       const enough = inputs.every(([kind, amount]) => (counts[kind] || 0) >= amount);
-      card.disabled = this.busy || !enough || !recipeFits(this.state.you, { ...offer, inputs: Object.fromEntries(inputs) }, this.catalog);
+      const fits = recipeFits(this.state.you, { ...offer, inputs: Object.fromEntries(inputs) }, this.catalog);
+      card.disabled = this.busy || !enough || !fits;
       const icon = element('span', 'recipe-icon');
       const image = element('img'); image.src = assetUrl(offer.output); image.alt = '';
       icon.append(image, element('small', '', `×${offer.count}`));
@@ -877,7 +896,7 @@ export class GameUI {
       const cost = inputs.map(([kind, amount]) => `${amount} × ${itemName(kind)}`).join(' + ') || t('vending.free');
       copy.append(element('strong', '', `${cost} → ${offer.count} × ${itemName(offer.output)}`));
       if (inputs.length) copy.append(element('span', enough ? '' : 'missing', inputs.map(([kind, amount]) => `${itemName(kind)} ${counts[kind] || 0}/${amount}`).join(' · ')));
-      card.title = t(free < required ? 'error.inventory_full' : 'vending.exchange');
+      card.title = t(enough && !fits ? 'error.inventory_full' : 'vending.exchange');
       card.append(icon, copy, element('span', '', '→'));
       card.onclick = () => this.action('trade', { id: container.id, offer: identifier }, () => t('vending.success', { count: offer.count, name: itemName(offer.output) }));
       list.append(card);
