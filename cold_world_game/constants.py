@@ -4,7 +4,7 @@ from .room_machines import ROOM_MACHINES
 TICK_RATE = 20
 CHUNK_SIZE = 15
 BODY_RADIUS = 0.35
-STACK_LIMITS = {"wood": 16, "wall": 16, "fence": 16, "fuel_pack": 16}
+STACK_LIMITS = dict.fromkeys(("wood", "spare_part", "papyrus", "wall", "floor", "fence", "door", "fuel_pack"), 16)
 PERSONAL_STORAGE_KINDS = ("inventory", "backpack")
 NORMAL_STORAGE_KINDS = ("inventory", "backpack", "chest")
 BACKPACK_STACK_LIMITS = STACK_LIMITS.copy()
@@ -24,7 +24,7 @@ BACKPACK_SLOTS = 30
 DROP_DISTANCE = 2.0
 PICKUP_RADIUS = 0.75
 WORLD_RADIUS = 120
-TERRAIN_VERSION = 33
+TERRAIN_VERSION = 34
 CHEST_GUN_CHANCE = 0.2
 LANDMINE_CHANCE = 0.02
 CHAINSAW_CHANCE = 0.02

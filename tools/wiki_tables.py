@@ -92,11 +92,11 @@ def tool_effect(manual, kind):
     return {
         "compass": "随身携带时，红针指向最近的合格屏外建筑区块",
         "repair_wrench": "12 次，每修一次自然设备另耗 1 零件",
-        "spare_part": "固定设备维修耗材，每份 1 格",
+        "spare_part": f"每次维修消耗 1 件，可堆 {rules.STACK_LIMITS['spare_part']} 件／格",
         "lantern": f"选中后照亮 {rules.FOG_LANTERN_RADIUS} 格内迷雾，附近玩家共享光照",
         "chain_charm": f"斧头砍树有 {percent(rules.CHAIN_CHARM_CHANCE)} 概率触发半径 {rules.HARVEST_CHAIN_RADIUS:g} 格连锁，含首棵最多 {rules.HARVEST_CHAIN_LIMIT} 棵",
         "quill": f"{rules.BIOME_ITEMS['quill']['uses']} 次，消耗莎草纸复制随身卷轴",
-        "papyrus": "复制卷轴每次消耗 1 份",
+        "papyrus": f"复制卷轴每次消耗 1 张，可堆 {rules.STACK_LIMITS['papyrus']} 张／格",
         "building_wand": "铺 1×3 木墙，滚轮或触屏按钮切换横竖，每成功一格耗 1 木材",
         "floor_wand": "铺 3×3 木地板，每成功一格耗 1 木材",
         "creative_warm_suit": f"体温锁定 {rules.CREATIVE_ITEMS['creative_warm_suit']['temperature']:g}°C",

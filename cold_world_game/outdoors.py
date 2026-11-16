@@ -2,6 +2,7 @@ from .actions import GameError
 from .biomes import BIOME_DEVICES
 from .constants import BODY_RADIUS, EXPLOSIVE_WEAPONS, MAX_COINS
 from .geometry import distance, tile
+from .inventory import take_item
 from .models import Item, Projectile
 from .wildlife import SEATS
 
@@ -100,7 +101,7 @@ class Outdoors:
                 return {"accepted": True}
             other = self.crossing_endpoint(device)
         self.record_structure(device.id, checkpoint=True)
-        part[0][part[1]] = None
+        take_item(*part)
         wrench.uses -= 1
         if not wrench.uses:
             player.inventory[player.selected] = None

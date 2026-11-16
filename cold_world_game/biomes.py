@@ -9,6 +9,7 @@ from .biome_layout import BIOME_RING
 from .constants import CHAIN_CHARM_CHANCE, CHUNK_SIZE, EXPLOSIVE_WEAPONS, FOG_CAMPFIRE_RADIUS, FOG_LANTERN_RADIUS, FOG_STREET_LAMP_RADIUS, FOG_VIEW_RADIUS, GUNS, MELEE_WEAPONS, MONSTER_PROJECTILE_SPEED
 from .constants import HARVEST_CHAIN_LIMIT, HARVEST_CHAIN_RADIUS
 from .geometry import chunk, distance, normalized, tile
+from .inventory import consume_use, take_item
 from .models import Item, Monster, Projectile, Structure
 from .wildlife import BIOME_GUARDS, MONSTER_TYPES
 
@@ -157,20 +158,23 @@ class Biomes:
                       if entry and entry.kind == "papyrus"), None)
         if not quill or not paper or not player.carries(kind):
             raise GameError("scroll_materials", "Copying requires a quill, papyrus, and an original scroll")
-        self.touch()
         quill_storage, quill_index = quill
         paper_storage, paper_index = paper
         pen = quill_storage[quill_index]
-        pen.uses -= 1
-        if not pen.uses:
-            quill_storage[quill_index] = None
-        paper_storage[paper_index] = None
-        for storage in storages:
-            if None in storage:
-                storage[storage.index(None)] = Item.create(kind)
-                break
-        if paper_storage is player.inventory or quill_storage is player.inventory:
-            controls.stop_attack()
+        destination = next(((storage, index) for storage in storages for index, entry in enumerate(storage)
+                            if entry is None
+                            or (storage is quill_storage and index == quill_index and pen.uses == 1)
+                            or (storage is paper_storage and index == paper_index and entry.count == 1)), None)
+        if destination is None:
+            raise GameError("inventory_full", "No room for the copied scroll")
+        self.touch()
+        consume_use(quill_storage, quill_index, pen)
+        take_item(paper_storage, paper_index)
+        storage, index = destination
+        storage[index] = Item.create(kind)
+        for changed_storage, changed_index in (quill, paper, destination):
+            if changed_storage is player.inventory:
+                self.cancel_selected(player, controls, changed_index)
         return {"output": kind}
 
     def linked_device(self, position, kind):

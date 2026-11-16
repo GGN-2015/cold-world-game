@@ -106,7 +106,7 @@
 | [手提灯](../items/tools.md#手提灯) · `lantern` | 选中后照亮 6 格内迷雾，附近玩家共享光照 | 7.5%（1 件） | — |
 | [打火机](../items/tools.md#打火机) · `lighter` | 点火 20 次，每次另耗木材 | 4%（1 件） | 新玩家自带 |
 | [火柴](../items/tools.md#火柴) · `matches` | 点火 1 次，每次另耗木材 | 4%（1 件） | [自助火柴机](../building/machines.md#自助火柴机) 1 金币 → 1 件 |
-| [莎草纸](../items/tools.md#莎草纸) · `papyrus` | 复制卷轴每次消耗 1 份 | 30.63%（1–4 件） | — |
+| [莎草纸](../items/tools.md#莎草纸) · `papyrus` | 复制卷轴每次消耗 1 张，可堆 16 张／格 | 30.63%（1–4 件） | — |
 | [口袋暖炉](../items/tools.md#口袋暖炉) · `pocket_stove` | 长按 0.5 秒，3 次，体温 +12°C | 4.5%（1 件） | — |
 | [羽毛笔](../items/tools.md#羽毛笔) · `quill` | 6 次，消耗莎草纸复制随身卷轴 | 7.5%（1 件） | — |
 | [维修扳手](../items/tools.md#维修扳手) · `repair_wrench` | 12 次，每修一次自然设备另耗 1 零件 | 2.5%（1 件） | [自动售货机](../building/machines.md#自动售货机) 3 金币 → 1 件 |
@@ -115,7 +115,7 @@
 | [复苏针](../items/tools.md#复苏针) · `revival_syringe` | 长按 3 秒，救起 1 格内的队友至 36°C、至少 10 饥饿 | 0.4%（1 件） | [队友救援补给机](../building/machines.md#队友救援补给机) 8 金币 → 1 件 |
 | [安全头盔](../items/tools.md#安全头盔) · `safety_helmet` | 受到的怪物击退 ×0.75 | 1%（1 件） | — |
 | [雪地靴](../items/tools.md#雪地靴) · `snow_boots` | 选中时移速 ×1.5 | 3.7%（1 件） | [防寒装备裁缝机](../building/machines.md#防寒装备裁缝机) 5 金币＋3 木材 → 1 件 |
-| [零件](../items/tools.md#零件) · `spare_part` | 固定设备维修耗材，每份 1 格 | 35%（1–3 件） | [自动售货机](../building/machines.md#自动售货机) 1 金币 → 1 件 |
+| [零件](../items/tools.md#零件) · `spare_part` | 每次维修消耗 1 件，可堆 16 件／格 | 35%（1–3 件） | [自动售货机](../building/machines.md#自动售货机) 1 金币 → 1 件 |
 | [火绒盒](../items/tools.md#火绒盒) · `tinder_box` | 点火 8 次，每次另耗木材 | 3.6%（1 件） | [自助火种补给机](../building/machines.md#自助火种补给机) 8 金币 → 1 件 |
 | [羊毛围巾](../items/tools.md#羊毛围巾) · `wool_scarf` | 体感温度 +3°C | 4.8%（1 件） | [防寒装备裁缝机](../building/machines.md#防寒装备裁缝机) 4 金币＋2 木材 → 1 件 |
 | [创造食品](../items/tools.md#创造食品) · `creative_food` | 饥饿锁定 10 | — | 管理员 `creative` / `give` |

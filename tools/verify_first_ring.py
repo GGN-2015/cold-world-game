@@ -1,5 +1,6 @@
 """Exercise local heating, downed building, loot, and fixed equipment against SQLite."""
 
+from collections import Counter
 from math import isclose
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -8,13 +9,13 @@ from unittest.mock import patch
 from cold_world_game.actions import GameError
 from cold_world_game.constants import AMMO_PACKS, BURN_SECONDS, CREATIVE_ITEMS, FIXED_HEATER_BURN_SECONDS, PLAYER_SPEED, TERRAIN_VERSION
 from cold_world_game.models import Item, Structure, encode
-from cold_world_game.procedural import plan, profile, ring_boundary
+from cold_world_game.procedural import chest_items, plan, profile, ring_boundary
 from cold_world_game.storage import Storage
 from cold_world_game.world import World
 
 
-def command(world, kind, **fields):
-    return world.execute("p", {"type": kind, **fields})
+def command(world, action, **fields):
+    return world.execute("p", {"type": action, **fields})
 
 
 def check_temperature(world):
@@ -22,9 +23,11 @@ def check_temperature(world):
     player.x, player.y = 66, 0
     player.hunger = 9
     def place(kind, x, y):
-        player.inventory[0] = Item.create(kind)
+        player.inventory[0] = Item.create(kind, 2 if kind == "floor" else 1)
         player.selected = 0
         command(world, "place", x=x, y=y)
+        if kind == "floor":
+            assert player.inventory[0].count == 1
 
     world.elapsed = 480
     player.temperature = 0
@@ -95,10 +98,12 @@ def check_door(world):
     player.temperature = 4
     player.inventory[0] = None
     player.selected = 0
-    player.backpack[:2] = [Item.create("wood"), Item.create("wood")]
+    player.backpack[:2] = [Item.create("wood", 4), None]
     assert command(world, "craft", recipe="door")["output"] == "door"
-    assert player.inventory[0].kind == "door"
+    assert command(world, "craft", recipe="door")["output"] == "door"
+    assert player.inventory[0].kind == "door" and player.inventory[0].count == 2
     door_id = command(world, "place", x=64, y=0)["id"]
+    assert player.inventory[0].count == 1
     door = world.structures[door_id]
     assert world.heating_at(player) == (30, True, 100, 1)
     assert world.barrier_blocks_movement(65, 0, 63, 0)
@@ -142,11 +147,11 @@ def warm_and_fire(world):
     player.selected = 0
     wrench = Item.create("repair_wrench")
     player.inventory[0] = wrench
-    player.backpack[:4] = [Item.create(kind) for kind in ("spare_part", "spare_part", "wood", "lighter")]
+    player.backpack[:4] = [Item.create("spare_part", 3), None, Item.create("wood"), Item.create("lighter")]
     for device in (heater, gun):
         command(world, "input", aim=[device.x, device.y])
         assert command(world, "attack", pressed=True)["repaired"]
-    assert wrench.uses == 10 and player.backpack[:2] == [None, None]
+    assert wrench.uses == 10 and player.backpack[0].count == 1
     assert gun.ammo == 0
     command(world, "open", id=heater.id)
     for slot, target in enumerate(("fuel", "igniter"), 2):
@@ -240,7 +245,7 @@ def verify_runtime(path):
         with world.transaction():
             world.record_structure(gun_id, checkpoint=True)
             gun.repaired = False
-        player.inventory[1] = Item.create("spare_part")
+        player.inventory[1] = Item.create("spare_part", 3)
         item_id = player.inventory[1].id
         command(world, "input", aim=[gun.x, gun.y])
         with patch.object(world.storage, "save", side_effect=OSError("forced save failure")):
@@ -253,6 +258,7 @@ def verify_runtime(path):
         player = world.players["p"]
         assert not world.structures[gun_id].repaired and world.structures[gun_id].ammo == 0
         assert player.inventory[0].uses == 10 and player.inventory[1].id == item_id
+        assert player.inventory[1].count == 3
     finally:
         world.close()
 
@@ -320,13 +326,63 @@ def verify_generation(path):
         world.close()
 
 
-def expect_rejection(world, code, kind, **fields):
+def expect_rejection(world, code, action, **fields):
     try:
-        command(world, kind, **fields)
+        command(world, action, **fields)
     except GameError as error:
         assert error.code == code
     else:
-        raise AssertionError(f"{kind} succeeded; expected {code}")
+        raise AssertionError(f"{action} succeeded; expected {code}")
+
+
+def verify_material_stacks(path):
+    settings = profile()
+    previous = {key: value for key, value in settings.items() if key != "stack_limits"}
+    for seed in range(42, 58):
+        old = chest_items(seed, 0, 0, 0, 0, previous)
+        new = chest_items(seed, 0, 0, 0, 0, settings)
+        assert Counter(item.kind for item in old if item) == Counter(
+            item.kind for item in new if item for _ in range(item.count)
+        )
+    settings["loot"] = {"weapon": [], "consumable": [("spare_part", 1, [20])], "equipment": []}
+    assert sorted(item.count for item in chest_items(42, 0, 0, 0, 0, settings) if item) == [4, 16]
+
+    world = World(Storage(path), 42)
+    try:
+        world.join("p")
+        player = world.players["p"]
+        quill = Item.create("quill")
+        original = Item.create("fireball_scroll")
+        player.inventory[:] = [Item.create("wood") for _ in player.inventory]
+        player.inventory[:2] = [quill, original]
+        player.backpack[:] = [Item.create("wood") for _ in player.backpack]
+        player.backpack[0] = Item.create("papyrus", 3)
+        before = encode(player)
+        expect_rejection(world, "inventory_full", "copy_scroll", kind=original.kind)
+        assert encode(player) == before
+
+        player.inventory[-1] = None
+        charges = quill.uses
+        assert command(world, "copy_scroll", kind=original.kind)["output"] == original.kind
+        assert player.inventory[-1].kind == original.kind and player.inventory[-1].id != original.id
+        assert player.inventory[1] is original and player.backpack[0].count == 2 and quill.uses == charges - 1
+
+        player.backpack[0].count = 1
+        command(world, "copy_scroll", kind=original.kind)
+        assert player.backpack[0].kind == original.kind
+        player.backpack[0] = Item.create("papyrus", 2)
+        quill.uses = 1
+        before = encode(player)
+        with patch.object(world.storage, "save", side_effect=OSError("scroll copy save failed")):
+            try:
+                command(world, "copy_scroll", kind=original.kind)
+            except OSError:
+                pass
+            else:
+                raise AssertionError("Scroll copy should roll back when saving fails")
+        assert encode(world.players["p"]) == before
+    finally:
+        world.close()
 
 
 def verify_creative(path):
@@ -386,6 +442,7 @@ def verify_creative(path):
         command(world, "open", id=vendor.id)
         for storage in (player.inventory, player.backpack):
             storage[:] = [item or Item.create("wood") for item in storage]
+        player.inventory[3].count = profile()["stack_limits"]["door"]
         before = encode(player)
         expect_rejection(world, "inventory_full", "craft", recipe="door")
         expect_rejection(world, "inventory_full", "trade", id=vendor.id, offer="buy_cola")
@@ -415,5 +472,6 @@ if __name__ == "__main__":
     with TemporaryDirectory() as directory:
         verify_runtime(Path(directory) / "weather.sqlite")
         verify_generation(Path(directory) / "terrain.sqlite")
+        verify_material_stacks(Path(directory) / "materials.sqlite")
         verify_creative(Path(directory) / "creative.sqlite")
-    print("Passed heating, downed construction, hotbar priority, purchases, repair rollback, versioned terrain and creative items.")
+    print("Passed heating, downed construction, hotbar priority, purchases, material stacks, rollback, versioned terrain and creative items.")

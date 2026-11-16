@@ -87,6 +87,7 @@ def profile():
     result["extra_chest_loot"] = [[kind, settings] for kind, settings in rules.EXTRA_CHEST_LOOT.items()]
     result["quality_loot"] = {"chance": rules.QUALITY_LOOT_CHANCE, "items": list(rules.QUALITY_LOOT)}
     result["loot"] = CHEST_LOOT
+    result["stack_limits"] = dict(rules.STACK_LIMITS)
     result["digest"] = hashlib.sha256(json.dumps(result, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     return result
 
@@ -103,11 +104,14 @@ def chest_items(seed, horizontal, vertical, tile_x, tile_y, settings):
     base = cell_seed(seed, horizontal, vertical, tile_x, tile_y)
     if "loot" in settings:
         items = []
+        limits = settings.get("stack_limits", {})
         for category in ("weapon", "consumable", "equipment"):
             for kind, chance, quantities in settings["loot"][category]:
                 stream = RandomStream(derive(base, "loot", "ordinary:v1", kind))
                 if stream.random() < chance:
-                    items.extend([kind] * stream.choice(quantities))
+                    count = stream.choice(quantities)
+                    limit = limits.get(kind, 1)
+                    items.extend((kind, min(limit, count - start)) for start in range(0, count, limit))
         slots = items + [None] * max(0, 30 - len(items))
         RandomStream(derive(base, "loot", "shuffle")).shuffle(slots)
         return chest_slots(horizontal, vertical, tile_x, tile_y, settings, slots)
@@ -151,7 +155,14 @@ def chest_items(seed, horizontal, vertical, tile_x, tile_y, settings):
 
 
 def chest_slots(horizontal, vertical, tile_x, tile_y, settings, slots):
-    return [Item(kind, id=f"ni:{horizontal}:{vertical}:{tile_x}:{tile_y}:{index}", **settings["items"][kind]) if kind else None for index, kind in enumerate(slots)]
+    items = []
+    for index, entry in enumerate(slots):
+        if entry is None:
+            items.append(None)
+            continue
+        kind, count = entry if isinstance(entry, tuple) else (entry, 1)
+        items.append(Item(kind, id=f"ni:{horizontal}:{vertical}:{tile_x}:{tile_y}:{index}", count=count, **settings["items"][kind]))
+    return items
 
 
 class LayoutV1:
