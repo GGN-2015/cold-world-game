@@ -5,7 +5,7 @@ import random
 import secrets
 
 from .constants import CHUNK_SIZE, TERRAIN_VERSION
-from .biome_layout import bridge_layout, chunk_biomes, ring_parameters, stations
+from .biome_layout import bridge_layout, bridge_repair_count, chunk_biomes, ring_parameters, stations
 from .geometry import chunk
 from .models import encode
 from .procedural import appearance, derive, plan, profile, RandomStream, room_excluded
@@ -97,11 +97,13 @@ class TerrainStream:
                     records.append(appearance(structure))
         version = self.chunk_versions.get(point, 1)
         parameters = self.biome_parameters(point)
-        axis_bridges = bool(parameters and self.terrain_profile(version)["biome_ring"].get("axis_bridges"))
-        biome_geometry = parameters and (
-            self.chunk_biomes(point) or point in stations(self.seed, *parameters, axis_bridges)
-            or axis_bridges and point in bridge_layout(self.seed, *parameters)[1]
-        )
+        biome_geometry = False
+        if parameters:
+            settings = self.terrain_profile(version)
+            axis_bridges = settings["biome_ring"].get("axis_bridges", False)
+            repairs = bridge_repair_count(settings)
+            biome_geometry = (self.chunk_biomes(point) or point in stations(self.seed, *parameters, axis_bridges, repairs)
+                              or axis_bridges and point in bridge_layout(self.seed, *parameters, repairs)[1])
         if version >= 18 and not biome_geometry:
             fingerprint, baseline = self._natural_geometry[point]
             current = {record["id"]: record for record in records}
@@ -133,7 +135,7 @@ class TerrainStream:
                     _, interior = plan(self.seed, horizontal, vertical, self.terrain_profile(version))
                     legacy.append([horizontal, vertical, bool(interior)])
             ring = current["biome_ring"]
-            protected = bridge_layout(self.seed, *ring_parameters(current))[1]
+            protected = bridge_layout(self.seed, *ring_parameters(current), bridge_repair_count(current))[1]
             self._navigation_config = {
                 "seed": str(self.seed), "size": CHUNK_SIZE, "algorithm": 1, "legacy": legacy,
                 "barrier": {"radius": ring["radius"], "half_width": ring["half_width"],

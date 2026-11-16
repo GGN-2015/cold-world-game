@@ -109,7 +109,7 @@
 | [莎草纸](../items/tools.md#莎草纸) · `papyrus` | 复制卷轴每次消耗 1 张，可堆 16 张／格 | 30.63%（1–4 件） | — |
 | [口袋暖炉](../items/tools.md#口袋暖炉) · `pocket_stove` | 长按 0.5 秒，3 次，体温 +12°C | 4.5%（1 件） | — |
 | [羽毛笔](../items/tools.md#羽毛笔) · `quill` | 6 次，消耗莎草纸复制随身卷轴 | 7.5%（1 件） | — |
-| [维修扳手](../items/tools.md#维修扳手) · `repair_wrench` | 24 次，每完成一个维修步骤扣 1 次 | 2.5%（1 件） | [自动售货机](../building/machines.md#自动售货机) 3 金币 → 1 件 |
+| [维修扳手](../items/tools.md#维修扳手) · `repair_wrench` | 40 次，每完成一个维修步骤扣 1 次 | 2.5%（1 件） | [自动售货机](../building/machines.md#自动售货机) 3 金币 → 1 件 |
 | [救援信标](../items/tools.md#救援信标) · `rescue_beacon` | 长按 2.5 秒回原点附近，1 次 | 2.2%（1 件） | [远行应急补给站](../building/machines.md#远行应急补给站) 4 金币＋2 木材 → 1 件 |
 | [裂纹回城石](../items/tools.md#裂纹回城石) · `return_stone` | 长按 2 秒回原点附近，3 次 | — | [远行应急补给站](../building/machines.md#远行应急补给站) 10 金币＋3 木材 → 1 件 |
 | [复苏针](../items/tools.md#复苏针) · `revival_syringe` | 长按 3 秒，救起 1 格内的队友至 36°C、至少 10 饥饿 | 0.4%（1 件） | [队友救援补给机](../building/machines.md#队友救援补给机) 8 金币 → 1 件 |
@@ -162,8 +162,8 @@
 | [固定机枪](../building/outdoor-facilities.md#固定机枪) | 每个自然空地区块 0.5% | 80 发，5 伤、0.15 秒，穿透怪物 |
 | [待维修机枪](../building/outdoor-facilities.md#待维修机枪) | 区块独立 1.8% 且有空位；另有区块 (-2, 0) | 修理后可装整包步枪弹，5 伤、0.15 秒，穿透怪物 |
 | [固定供暖机](../building/machines.md#固定供暖机) | 区块独立 1.8% 且有空位；另有区块 (2, 0) | 维修后每份木材 150 秒 |
-| [林间索道](../building/biome-devices.md#林间索道) | 密林固定成对点位 | 每次 1 零件，共 12 次，两端共享进度 |
+| [林间索道](../building/biome-devices.md#林间索道) | 密林固定成对点位 | 每次 1 零件，共 20 次，两端共享进度 |
 | [路灯](../building/biome-devices.md#路灯) | 迷雾固定点位 | 维修后照亮半径 10 格 |
-| [桥墩](../building/biome-devices.md#桥墩) / [桥面](../building/biome-devices.md#桥面) | 冰湖主桥 6 处需修桥墩 | 每段 1 零件，每格新桥面 1 木材，可承托篝火 |
+| [桥墩](../building/biome-devices.md#桥墩) / [桥面](../building/biome-devices.md#桥面) | 冰湖主桥 10 处需修桥墩 | 每段 1 零件，每格新桥面 1 木材，可承托篝火 |
 
 数据以[物品与交易常量](../../cold_world_game/constants.py)、[扩展物品](../../cold_world_game/expansion.py)、[交易机器](../../cold_world_game/room_machines.py)和[自然掉落实现](../../cold_world_game/procedural.py)为准。

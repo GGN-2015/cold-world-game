@@ -19,7 +19,8 @@ OUTDOOR_FEATURES = {
 SEATS = frozenset(OUTDOOR_FEATURES) | {"service_gun"}
 REPAIRABLE = frozenset({"service_gun", "fixed_heater", "cable_station", "street_lamp", "bridge_pier"})
 MOUNTED_RESUPPLY = 24
-BRIDGE_REPAIRS_PER_CROSSING = 6
+# The widened crossing averages about 139 tiles between the two approach points.
+BRIDGE_REPAIRS_PER_CROSSING = 10
 CABLE_REPAIR_PARTS = BRIDGE_REPAIRS_PER_CROSSING * 2
 SERVICE_GUN_REPAIR_PARTS = (BRIDGE_REPAIRS_PER_CROSSING + 1) // 2
 DEVICE_REPAIR_SECONDS = 1.5

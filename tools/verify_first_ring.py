@@ -7,8 +7,10 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from cold_world_game.actions import GameError
-from cold_world_game.biome_layout import bridge_layout, chunk_biomes, ring_parameters
-from cold_world_game.constants import AMMO_PACKS, BURN_SECONDS, CREATIVE_ITEMS, FIXED_HEATER_BURN_SECONDS, PLAYER_SPEED, TERRAIN_VERSION
+from cold_world_game.biome_layout import bridge_layout, bridge_repair_count, chunk_biomes, ring_parameters
+from cold_world_game.constants import AMMO_PACKS, BURN_SECONDS, CREATIVE_ITEMS, FIXED_HEATER_BURN_SECONDS, PLAYER_SPEED, STACK_LIMITS, TERRAIN_VERSION
+from cold_world_game.geometry import chunk
+from cold_world_game.inventory import count_kind, personal_storages
 from cold_world_game.models import Item, Monster, Structure, encode
 from cold_world_game.procedural import RandomStream, chest_items, chunk_seed, plan, profile, ring_boundary
 from cold_world_game.storage import Storage
@@ -247,7 +249,7 @@ def verify_runtime(path):
         with world.transaction():
             world.record_structure(gun_id, checkpoint=True)
             gun.repaired = False
-        player.inventory[1] = Item.create("spare_part", 3)
+        player.inventory[1] = Item.create("spare_part", SERVICE_GUN_REPAIR_PARTS)
         item_id = player.inventory[1].id
         command(world, "input", aim=[gun.x, gun.y])
         with patch.object(world.storage, "save", side_effect=OSError("forced save failure")):
@@ -260,7 +262,7 @@ def verify_runtime(path):
         player = world.players["p"]
         assert not world.structures[gun_id].repaired and world.structures[gun_id].ammo == 0
         assert player.inventory[0].uses == WRENCH_USES - 2 and player.inventory[1].id == item_id
-        assert player.inventory[1].count == 3
+        assert player.inventory[1].count == SERVICE_GUN_REPAIR_PARTS
     finally:
         world.close()
 
@@ -586,12 +588,13 @@ def verify_biome_pressure_and_room_spawns(path):
         world.close()
 
 
-def verify_barrier_layout():
+def verify_barrier_layout(path):
     seed = 45
     settings = profile()
     size, radius, width, *_ = parameters = ring_parameters(settings)
-    assert radius == 1334
-    piers, corridor = bridge_layout(seed, *parameters)
+    assert (radius, width) == (667, 48)
+    assert (BRIDGE_REPAIRS_PER_CROSSING, CABLE_REPAIR_PARTS, WRENCH_USES, SERVICE_GUN_REPAIR_PARTS) == (10, 20, 40, 5)
+    piers, corridor = bridge_layout(seed, *parameters, bridge_repair_count(settings))
     successors = {next_pier for _, next_pier in piers.values()}
     main = branches = 0
     for root in piers.keys() - successors:
@@ -610,7 +613,8 @@ def verify_barrier_layout():
             branches += 1
     assert main and branches
 
-    candidates = ((x, y) for x in range(84, 93) for y in range(-9, 10))
+    center = round(radius / size)
+    candidates = ((x, y) for x in range(center - 4, center + 5) for y in range(-9, 10))
     forbidden = next(point for point in candidates if chunk_biomes(seed, *point, *parameters)
                      and RandomStream(chunk_seed(seed, *point)).random() >= .9)
     assert not plan(seed, *forbidden, settings)[1]
@@ -620,6 +624,43 @@ def verify_barrier_layout():
         for item in objects:
             if (item.x, item.y) in corridor[point]:
                 assert item.kind == "bridge_pier" and not item.solid and item.biome_link == list(piers[item.x, item.y][1])
+
+    legacy = {**settings, "version": 37, "biome_ring": {
+        key: value for key, value in settings["biome_ring"].items() if key != "bridge_repairs"
+    }}
+    legacy["biome_ring"].update(radius=1334, half_width=24)
+    old_piers, _ = bridge_layout(seed, *ring_parameters(legacy))
+    old_successors = {next_pier for _, next_pier in old_piers.values()}
+    old_root = next(point for point in sorted(old_piers.keys() - old_successors) if hypot(*point) < 1310)
+    old_point = tuple(map(chunk, old_root))
+    old_objects, _ = plan(seed, *old_point, legacy)
+    assert any(entry.kind == "bridge_pier" and (entry.x, entry.y) == old_root
+               and entry.biome_link == list(old_piers[old_root][1]) for entry in old_objects)
+    world = World(Storage(path), seed)
+    try:
+        with world.transaction():
+            world.touch_terrain()
+            world.generation_profiles["37"] = legacy
+            world.chunks.add(old_point)
+            world.chunk_versions[old_point] = 37
+            world.remember_baseline(old_point, old_objects)
+            for entry in old_objects:
+                world.add_structure(entry)
+    finally:
+        world.close()
+    world = World(Storage(path))
+    try:
+        assert world.chunk_versions[old_point] == 37 and world.structure_at(*old_root).biome_link == list(old_piers[old_root][1])
+        assert world.chunk_view(old_point)["hash"] is None
+        current_root = next(iter(piers))
+        current_point = tuple(map(chunk, current_root))
+        assert current_point not in world.chunks
+        with world.transaction():
+            world.generate_chunk(*current_point)
+        assert world.chunk_versions[current_point] == TERRAIN_VERSION
+        assert world.structure_at(*current_root).biome_link == list(piers[current_root][1])
+    finally:
+        world.close()
 
 
 def verify_chain_and_crossing_repairs(path):
@@ -659,11 +700,14 @@ def verify_chain_and_crossing_repairs(path):
         assert world.can_stand(pier.x, pier.y, player_id=player.id)
         player.selected = 0
         player.inventory[0] = Item.create("repair_wrench")
-        player.backpack[0] = Item.create("spare_part", CABLE_REPAIR_PARTS + 2)
+        stack_limit = STACK_LIMITS["spare_part"]
+        player.backpack[0] = Item.create("spare_part", stack_limit)
         player.backpack[1] = Item.create("wood", 2)
+        player.backpack[2] = Item.create("spare_part", CABLE_REPAIR_PARTS + 2 - stack_limit)
+        storages = personal_storages(player)
         command(world, "input", aim=[pier.x, pier.y])
         expect_rejection(world, "missing_bridge_wood", "attack", pressed=True)
-        assert player.backpack[0].count == CABLE_REPAIR_PARTS + 2 and player.inventory[0].uses == WRENCH_USES
+        assert count_kind(storages, "spare_part") == CABLE_REPAIR_PARTS + 2 and player.inventory[0].uses == WRENCH_USES
         player.backpack[1].count = 5
         blocker = Structure("wall", 69, 0)
         world.add_structure(blocker)
@@ -673,13 +717,13 @@ def verify_chain_and_crossing_repairs(path):
         with world.transaction():
             world.update_player_attack(player, world.controls["p"], DEVICE_REPAIR_SECONDS)
         assert pier.repaired and all(world.structure_at(x, 0).kind == "bridge_deck" for x in range(69, 72))
-        assert player.backpack[1].count == 2 and player.backpack[0].count == CABLE_REPAIR_PARTS + 1
+        assert player.backpack[1].count == 2 and count_kind(storages, "spare_part") == CABLE_REPAIR_PARTS + 1
         command(world, "input", aim=[first.x, first.y])
         command(world, "attack", pressed=True)
         with world.transaction():
             world.update_player_attack(player, world.controls["p"], DEVICE_REPAIR_SECONDS)
         assert (first.repair_parts, second.repair_parts) == (1, 1) and not first.repaired
-        assert player.backpack[0].count == CABLE_REPAIR_PARTS
+        assert count_kind(storages, "spare_part") == CABLE_REPAIR_PARTS
         ids = first.id, second.id
     finally:
         world.close()
@@ -699,7 +743,7 @@ def verify_chain_and_crossing_repairs(path):
                 world.update_player_attack(player, world.controls["p"], DEVICE_REPAIR_SECONDS)
         assert first.repaired and second.repaired and first.repair_parts == second.repair_parts == CABLE_REPAIR_PARTS
         assert player.inventory[0].uses == WRENCH_USES - CABLE_REPAIR_PARTS - 1
-        assert player.backpack[0].count == 1
+        assert count_kind(personal_storages(player), "spare_part") == 1
         assert command(world, "attack", pressed=True)["crossed"]
         player.x, player.y = 71, 0
         player.backpack[1].count = 4
@@ -729,6 +773,6 @@ if __name__ == "__main__":
         verify_catalog_save_boundary(Path(directory) / "before-catalog.sqlite")
         verify_fuel_and_reload(Path(directory) / "fuel.sqlite")
         verify_biome_pressure_and_room_spawns(Path(directory) / "room-monsters.sqlite")
-        verify_barrier_layout()
+        verify_barrier_layout(Path(directory) / "barrier.sqlite")
         verify_chain_and_crossing_repairs(Path(directory) / "crossings.sqlite")
     print("Passed survival and inventory, versioned terrain and spawns, chain harvest, straight bridges, and saved cable repairs.")

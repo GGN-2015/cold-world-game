@@ -295,12 +295,12 @@ export class GameUI {
       const action = target.repaired
         ? target.kind === 'cable_station' ? 'hint.cableCross' : 'hint.biomeRepaired'
         : target.kind === 'cable_station' ? 'hint.cableRepair' : target.kind === 'bridge_pier' ? 'hint.bridgeRepair' : 'hint.biomeRepair';
-      text = `${itemName(target.kind)} · ${t(action, { progress: target.repair_parts ?? 0, total: this.catalog.crossing_repairs?.cable_parts ?? 12 })}`;
+      text = `${itemName(target.kind)} · ${t(action, { progress: target.repair_parts ?? 0, total: this.catalog.crossing_repairs.cable_parts })}`;
     } else if (target?.kind === 'fixed_heater' || target?.kind === 'service_gun') {
       text = target.repaired && target.kind === 'service_gun'
         ? t(isMobileDevice ? 'hint.seatTouch' : 'hint.seat', { name: itemName('mounted_gun') })
         : `${itemName(target.kind)} · ${t(target.repaired ? 'hint.open' : 'hint.repairDevice', {
-          parts: target.kind === 'service_gun' ? this.catalog.crossing_repairs?.service_gun_parts ?? 3 : 1,
+          parts: target.kind === 'service_gun' ? this.catalog.crossing_repairs.service_gun_parts : 1,
         })}`;
     } else if (target?.category === 'structure' && seats.has(target.kind)) {
       text = target.occupant && target.occupant !== this.state.you.id ? t('hint.seatOccupied', { name: itemName(target.kind), player: target.occupant }) : t(isMobileDevice ? 'hint.seatTouch' : 'hint.seat', { name: itemName(target.kind) });

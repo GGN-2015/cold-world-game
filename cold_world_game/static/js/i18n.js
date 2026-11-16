@@ -89,7 +89,7 @@ const messages = {
   'guide.effect.creative_tool': ['合成免材料，回收栅栏仍需栅栏。', 'Craft without materials. Recycling fences still requires fences.'],
   'guide.effect.creative_piggy_bank': ['在交易机器购物免金币。', 'Waives coin prices when buying from trading machines.'],
   'guide.use.creative': ['自动生效。放进背包或快捷栏，占 1 格。可通过管理员控制台领取。', 'Works from the backpack or hotbar, using one slot. Available from the admin console.'],
-  'guide.effect.repair_wrench': ['初始 24 次耐久，每完成一次维修步骤消耗 1 次。', 'Starts with 24 uses and spends one per completed repair step.'],
+  'guide.effect.repair_wrench': ['初始 {uses} 次耐久，每完成一次维修步骤消耗 1 次。', 'Starts with {uses} uses and spends one per completed repair step.'],
   'guide.use.repair_wrench': ['选中后点击 2 格内的供暖机或待维修机枪。对索道、桥墩和路灯长按。', 'Equip and click a heater or service gun within two tiles. Hold to work on a cable, pier, or street lamp.'],
   'guide.effect.spare_part': ['用于维修设备，所需数量视设备而定。同类可堆叠。', 'Used for repairs. Required quantities vary by device. Parts stack.'],
   'guide.use.spare_part': ['维修时从背包或物品栏自动扣除。', 'Used automatically from the backpack or hotbar on repair.'],

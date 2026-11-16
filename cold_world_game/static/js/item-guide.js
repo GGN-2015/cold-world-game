@@ -94,7 +94,7 @@ export function itemGuide(item, catalog, language) {
     if (containers.has(kind)) use += ` ${t('guide.use.spacing')}`;
   } else if (['wood', 'repair_wrench', 'spare_part'].includes(kind)) {
     category = 'material';
-    effect = t(`guide.effect.${kind}`);
+    effect = t(`guide.effect.${kind}`, { uses: catalog.item_uses?.[kind] ?? item.uses });
     use = t(`guide.use.${kind}`);
   } else if (kind === 'coin') {
     category = 'currency';

@@ -4,7 +4,7 @@ from functools import lru_cache
 from math import atan2, cos, floor, sin, tau
 
 from . import constants as rules
-from .biome_layout import BIOME_RING, add_biome_terrain, bridge_layout, chunk_biomes, ring_parameters
+from .biome_layout import BIOME_RING, add_biome_terrain, bridge_layout, bridge_repair_count, chunk_biomes, ring_parameters
 from .loot import CHEST_LOOT
 from .models import Item, Structure
 from .room_machines import ROOM_MACHINES
@@ -305,7 +305,7 @@ def room_excluded(seed, horizontal, vertical, settings):
         return False
     parameters = ring_parameters(settings)
     return bool(chunk_biomes(seed, horizontal, vertical, *parameters)
-                or (horizontal, vertical) in bridge_layout(seed, *parameters)[1])
+                or (horizontal, vertical) in bridge_layout(seed, *parameters, bridge_repair_count(settings))[1])
 
 
 def plan(seed, horizontal, vertical, settings):

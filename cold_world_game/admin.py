@@ -28,11 +28,11 @@ class Administration:
         if command == "help" and len(parts) == 1:
             return {"output": "give PLAYER_ID ITEM_ID\ncreative [PLAYER_ID]\nheal PLAYER_ID\ntp PLAYER_ID X Y\nbiomes\nitems [SEARCH]\nhelp\nQuote player IDs containing spaces. Command names and item IDs are case-sensitive English identifiers."}
         if command == "biomes" and len(parts) == 1:
-            ring = BIOME_RING["radius"]
+            inner_approach = BIOME_RING["radius"] - BIOME_RING["half_width"] - 31
             result = []
             for kind, start, end in sectors(self.seed):
                 angle = (start + end) / 2
-                x, y = polar(ring - 55, angle)
+                x, y = polar(inner_approach, angle)
                 result.append(f"{kind} ({start % 360:.0f}°–{end % 360:.0f}°): {x} {y}")
             return {"output": "Inner approaches (X Y):\n" + "\n".join(result)}
         if command == "items" and len(parts) <= 2:

@@ -9,14 +9,20 @@ from .wildlife import BRIDGE_REPAIRS_PER_CROSSING
 
 
 BIOMES = ("forest", "fog", "lake")
-BIOME_RING = {"radius": 1334, "half_width": 24, "overlap": 1.5, "kinds": BIOMES, "axis_bridges": True}
+BIOME_RING = {"radius": 667, "half_width": 48, "overlap": 1.5, "kinds": BIOMES, "axis_bridges": True,
+              "bridge_repairs": BRIDGE_REPAIRS_PER_CROSSING}
 LEGACY_BIOMES = (*BIOMES, "guard")
+LEGACY_AXIS_BRIDGE_REPAIRS = 6
 BRIDGE_DEAD_END_CHANCE = .25
 
 
 def ring_parameters(settings):
     ring = settings["biome_ring"]
     return settings["size"], ring["radius"], ring["half_width"], ring["overlap"], tuple(ring.get("kinds", LEGACY_BIOMES))
+
+
+def bridge_repair_count(settings):
+    return settings["biome_ring"].get("bridge_repairs", LEGACY_AXIS_BRIDGE_REPAIRS)
 
 
 @lru_cache(maxsize=32)
@@ -56,7 +62,7 @@ def sector_angles(start, end, radius, spacing):
 
 
 @lru_cache(maxsize=32)
-def bridge_layout(seed, size, radius, half_width, overlap, kinds):
+def bridge_layout(seed, size, radius, half_width, overlap, kinds, repairs=LEGACY_AXIS_BRIDGE_REPAIRS):
     piers, reserved = {}, set()
     routes = []
     outer = radius + half_width + size
@@ -75,8 +81,7 @@ def bridge_layout(seed, size, radius, half_width, overlap, kinds):
                 routes.append((route, dx, dy))
                 reserved.update(route)
                 last = len(route) - 1
-                points = [route[round(last * index / BRIDGE_REPAIRS_PER_CROSSING)]
-                          for index in range(BRIDGE_REPAIRS_PER_CROSSING + 1)]
+                points = [route[round(last * index / repairs)] for index in range(repairs + 1)]
                 piers.update((point, ("bridge_pier", successor)) for point, successor in zip(points, points[1:]))
 
     for route, dx, dy in routes:
@@ -102,7 +107,7 @@ def bridge_layout(seed, size, radius, half_width, overlap, kinds):
 
 
 @lru_cache(maxsize=32)
-def stations(seed, size, radius, half_width, overlap, kinds, axis_bridges=False):
+def stations(seed, size, radius, half_width, overlap, kinds, axis_bridges=False, repairs=LEGACY_AXIS_BRIDGE_REPAIRS):
     points = {}
     for index, (kind, start, end) in enumerate(sectors(seed, kinds)):
         spacing = 37 if kind == "guard" else 100
@@ -127,7 +132,7 @@ def stations(seed, size, radius, half_width, overlap, kinds, axis_bridges=False)
                 points[polar(radius - 5, angle)] = ("frost_guard" if (index + step) % 2 == 0 else "ember_guard", None)
                 points[polar(radius + 15, angle + (end - start) / steps / 3)] = ("ember_guard" if (index + step) % 2 == 0 else "frost_guard", None)
     if axis_bridges:
-        points.update(bridge_layout(seed, size, radius, half_width, overlap, kinds)[0])
+        points.update(bridge_layout(seed, size, radius, half_width, overlap, kinds, repairs)[0])
     chunks = {}
     for (x, y), definition in points.items():
         key = (x + size // 2) // size, (y + size // 2) // size
@@ -140,9 +145,10 @@ def add_biome_terrain(seed, horizontal, vertical, settings, objects, interior):
     parameters = ring_parameters(settings)
     zones = chunk_biomes(seed, horizontal, vertical, *parameters)
     axis_bridges = settings["biome_ring"].get("axis_bridges", False)
+    repairs = bridge_repair_count(settings)
     point = horizontal, vertical
-    features = stations(seed, *parameters, axis_bridges).get(point, {})
-    reserved = bridge_layout(seed, *parameters)[1].get(point, set()) if axis_bridges else set()
+    features = stations(seed, *parameters, axis_bridges, repairs).get(point, {})
+    reserved = bridge_layout(seed, *parameters, repairs)[1].get(point, set()) if axis_bridges else set()
     if not (zones or features or reserved):
         return objects
     objects = [entry for entry in objects if (entry.x, entry.y) not in reserved]

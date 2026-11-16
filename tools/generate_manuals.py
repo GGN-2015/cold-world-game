@@ -160,7 +160,7 @@ class Manual:
         lines += ["## 维修用品", ""]
         wrench_price = rules.VENDING_OFFERS["buy_wrench"]["inputs"]["coin"]
         lines += self.entry("repair_wrench", f"{self.wildlife.WRENCH_USES} 次耐久。每完成一个维修步骤扣 1 次，零件和木材按设备结算。", "放到物品栏后选中。点击 2 格内的供暖机或待维修机枪，维修索道、桥墩和路灯时长按。", "用尽消失。索道的每个维修步骤分别计次，机枪弹药另行装填。", f"{self.acquisition('repair_wrench')}售货机售价 {wrench_price} 金币。")
-        lines += self.entry("spare_part", f"固定设备的维修耗材，每格最多 {rules.STACK_LIMITS['spare_part']} 件。", "维修时从背包和物品栏扣除设备所需的数量。索道每步 1 件，待维修机枪一次消耗 3 件。", "每次维修保留堆里的其余零件。")
+        lines += self.entry("spare_part", f"固定设备的维修耗材，每格最多 {rules.STACK_LIMITS['spare_part']} 件。", f"维修时从背包和物品栏扣除设备所需的数量。索道每步 1 件，待维修机枪一次消耗 {self.wildlife.SERVICE_GUN_REPAIR_PARTS} 件。", "每次维修保留堆里的其余零件。")
         lines += ["## 创造测试道具", ""]
         creative_effects = {
             "creative_warm_suit": "体温锁定在 36°C，拿到时立即解除倒地。受击仍会产生击退。",
