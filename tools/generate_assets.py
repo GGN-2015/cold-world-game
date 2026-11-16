@@ -624,7 +624,7 @@ def monster_sleep_effect():
 
 
 def equipment():
-    for kind in ("axe", "lighter", "matches", "handgun", "shotgun", "rifle", "gasoline", "diesel", "kerosene"):
+    for kind in ("axe", "lighter", "matches", "handgun", "shotgun", "rifle", "gasoline"):
         image, drawing = canvas()
         if kind == "axe":
             drawing.line((9, 27, 22, 7), fill=PALETTE["outline"], width=5)
@@ -645,8 +645,8 @@ def equipment():
                 drawing.rectangle((13, 6, 21, 8), fill=PALETTE["outline"])
                 drawing.rectangle((17, 8, 18, 10), fill=PALETTE["outline"])
                 drawing.rectangle((17, 17, 20, 22), fill=PALETTE["outline"])
-        elif kind in ("gasoline", "diesel", "kerosene"):
-            color = {"gasoline": "#bb6752", "diesel": "#c0a259", "kerosene": "#548d9d"}[kind]
+        elif kind == "gasoline":
+            color = "#bb6752"
             drawing.rectangle((7, 9, 25, 28), fill=PALETTE["outline"])
             drawing.rectangle((8, 10, 24, 26), fill=color)
             drawing.rectangle((10, 5, 22, 10), fill=PALETTE["outline"])
@@ -691,44 +691,6 @@ def compass():
     drawing.rectangle((15, 15, 16, 16), fill="#fff0b2")
     save("compass_needle", needle)
     save("compass", Image.alpha_composite(image, needle))
-
-
-def swiftness_ring():
-    image, drawing = canvas()
-    drawing.ellipse((5, 25, 27, 29), fill=(38, 62, 72, 65))
-    drawing.ellipse((7, 10, 25, 28), fill=PALETTE["outline"])
-    drawing.ellipse((9, 12, 23, 26), fill=PALETTE["gold"])
-    drawing.ellipse((12, 15, 20, 23), fill=PALETTE["outline"])
-    drawing.arc((9, 12, 23, 26), 50, 200, fill="#fff1b8", width=2)
-    drawing.polygon(((16, 3), (22, 8), (16, 14), (10, 8)), fill=PALETTE["outline"])
-    drawing.polygon(((16, 5), (20, 8), (16, 12), (12, 8)), fill="#64d2ce")
-    drawing.line((16, 5, 16, 11), fill="#d4ffed", width=1)
-    drawing.polygon(((4, 8), (9, 8), (11, 12), (7, 11)), fill="#a8e6e0")
-    drawing.polygon(((22, 9), (28, 5), (26, 10), (23, 13)), fill="#a8e6e0")
-    drawing.line((2, 17, 6, 17), fill="#64d2ce", width=1)
-    drawing.line((25, 20, 30, 20), fill="#64d2ce", width=1)
-    save("swiftness_ring", image)
-
-
-def sheriff_badge():
-    image, drawing = canvas()
-    drawing.ellipse((4, 25, 29, 30), fill=(38, 62, 72, 65))
-    drawing.rounded_rectangle((7, 6, 25, 27), radius=4, fill=PALETTE["outline"])
-    drawing.rounded_rectangle((9, 7, 23, 25), radius=3, fill=PALETTE["wood_dark"])
-    points = []
-    for index in range(12):
-        angle = -math.pi / 2 + index * math.pi / 6
-        radius = 13 if index % 2 == 0 else 6
-        points.append((round(16 + math.cos(angle) * radius), round(16 + math.sin(angle) * radius)))
-    drawing.polygon(points, fill=PALETTE["outline"])
-    points = [(round(16 + (horizontal - 16) * .82), round(16 + (vertical - 16) * .82)) for horizontal, vertical in points]
-    drawing.polygon(points, fill=PALETTE["gold"])
-    drawing.line((16, 6, 13, 12, 7, 12), fill="#fff1b8", width=1)
-    drawing.ellipse((11, 11, 21, 21), fill=PALETTE["wood_dark"])
-    drawing.ellipse((12, 12, 20, 20), fill="#d99b48")
-    drawing.ellipse((14, 14, 18, 18), fill="#f9df8b")
-    drawing.point((15, 14), fill=PALETTE["light"])
-    save("sheriff_badge", image)
 
 
 def vodka():
@@ -819,26 +781,6 @@ def defibrillator():
         drawing.rectangle((left + 1, 17, left + 4, 21), fill="#9cb9bf")
         drawing.rectangle((left + 2, 15, left + 3, 17), fill="#e9d6a1")
     save("defibrillator", image)
-
-
-def return_staff():
-    image, drawing = canvas()
-    drawing.ellipse((4, 26, 26, 30), fill=(38, 62, 72, 55))
-    drawing.line((7, 27, 23, 8), fill=PALETTE["outline"], width=6)
-    drawing.line((7, 27, 23, 8), fill=PALETTE["wood_dark"], width=4)
-    drawing.line((7, 26, 22, 8), fill=PALETTE["wood_light"], width=2)
-    for horizontal, vertical in ((9, 24), (13, 19), (17, 14)):
-        drawing.line((horizontal - 1, vertical - 1, horizontal + 2, vertical + 1), fill=PALETTE["gold"], width=2)
-    drawing.arc((14, 1, 29, 16), 10, 235, fill=PALETTE["outline"], width=5)
-    drawing.arc((15, 2, 28, 15), 10, 235, fill=PALETTE["gold"], width=3)
-    drawing.polygon(((21, 2), (26, 7), (22, 14), (17, 8)), fill=PALETTE["outline"])
-    drawing.polygon(((21, 3), (25, 7), (22, 12), (18, 8)), fill="#9186ee")
-    drawing.polygon(((21, 3), (23, 7), (20, 9), (18, 8)), fill="#8ef1ef")
-    drawing.line((21, 4, 20, 7), fill=PALETTE["light"], width=1)
-    for horizontal, vertical in ((9, 5), (28, 20), (5, 15)):
-        drawing.line((horizontal - 2, vertical, horizontal + 2, vertical), fill="#b5ecf6", width=1)
-        drawing.line((horizontal, vertical - 2, horizontal, vertical + 2), fill="#e9e3ff", width=1)
-    save("return_staff", image)
 
 
 def ice_staff():
@@ -960,56 +902,6 @@ def arsenal_equipment():
     drawing.point((14, 4), fill="#ffa44f")
     drawing.point((29, 16), fill="#ffc967")
     save("flame_staff", image)
-    image, drawing = canvas()
-    drawing.polygon(((3, 14), (21, 7), (29, 10), (29, 17), (12, 23), (5, 21)), fill=PALETTE["outline"])
-    drawing.polygon(((5, 15), (21, 9), (27, 11), (27, 16), (11, 21), (6, 20)), fill="#c39543")
-    drawing.line((9, 15, 23, 10), fill="#ffe1a0", width=2)
-    drawing.polygon(((11, 20), (15, 19), (13, 27), (9, 27)), fill="#795d48")
-    drawing.ellipse((21, 11, 28, 18), fill="#304853", outline="#e5c47d")
-    drawing.ellipse((23, 12, 26, 16), fill="#172d38")
-    drawing.ellipse((9, 13, 15, 19), fill=PALETTE["gold"], outline="#825e34")
-    drawing.line((12, 14, 12, 17), fill="#fff2bf")
-    save("coin_launcher", image)
-
-
-def homing_missile():
-    image, drawing = canvas()
-    drawing.polygon(((3, 15), (22, 8), (29, 11), (29, 19), (10, 25), (3, 22)), fill=PALETTE["outline"])
-    drawing.polygon(((5, 16), (22, 10), (27, 12), (27, 17), (10, 23), (5, 21)), fill="#899ba0")
-    drawing.line((7, 16, 22, 11), fill="#e3eef0", width=2)
-    drawing.ellipse((22, 11, 29, 19), fill="#263e48", outline="#f59b72")
-    drawing.ellipse((24, 13, 27, 17), fill="#e55047")
-    drawing.rectangle((12, 7, 18, 11), fill=PALETTE["outline"])
-    drawing.line((13, 8, 17, 8), fill="#69d2ca")
-    drawing.polygon(((10, 22), (15, 20), (13, 28), (8, 28)), fill="#586965")
-    drawing.ellipse((4, 3, 11, 10), outline="#e55047")
-    drawing.line((7, 2, 7, 11), fill="#e55047")
-    drawing.line((3, 6, 12, 6), fill="#e55047")
-    save("homing_missile", image)
-    rocket, drawing = canvas()
-    drawing.polygon(((2, 16), (9, 12), (7, 16), (9, 20)), fill="#ffad53")
-    drawing.polygon(((5, 16), (11, 14), (11, 18)), fill="#fff2bb")
-    drawing.polygon(((10, 12), (19, 12), (27, 16), (19, 20), (10, 20)), fill=PALETTE["outline"])
-    drawing.polygon(((11, 13), (19, 13), (24, 16), (19, 19), (11, 19)), fill="#e7eddf")
-    drawing.polygon(((20, 13), (27, 16), (20, 19)), fill="#e55047")
-    drawing.rectangle((12, 14, 18, 14), fill="#ffffff")
-    drawing.polygon(((10, 12), (14, 7), (17, 12)), fill="#dc6156")
-    drawing.polygon(((10, 20), (14, 25), (17, 20)), fill="#dc6156")
-    for index, direction in enumerate(("e", "se", "s", "sw", "w", "nw", "n", "ne")):
-        save(f"missile_{direction}", rocket.rotate(-index * 45, resample=Image.Resampling.NEAREST, center=(16, 16)))
-    sheet = Image.new("RGBA", (32 * 6, 32))
-    for frame in range(6):
-        image, drawing = canvas()
-        radius = (4, 8, 12, 13, 12, 10)[frame]
-        alpha = (255, 255, 245, 205, 135, 50)[frame]
-        drawing.ellipse((16 - radius, 16 - radius, 16 + radius, 16 + radius), outline=(255, 106, 57, alpha), width=2)
-        core = max(1, 10 - frame)
-        drawing.polygon(((16, 16 - core), (19, 13), (16 + core, 16), (19, 19), (16, 16 + core), (13, 19), (16 - core, 16), (13, 13)), fill=(255, 211, 113, alpha))
-        if frame < 3:
-            drawing.ellipse((13, 13, 19, 19), fill=(255, 251, 221, alpha))
-        sheet.alpha_composite(image, (frame * 32, 0))
-    save("fx_missile_explosion", sheet)
-    COMBAT_EFFECTS["fx_missile_explosion"] = {"asset": "fx_missile_explosion", "frame_width": 96, "frame_height": 96, "frames": 6, "duration": 0.65}
 
 
 def flame_tint(image):
@@ -1057,11 +949,11 @@ def arsenal_effects():
 
 
 def food():
-    kinds = ("instant_noodles", "dumplings", "wontons", "pork_trotters", "beef", "lamb", "sardines", "tuna", "beef_balls", "hotpot_vegetables", "oreos", "compressed_biscuits")
-    colors = ("#bd7253", "#88a5b4", "#758f9e", "#b67c6a", "#a65e5d", "#9d7a68", "#839e9d", "#6b8fa5", "#b78c67", "#789677", "#496c96", "#b49b72")
+    kinds = ('instant_noodles', 'dumplings', 'beef', 'sardines', 'oreos', 'compressed_biscuits')
+    colors = ('#bd7253', '#88a5b4', '#a65e5d', '#839e9d', '#496c96', '#b49b72')
     for kind, color in zip(kinds, colors):
         image, drawing = canvas()
-        if kind in ("sardines", "tuna"):
+        if kind == "sardines":
             drawing.rectangle((5, 12, 27, 25), fill=PALETTE["outline"])
             drawing.rectangle((6, 12, 26, 23), fill=color)
             drawing.ellipse((5, 8, 27, 16), fill=PALETTE["outline"])
@@ -1079,18 +971,12 @@ def food():
             drawing.polygon(((8, 8), (24, 8), (23, 13), (25, 26), (23, 27), (8, 27), (7, 25), (9, 12)), fill=color)
             drawing.line((10, 9, 22, 9), fill="#ffffff88")
             drawing.rectangle((10, 14, 22, 23), fill="#e5e7d8")
-            if kind in ("beef", "lamb", "pork_trotters"):
+            if kind == "beef":
                 drawing.ellipse((12, 16, 20, 21), fill="#b96f67")
                 drawing.line((14, 17, 18, 20), fill="#f1c8ac", width=2)
-            elif kind in ("dumplings", "wontons"):
+            elif kind == "dumplings":
                 for left, top in ((11, 16), (17, 16), (14, 20)):
                     drawing.pieslice((left, top, left + 5, top + 4), 180, 360, fill="#a48d6c")
-            elif kind == "hotpot_vegetables":
-                drawing.line((13, 21, 19, 16), fill="#477951", width=3)
-                drawing.rectangle((18, 19, 21, 22), fill="#c59c56")
-            elif kind == "beef_balls":
-                for left, top in ((11, 16), (17, 17), (14, 20)):
-                    drawing.ellipse((left, top, left + 4, top + 3), fill="#a98059")
             elif kind == "oreos":
                 drawing.ellipse((12, 15, 20, 22), fill="#41424b")
                 drawing.line((13, 19, 19, 19), fill=PALETTE["snow"])
@@ -1293,17 +1179,13 @@ def main(hitboxes_only=False):
     first_aid_kit()
     piggy_bank()
     heat_patch()
-    sheriff_badge()
-    swiftness_ring()
     compass()
     vodka()
     defibrillator()
-    return_staff()
     ice_staff()
     vending_items()
     match_machine()
     arsenal_equipment()
-    homing_missile()
     chainsaw()
     food()
     effects()

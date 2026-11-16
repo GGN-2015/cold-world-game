@@ -103,7 +103,7 @@ class Observer:
                         await self.page.mouse.up()
                     await self.page.mouse.down()
                     self.mouse_down = True
-                    if info["weapon"] in ("axe", "flame_staff", "ice_staff", "shotgun", "homing_missile"):
+                    if info["weapon"] in ("axe", "flame_staff", "ice_staff", "shotgun"):
                         await self.page.mouse.up()
                         self.mouse_down = False
                     last_click = elapsed

@@ -29,4 +29,4 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "cold_world_game"
 module-root = ""
-source-include = ["docs/**", "tools/benchmark_sync.py", "tools/benchmark_terrain.py", "tools/benchmark_combat.py", "tools/combat_trial.py", "tools/combat_sweep.py", "tools/combat_replay.html", "tools/replay_export.py", "tools/generate_assets.py", "tools/first_ring_assets.py", "tools/expansion_assets.py", "tools/machine_assets.py", "tools/outdoor_assets.py", "tools/manual_assets.py", "tools/generate_manuals.py", "tools/wiki_tables.py", "tools/web_wiki.py", "tools/wiki_roles.py", "tools/generate_audio.py", "tools/generate_music.py", "tools/music/**", "uv.lock"]
+source-include = ["docs/**", "tools/benchmark_sync.py", "tools/benchmark_terrain.py", "tools/benchmark_combat.py", "tools/generate_assets.py", "tools/first_ring_assets.py", "tools/expansion_assets.py", "tools/machine_assets.py", "tools/outdoor_assets.py", "tools/manual_assets.py", "tools/generate_manuals.py", "tools/wiki_tables.py", "tools/web_wiki.py", "tools/wiki_roles.py", "tools/generate_audio.py", "tools/generate_music.py", "tools/music/**", "uv.lock"]

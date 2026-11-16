@@ -7,9 +7,8 @@ from .constants import BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, DRINKS, EXPLOSI
 from .expansion import carried_modifier
 from .geometry import distance, normalized, segment_box, segment_circle, tile
 from .hitboxes import MONSTER_BOUNDS, monster_hitbox, segment_monster
-from .inventory import clone_storages, consume_selected, consume_use, has_personal_item, insert_item, take_item
+from .inventory import clone_storages, consume_selected, consume_use, insert_item, take_item
 from .models import Item, Projectile, Structure, identifier
-from .missiles import homing_position
 from .wildlife import BIOME_GUARDS, MOUNTED_RESUPPLY
 
 
@@ -157,15 +156,6 @@ class Combat:
         if self.elapsed + 1e-9 < player.next_shot or player.last_shot_tick == self.tick_number:
             return
         direction_x, direction_y = normalized(controls.aim_x - player.x, controls.aim_y - player.y)
-        target = None
-        if item.kind == "homing_missile":
-            target = min((monster for monster in self.homing_targets(player) if monster.hp > 0), key=lambda monster: ((monster.x - player.x) ** 2 + (monster.y - player.y) ** 2, monster.id), default=None)
-            if target is None:
-                return
-            if direction_x == direction_y == 0:
-                direction_x, direction_y = normalized(target.x - player.x, target.y - player.y)
-                if direction_x == direction_y == 0:
-                    direction_x = 1.0
         if direction_x == direction_y == 0 or not item.ammo:
             return
         self.touch()
@@ -184,14 +174,7 @@ class Combat:
             heading = angle + math.radians(offset)
             projectile = Projectile(player.x, player.y, math.cos(heading) * settings["speed"], math.sin(heading) * settings["speed"], 0, 5 if mounted else settings["damage"], player.id, shot=shot, origin_x=player.x, origin_y=player.y, spawned_at=self.elapsed, range_player=player.id, mounted=mounted)
             projectile.weapon_kind = item.kind
-            if target is not None:
-                projectile.kind = "homing_missile"
-                projectile.target_id = target.id
-                projectile.target_x, projectile.target_y = target.x, target.y
-                projectile.range_player = None
-                projectile.detonates_at = self.elapsed + max(0.45, distance(player, target) / settings["speed"] + settings["launch_duration"])
-            else:
-                projectile.remaining = self.projectile_range(projectile)
+            projectile.remaining = self.projectile_range(projectile)
             self.projectiles[projectile.id] = projectile
         if item.ammo == 0:
             if not mounted and item.kind not in RELOAD_RULES:
@@ -483,9 +466,7 @@ class Combat:
         direction_x, direction_y = normalized(controls.aim_x - player.x, controls.aim_y - player.y)
         if direction_x == direction_y == 0:
             return
-        attack_range = settings["range"]
-        if item.kind == "axe" and player.carries("axe_handle"):
-            attack_range += PASSIVE_ITEMS["axe_handle"]["axe_range_bonus"]
+        attack_range = self.melee_reach(player, item, settings)
         targets = []
         for monster in self.monsters.values():
             offset_x, offset_y = monster.x - player.x, monster.y - player.y
@@ -501,6 +482,11 @@ class Combat:
             if consume_use(player.inventory, player.selected, item):
                 controls.stop_attack()
         return True
+
+    @staticmethod
+    def melee_reach(player, item, settings):
+        bonus = PASSIVE_ITEMS["axe_handle"]["axe_range_bonus"] if item.kind == "axe" and player.carries("axe_handle") else 0
+        return settings["range"] + bonus
 
     def apply_weapon_status(self, monster, settings, owner):
         if "freeze_duration" not in settings and "burn_duration" not in settings:
@@ -606,8 +592,6 @@ class Combat:
         impact_x, impact_y = monster.x, monster.y
         displacement = [0.0, 0.0]
         attacker = self.players.get(actor)
-        if monster.kind in {"small", "fast"} and attacker and has_personal_item(attacker, "sheriff_badge"):
-            amount *= PASSIVE_ITEMS["sheriff_badge"]["damage_multiplier"]
         monster.hp -= amount
         if monster.big and monster.hp > 0 and amount > 0 and not self.monster_inactive(monster) and attacker and attacker.id in self.online and attacker.temperature >= 5:
             target = self.players.get(monster.target)
@@ -720,22 +704,6 @@ class Combat:
         projection = offset_x * direction_x + offset_y * direction_y
         return max(0.0, -projection + math.sqrt(max(0.0, projection * projection + radius_squared - distance_squared)))
 
-    def update_homing_missile(self, projectile):
-        target = self.monsters.get(projectile.target_id)
-        if target is None or target.hp <= 0:
-            self.touch()
-            del self.projectiles[projectile.id]
-            return
-        if self.elapsed + 1e-9 >= projectile.detonates_at:
-            self.touch()
-            direction = (target.x - projectile.x, target.y - projectile.y)
-            self.emit_event("explosion", projectile.owner, projectile.kind, target.x, target.y, radius=GUNS[projectile.kind]["impact_radius"], target=target.id)
-            del self.projectiles[projectile.id]
-            self.hurt_monster(target, projectile.damage, projectile.owner, "bullet", direction, shot=projectile.shot)
-            return
-        projectile.target_x, projectile.target_y = target.x, target.y
-        projectile.x, projectile.y = homing_position(projectile, self.elapsed, target.x, target.y)
-
     def update_projectiles(self, seconds):
         with self.monster_collisions():
             self.step_projectiles(seconds)
@@ -743,9 +711,6 @@ class Combat:
     def step_projectiles(self, seconds):
         activity = self.monster_activity()
         for projectile_id, projectile in list(self.projectiles.items()):
-            if projectile.kind == "homing_missile":
-                self.update_homing_missile(projectile)
-                continue
             if projectile.kind in EXPLOSIVE_WEAPONS:
                 if self.elapsed + 1e-9 >= projectile.detonates_at:
                     self.explode(projectile)

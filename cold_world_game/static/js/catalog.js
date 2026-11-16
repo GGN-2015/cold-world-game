@@ -36,7 +36,7 @@ export function itemDetail(item, catalog) {
   if (catalog?.drinks?.[item.kind]) return t('item.drink', { name: itemName(item.kind), ...catalog.drinks[item.kind] });
   if (catalog?.melee_weapons?.[item.kind]?.freeze_duration) return t('item.iceStaffDetail', { name: itemName(item.kind), count: item.uses, ...catalog.melee_weapons[item.kind] });
   if (catalog?.melee_weapons?.[item.kind]?.burn_duration) return t('item.flameStaffDetail', { name: itemName(item.kind), count: item.uses, ...catalog.melee_weapons[item.kind] });
-  if (catalog?.explosive_weapons?.[item.kind]) return t(item.kind === 'coin_launcher' ? 'item.coinLauncherDetail' : 'item.grenadeDetail', { name: itemName(item.kind), ...catalog.explosive_weapons[item.kind] });
+  if (catalog?.explosive_weapons?.[item.kind]) return t('item.grenadeDetail', { name: itemName(item.kind), ...catalog.explosive_weapons[item.kind] });
   if (item.ammo != null) return t('item.ammo', { name: itemName(item.kind), count: item.ammo });
   if (item.uses != null) return t('item.uses', { name: itemName(item.kind), count: item.uses });
   if (catalog?.healing_items?.[item.kind]) return t(item.kind === 'heat_patch' ? 'item.warming' : 'item.healing', { name: itemName(item.kind), ...catalog.healing_items[item.kind] });

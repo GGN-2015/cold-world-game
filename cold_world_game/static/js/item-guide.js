@@ -57,12 +57,12 @@ export function itemGuide(item, catalog, language) {
     use = t(ready ? 'guide.use.readyFood' : 'guide.use.cookedFood');
   } else if (catalog.guns?.[kind]) {
     category = 'gun';
-    effect = t(kind === 'homing_missile' ? 'guide.effect.homing_missile' : kind === 'shotgun' ? 'guide.effect.shotgun' : 'guide.effect.gun', catalog.guns[kind]);
-    use = t(kind === 'homing_missile' ? 'guide.use.homing_missile' : kind === 'rifle' ? 'guide.use.rifle' : 'guide.use.gun');
+    effect = t(kind === 'shotgun' ? 'guide.effect.shotgun' : 'guide.effect.gun', catalog.guns[kind]);
+    use = t(kind === 'rifle' ? 'guide.use.rifle' : 'guide.use.gun');
   } else if (catalog.melee_weapons?.[kind]) {
     category = 'melee';
     effect = t(`guide.effect.${kind}`, catalog.melee_weapons[kind]);
-    use = t(kind === 'chainsaw' ? 'guide.use.chainsaw' : kind === 'axe' ? 'guide.use.axe' : 'guide.use.staff');
+    use = t(kind === 'axe' ? 'guide.use.axe' : 'guide.use.staff');
   } else if (catalog.explosive_weapons?.[kind]) {
     category = 'explosive';
     effect = t(`guide.effect.${kind}`, catalog.explosive_weapons[kind]);

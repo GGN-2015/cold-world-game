@@ -4,7 +4,6 @@ import { ActorAnimator } from './animation.js';
 import { isMobileDevice } from './mobile.js';
 import { CombatEffects } from './effects.js';
 import { SnapshotMotion } from './motion.js';
-import { homingPosition } from './missiles.js';
 import { ClientMovement, CollisionMap } from './movement.js';
 import { MonsterHitboxes, monsterSprite } from './monster-hitboxes.js';
 
@@ -390,7 +389,7 @@ export class WorldRenderer {
       this.sprite('spark', fire.x + Math.sin(this.elapsed * 2) * 0.12, fire.y - (this.elapsed * 0.8 % 1) - 0.4, 0.3);
     }
     const bullets = state.projectiles.filter((projectile) => !this.catalog.explosive_weapons?.[projectile.kind] &&
-      projectile.kind !== 'homing_missile' && projectile.kind !== 'durian_peel');
+      projectile.kind !== 'durian_peel');
     this.drawProjectiles(this.replay ? bullets : bullets.map((projectile) => ({ ...projectile, ...this.motion.sample(projectile) })));
     for (const projectile of state.projectiles) {
       if (projectile.kind === 'durian_peel' && projectile.detonates_at == null) {
@@ -401,17 +400,11 @@ export class WorldRenderer {
         if (visible(point) && Math.abs(point.x - center.x) <= viewport[0] / 2 && Math.abs(point.y - center.y) <= viewport[1] / 2) this.sprite(`durian_peel_flight_${['e', 'se', 's', 'sw', 'w', 'nw', 'n', 'ne'][direction]}`, point.x, point.y, 0.7);
         continue;
       }
-      if (projectile.kind === 'homing_missile') {
-        const missileTime = this.recordedFrames || this.motion.time == null ? worldTime : this.motion.time + (state.paused ? 0 : this.motion.delay);
-        const point = homingPosition(projectile, missileTime, this.catalog.guns.homing_missile, this.positions.get(projectile.target_id));
-        if (visible(point)) this.sprite(point.asset, point.x, point.y, 0.8);
-        continue;
-      }
       if (!this.catalog.explosive_weapons?.[projectile.kind]) continue;
       const phase = Math.max(0, Math.min(1, (worldTime - projectile.spawned_at) / (projectile.detonates_at - projectile.spawned_at)));
       const horizontal = projectile.origin_x + (projectile.target_x - projectile.origin_x) * phase;
       const vertical = projectile.origin_y + (projectile.target_y - projectile.origin_y) * phase - 4 * phase * (1 - phase);
-      this.sprite(projectile.kind === 'coin_launcher' ? 'grenade' : projectile.kind, horizontal, vertical, 0.5);
+      this.sprite(projectile.kind, horizontal, vertical, 0.5);
     }
     this.effects.draw(this);
     this.drawFog(state, local);

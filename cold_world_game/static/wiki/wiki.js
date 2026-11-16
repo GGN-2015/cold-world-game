@@ -12,7 +12,7 @@ const subtypes = {
   facility: { building: '建材与防御', utility: '储物与生存', trade: '交易与加工', outdoor: '户外固定设施', crossing: '群系设施' },
   monster: { roaming: '游荡怪', biome: '群系怪' },
 };
-const chestPage = 'wiki/ordinary-chest-draft.md';
+const chestPage = 'wiki/ordinary-chest.md';
 const rolesPage = 'wiki/roles.md';
 
 const main = document.getElementById('main');

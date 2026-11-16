@@ -55,6 +55,10 @@ class Manual:
             | {recipe["output"] for recipe in self.rules.RECIPES.values()}
             | {"wood", "coin", "axe", "handgun", "lighter", "durian_peel"}
         )
+        extra = self.rules.ITEM_KINDS - self.available
+        missing = self.available - self.rules.ITEM_KINDS
+        if extra or missing:
+            raise ValueError(f"Item catalog differs from Wiki sources: undocumented={sorted(extra)}, unregistered={sorted(missing)}")
         self.categories = {
             "food": set(self.rules.FOODS) | self.rules.DRINKS.keys(),
             "weapon": set(self.rules.GUNS) | self.rules.MELEE_WEAPONS.keys() | self.rules.EXPLOSIVE_WEAPONS.keys() | self.rules.AMMO_PACKS.keys(),
@@ -124,10 +128,7 @@ class Manual:
             "first_aid_kit": ("体温恢复至36°C，饱食度恢复到 10；医疗光圈与红色十字绽放。", "选中后长按0.5秒，无需篝火；手机长按“使用”。", "一次性；恢复与消耗原子提交。"),
             "heat_patch": ("体温直接恢复至36°C，饥饿保持不变；播放小型医疗光圈。", "选中后长按0.5秒，无需篝火；手机长按“使用”。", "一次性；饱食度为 0 或 10 时也可用。"),
             "defibrillator": ("使目标倒地玩家恢复到 36°C、饱食度 10 并站立，播放医疗光效。", "对准2格内其他在线倒地玩家，长按1.5秒；手机长按目标或瞄准后按住“使用”。", "一次性，不能自救；施救者倒地仍可施救。目标变更需重新蓄力，目标失效、超距或遮挡不消耗。"),
-            "return_staff": ("按通用回城落点规则返回原点附近；施法、离开与抵达均播放符文传送光效。", "选中后朝空地长按1.5秒；手机长按“使用”。", "初始20次，每次成功扣1次；完成后须松开再用，不自动连发。传送、扣次和必要区块生成一起保存。"),
-            "sheriff_badge": (f"任何武器对小怪、快速怪的伤害×{rules.PASSIVE_ITEMS['sheriff_badge']['damage_multiplier']:g}，包括命中时的子弹、爆炸与每次灼烧；不增加击退，不增强对大怪或玩家的伤害。", "放在背包或物品栏即生效，无需选中。伤害发生时检查持有状态。", "不消耗，多枚不叠加；开火后丢弃徽章会影响尚未结算的伤害。"),
             "axe_handle": (f"为普通斧头增加 {rules.PASSIVE_ITEMS['axe_handle']['axe_range_bonus']:g} 格近战半径。", "放在背包或快捷栏即生效。", "可重复使用，多个长柄套不叠加。"),
-            "swiftness_ring": ("当前体温和饥饿下移速×3；正常/一种减速/两种减速时分别12/6/3格每秒，倒地仍为0。", "移到物品栏并选中即可，手机点该格后用移动摇杆。", "不消耗、不叠加；切换选中格、移走或丢弃立即失效。只携带但未选中无效。"),
             "compass": ("红色针尖指向距自己欧氏距离最近的合格建筑区块中心，而不是固定指北；蓝色针尖指向相反方向。寻找目标时应跟随红色针尖，不要跟随蓝色针尖。整个区块须与当前游戏画面无交集（边界接触也排除）；从玩家指向目标的方向与从原点指向玩家的方向点积≥0，垂直方向也合格。在原点时不限制方向，同距目标按区块横坐标、纵坐标稳定选择。", "放在背包或物品栏即可自动指向，不用选中、点击或长按；桌面与手机均适用。红色针尖朝向与游戏画面的上下左右一致，不是现实手机朝向。", "不是建筑，不能放置；不消耗。区块按自然类型识别，拆过房屋仍算建筑区块，玩家在森林盖房不会改变类型。浏览器独立Worker只查询区块类型，不探索服务器地图，不生成箱子内容；所有随身指南针共用结果。搜索或连接不可用时指针变暗，不把尚未完成的搜索当成有效目标。"),
         }
         groups = (("自身恢复与补给", rules.HEALING_ITEMS), ("队友救援", rules.REVIVAL_ITEMS), ("回城用品", rules.RETURN_ITEMS), ("点火工具", rules.IGNITERS), ("导航工具", rules.NAVIGATION_ITEMS), ("随身被动装备", rules.PASSIVE_ITEMS), ("手持移动装备", rules.EQUIPPED_ITEMS))
@@ -333,7 +334,7 @@ class Manual:
             CATALOGS["weapon"]: self.weapons(),
             CATALOGS["facility"]: self.facilities(),
             "wiki/items.md": wiki_tables.render_items(self),
-            "wiki/ordinary-chest-draft.md": wiki_tables.render_chest(self),
+            "wiki/ordinary-chest.md": wiki_tables.render_chest(self),
             "wiki/monsters.md": wiki_tables.render_monsters(self),
             "wiki/roles.md": web_wiki.render_roles(self),
         }

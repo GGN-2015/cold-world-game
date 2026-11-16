@@ -38,7 +38,7 @@
 
 普通物品在玩家中心 0.75 格内、交互路径畅通且有空格时自动拾取。优先填快捷栏，再填背包。两者都满时物品留在地面。硬币直接计入金钱。自己的手动丢弃物有 1 秒拾取冷却，其他玩家可立即拾取。
 
-地面掉落物连续离开所有在线玩家画面180秒后清理。站立和倒地玩家均计入观看者，按各自实际视口及掉落物贴图边缘判定；只要有人能看见就不计时，再次被看见立即重置，下一次无人观看重新计满180秒。计时使用世界模拟秒，世界暂停或服务器关闭期间不推进；剩余计时随存档保存，旧存档缺少计时字段时从未开始计时读取。
+地面掉落物连续离开所有在线玩家画面180秒后清理。站立和倒地玩家均计入观看者，按各自实际视口及掉落物贴图边缘判定；只要有人能看见就不计时，再次被看见立即重置，下一次无人观看重新计满180秒。计时使用世界模拟秒，世界暂停或服务器关闭期间不推进；剩余计时随存档保存。
 
 Ground drops expire after 180 continuous simulation seconds outside every online player's viewport, including downed players. Visibility resets the timer; a later unseen period starts a fresh three minutes. The timer persists across saves and does not advance while the world is paused or the server is stopped. Older saves default to an unstarted timer.
 

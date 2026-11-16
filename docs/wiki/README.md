@@ -8,7 +8,7 @@
 | --- | --- |
 | 武器、道具、食品、设施和怪物在游玩中的用途 | [条目定位](roles.md) |
 | 武器伤害、弹量、射速、近战范围、爆炸与元素效果 | [武器速查](items.md#枪械) · [武器图鉴](../items/weapons.md) |
-| 所有物品的箱内概率、购买价格、合成或掉落来源 | [物品、掉率与价格速查](items.md) |
+| 所有物品的箱内概率、购买价格、合成或掉落来源 | [物品、掉率与价格速查](items.md) · [普通箱掉落](ordinary-chest.md) |
 | 食品、治疗、回城、火种、装备和创造道具 | [食品与饮料](../items/foods.md) · [工具与装备](../items/tools.md) |
 | 每种怪物的血量、速度、攻击间隔、生成率和掉落 | [怪物数值速查](monsters.md) · [怪物图鉴与完整行为](../world/combat.md) |
 | 固定机枪、售货机、建材与配方 | [设施图鉴](../building/machines.md) · [户外设施](../building/outdoor-facilities.md) · [建造与配方](../building/building.md) |

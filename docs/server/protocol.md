@@ -37,6 +37,21 @@
 
 可选能力均只作用当前连接：`quiet_inputs` 省略不带seq的input/stop成功回执；`client_movement` 启用本机算移动、服务器汇总坐标；`state_deltas` 启用差分；`player_roster` 订阅名单。未协商的客户端仍有完整状态和服务端移动模式。
 
+## 服务端录像
+
+实战连接使用 `{"type":"record_start","seq":1}` 开始录制，`record_stop` 停止并保存。两条请求的回执都包含 `result.id`。录制绑定当前连接的玩家视角。连接结束时，进行中的录像以 `disconnected` 状态保存。
+
+| 路径 | 用途 |
+| --- | --- |
+| `GET /replay/` | 统一播放器 |
+| `GET /api/replays` | 当前录像库的条目摘要 |
+| `GET /api/replays/<id>` | 录像目录、结果和片段索引 |
+| `GET /api/replays/<id>/segments/<number>` | 指定片段的场景帧 |
+| `GET /api/replays/<id>/download` | 下载该录像的 `.replay` 文件 |
+| `POST /api/replays/upload` | 使用 multipart 的 `file` 字段上传，返回录像目录 |
+
+录像 API 接受服务口令请求头 `X-Replay-Password`，或接受 URL 编码的 `X-Replay-Password-Encoded`。目录内含来源、保存位置、版本、时长和各片段的时间范围。每个片段以完整场景状态开始，后续帧可用字段差分 `changes`，地形使用片段内的索引。游戏视角、试验场和批量运行统一保存引擎实际状态。试验场控制消息及批量用法见[武器试验场与录像](../guide/arena.md)。
+
 ## 紧凑状态传输
 
 `compact_state:1`要求同时开启`state_deltas:true`，可与种子地图独立协商。握手、确认和错误仍是JSON；成功握手额外返回`wire_config`，之后状态与名单增量使用MessagePack二进制帧。浏览器设置`binaryType='arraybuffer'`；未返回配置时继续使用JSON，解码或修订失败时重新握手回退，不重放交易命令。
@@ -70,9 +85,10 @@
 | `healing_items`、`revival_items`、`return_items` | 自用恢复、队友救援、回城的长按时长和次数 |
 | `igniters`、`passive_items`、`equipped_items` | 点火次数、携带被动和选中装备倍率 |
 | `machine_offers`、`vending_offers` | 全机器兑换表及售货机兼容字段，统一配方结构 |
-| `room_machines`、`terrain` | 自然设施与各箱内稀有物品的独立概率 |
+| `room_machines`、`terrain` | 自然设施生成概率和地图版本 |
 | `currency`、`knockback`、`projectiles` | 金钱上限、击退系数、弹道阻挡与视野射程规则 |
-| `expansion_items` | 物品分类/概率的补充索引，实际机制读取上面对应目录，不形成另一套玩法 |
+| `items`、`item_catalog_version` | 当前注册物品和物品目录版本 |
+| `expansion_items` | 当前扩展物品的分类 |
 
 `guns` 中 `automatic` 控制持续按住，`instant` 表示按下边沿立即产生首发（子弹仍按弹速飞行），`pellets/spread` 为散布；`melee_weapons` 的 `arc_degrees`、`range` 决定实际扇形，`effect` 指向离线PNG。恢复物品无 `hunger` 即不改饥饿，`temperature_delta/hunger_delta` 表示增量，`supplies` 表示拆包产物；`uses` 表示有限次数。目录与服务端定义一致，客户端不能自报交易价格或产物。
 
@@ -101,7 +117,7 @@
 
 `{"type":"sit","id":"structure-id"}`切换公园椅子/固定机枪占座；移动输入自动起身。坐上固定机枪后仍用`attack`的`pressed`边沿和`aim_x/aim_y`方向长按连射，不需要物品栏中有枪。占座冲突为`seat_occupied`，附近有怪物为`seat_unsafe`，无效设施为`invalid_seat`；服务器串行确认，不能双人同时占座。
 
-`you.seated`/`players[].seated`为设施类型或`null`，`you.seat_id`为设施ID；远端`seat_direction`为八方向编号。户外设施建筑带`occupant`和`ammo`，机枪弹药通过现有建筑字段差分更新，不重传全地图。`monsters[].species`区分六种怪物，`max_hp`与`move_speed`供血条和本地平滑移动使用；`big`/`fast`兼容字段仍保留。目录返回`monster_types`、`outdoor_features`以及`terrain.chest_landmine_chance`。
+`you.seated`/`players[].seated`为设施类型或`null`，`you.seat_id`为设施ID；远端`seat_direction`为八方向编号。户外设施建筑带`occupant`和`ammo`，机枪弹药通过现有建筑字段差分更新，不重传全地图。`monsters[].species`区分六种怪物，`max_hp`与`move_speed`供血条和本地平滑移动使用；`big`/`fast`兼容字段仍保留。目录返回`monster_types`和 `outdoor_features`。
 
 新增持久结构字段`ammo`/`owner`均有缺省值；未保存弹药的固定机枪按200读取，其他建筑为`null`。旧怪物未保存`species`时按原`big`/`fast`标记解析，不改写原血量与位置。座位状态不持久化，重连按最近可落脚格安置。BGM只在客户端读取本地静态清单，不新增同步消息。
 
@@ -157,8 +173,6 @@
 
 树挡双方普通弹，全部容器与机器仅挡hostile弹，墙可穿透；以 `projectiles.blockers/monster_blockers` 为准。`weapon_kind` 关联武器冰冻/灼烧参数；旧字段缺省不改变保存的飞行位置和速度。投掷物通过起点、目标和引爆时间显示抛物线，伤害只在服务器爆炸时结算。
 
-`kind:"homing_missile"` 的 `target_id` 在发射时锁定最近存活怪物；origin/spawned_at/detonates_at及初始velocity确定短直线接曲线，target_x/y更新目标位置。它不进入普通直线碰撞和视野射程通道，只伤唯一目标；目标死亡就移除，不重新索敌。命中explosion事件radius仅控制小型特效，不做范围伤害。
-
 ## 瞬时事件与即时反馈
 
 `event_sequence` 是进程内递增序号；events为附近最近1.5秒动作、最多256条，不是持久日志。浏览器按事件ID去重，首次加入和重连不补播旧动作；只在内存事务成功后发布反馈，不等待后台磁盘提交。状态公共数据统一约10Hz捕获，命令序号与对应数据一起冻结，不能用更新的序号确认旧库存。
@@ -185,4 +199,4 @@
 
 Python中使用 `cold_world_game.create_app(...)`；关闭时调用 `app.extensions["cold_world_game"].close()` 等待最终保存、释放线程及存档锁，不要每次HTTP请求后关闭世界。`start_engine=False` 可用于确定性调试，通过runtime.world.tick(seconds)手动推进；此模式保持同步提交。调用runtime.start()后启用与生产相同的模拟、共享发布及后台保存。显式等待后台落盘可在世界锁外调用runtime.persistence.flush()，不要在持有世界锁时等待保存线程。
 
-个人离线仅冻结该人，全员离线或停机冻结整个世界，不补算离线时间。存储结构、旧存档缺省、备份和安全部署属于[服务器手册](server.md)，地图独立随机流与未探索区域更新属于[世界手册](../world/world.md#地图生成与存档)。
+个人离线仅冻结该人，全员离线或停机冻结整个世界，不补算离线时间。存储结构、同版存档的持久字段、备份和安全部署属于[服务器手册](server.md)，地图独立随机流与未探索区域更新属于[世界手册](../world/world.md#地图生成与存档)。

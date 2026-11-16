@@ -266,7 +266,7 @@ def verify_runtime(path):
 def verify_generation(path):
     seed = 42
     settings = profile()
-    old_settings = {key: value for key, value in settings.items() if key not in {"loot", "quality_loot", "biome_ring", "biome_loot", "extra_chest_loot"}}
+    old_settings = {key: value for key, value in settings.items() if key not in {"biome_ring"}}
     old_settings["version"] = 21
     old_settings["ring"] = {"radius": 667, "gates": 24}
     world = World(Storage(path), seed)
@@ -468,10 +468,32 @@ def verify_creative(path):
         world.close()
 
 
+def verify_catalog_save_boundary(path):
+    world = World(Storage(path), 42)
+    try:
+        save = world.export()
+        assert save.pop("item_catalog_version") == world.catalog()["item_catalog_version"]
+        world.storage.save(save)
+    finally:
+        world.storage.close()
+    storage = Storage(path)
+    try:
+        try:
+            World(storage)
+        except ValueError as error:
+            assert "Use a new save path" in str(error)
+        else:
+            raise AssertionError("Opened a save from before the item catalog reset")
+        assert "item_catalog_version" not in storage.load()
+    finally:
+        storage.close()
+
+
 if __name__ == "__main__":
     with TemporaryDirectory() as directory:
         verify_runtime(Path(directory) / "weather.sqlite")
         verify_generation(Path(directory) / "terrain.sqlite")
         verify_material_stacks(Path(directory) / "materials.sqlite")
         verify_creative(Path(directory) / "creative.sqlite")
-    print("Passed heating, downed construction, hotbar priority, purchases, material stacks, rollback, versioned terrain and creative items.")
+        verify_catalog_save_boundary(Path(directory) / "before-catalog.sqlite")
+    print("Passed heating, downed construction, hotbar priority, purchases, material stacks, rollback, versioned terrain, creative items and catalog version checks.")

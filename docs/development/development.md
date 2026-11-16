@@ -28,7 +28,6 @@
 | 怪物与户外设施数据 | `cold_world_game/wildlife.py` | 六种属性、威胁分数、座位独立概率与有限弹药 |
 | 确定性地图与稀疏覆盖 | `cold_world_game/procedural.py`、`cold_world_game/terrain_stream.py` | 固定生成算法、版本配置、格子初始内容、区块订阅，见[地图实现](terrain.md) |
 | 浏览器地图缓存 | `cold_world_game/static/js/terrain-worker.js`、`terrain-cache.js` | 后台生成、校验、IndexedDB、订阅合并与故障回退 |
-| AI 战斗回放 | `tools/combat_trial.py` | 固定场景中对比谨慎型和冒进型，生成可拖动时间轴的浏览器回放 |
 | 同图性能回放 | `tools/benchmark_terrain.py` | 临时世界、两种协议的处理耗时/字节与SQLite体积；不替代实际浏览器延迟测试 |
 | 战斗传输与同帧回放 | `cold_world_game/wire.py`、`cold_world_game/static/js/wire.js`、`tools/benchmark_sync.py` | 紧凑二进制、子弹轨迹、格子差分及同一批权威帧的字节/编码耗时对照 |
 | 基础界面双语 | `cold_world_game/static/js/i18n.js` | 每键中文/English，同步修改两种语言 |
@@ -85,7 +84,6 @@ uv build
 - `static/js/sync.js`：按版本原子应用字段/实体差分，保留未变建筑数组与碰撞缓存，缺少基线时重连。
 - `static/js/combat.js`：本机即时挥斧与刀风预览、冷却、确认去重及失败取消，不预测伤害或掉落。
 - `static/js/renderer.js`：雪地背景缓存、PNG 绘制、插值位置呈现、光照与放置预览。缓存保留世界格子纹理，移动越出边界或窗口缩放时重建，不改变 PNG 替换方式。
-- `static/js/missiles.js`：按服务器锁定与时间参数绘制短直线/曲线导弹，使用平滑目标位置与八方向PNG，不索敌或预测伤害。
 - `static/js/motion.js`：远端角色位置历史插值、自适应显示缓冲、有界补帧、实际显示速度与独立即时子弹通道，支持断流停止和重连/后台/位置跳变重置；不修改服务器状态或预测玩法结果。
 - `static/js/storage.js`：按连接命令序号重放物品转移预览，识别已确认快照、冲突和失败回滚；不修改权威数组或持久存档，不生成物品 ID。
 - `static/js/animation.js`：玩家与怪物的四向朝向、按实际行进距离推进的跑动帧、站立/倒地/暂停处理及逐角色动画状态清理。
@@ -98,27 +96,9 @@ uv build
 前端不使用打包器和 CDN，修改文件后刷新即可。物品转移先即时预览，再按服务器确认序号与快照接管；失败或断线撤销预览，不改动真实物品与原子存档。拖放附来源物品 ID，防止格子已经变化时转移了错误物品。制作、兑换等产出操作仍等待服务器确认，不在客户端生成物品或预测随机结果。
 
 语言切换只刷新界面文案，不重载页面、不发送游戏指令、不切换玩家身份。玩家 ID 和服务端协议标识保持原样；每个窗口可独立使用一种语言，最近一次选择会保存在当前浏览器，供下次打开页面使用。禁用本地存储不影响本次切换或游玩。
-## AI 战斗回放
 
-安装锁定依赖后，在项目根目录运行：
+## 对战与录像
 
-```sh
-uv run --no-sync python tools/combat_trial.py --json replays/combat-replay.json
-uv run --no-sync python tools/combat_sweep.py --jobs 6
-```
+试验场使用当前战斗逻辑和固定怪群。正式游戏客户端记录已接收的状态，回放页使用当前服务器的渲染器与贴图。操作见[武器试验场与录像](../guide/arena.md)。
 
-浏览器可直接打开 `replays/combat-replay.html` 或 `replays/combat-sweep.html`。文件包含游戏原有渲染器、贴图、战斗特效和录像数据。可切换录像、跟随或全场镜头、逐帧检查、跳到事件和两种打法的首次分岔。仓库已忽略 `replays/`。
-
-分享录像时可用 `--record all --split-recordings` 一次跑完并记录每场。发送 `replay-player.html` 和所选的 `.replay.gz` 文件。收件人打开 HTML，点「打开录像文件」多选即可离线播放。JSON 和 CSV 是统计输出。播放器也能打开旧版的 `.replay.json`。
-
-脚本对普通怪可绕行、快速怪挡路、树遮挡弹道三个场景各跑两种打法。每场使用独立临时 SQLite 存档，固定地形和刷怪，按游戏原有频率逐帧推进。机器人通过常规玩家指令操作，移动、怪物追击、命中和弹药消耗由服务端结算。场景用于检查战斗决策和操作，也可复跑观察规则改动前后的差异。
-
-批量测试默认对开阔雪地、松林和废墟分别测试两种打法、六类武器、三档压力密度和四个种子。每场 25 个模拟秒，按固定时点刷四波混合怪，武器使用游戏默认弹量。用 `--densities`、`--repeats`、`--seed`、`--categories` 或 `--environments` 调整实验。用 `--record boundary` 录像通过率最接近一半的档位，`--record first` 录像各档首个种子，`--record none` 仅导出 JSON 和 CSV 统计。
-
-两种打法都会检查飞来的子弹与当前移动路线是否相交，必要时换方向。谨慎型约 7 格开始拉开距离，优先处理快速怪和大怪，近身时会用近战省弹。冒进型约 3.2 格才拉开距离，开枪距离更远，优先攻击最近的怪。录像标记触发闪避的弹道和实际中弹事件。可用 `--no-dodge` 关闭闪避做同种子对照。
-
-## 物品实测
-
-`uv run --no-sync python tools/item_audit.py` 在独立的临时世界里逐件测试物品，通过常规命令触发食用、射击、放置和交易等动作。输出 `replays/item-audit.json` 和 `replays/item-audit.csv`，记录实测数值、可从现有掉落表和配方确认的获取途径，以及已验证的组合。武器采用固定靶，枪械另外测量不同距离下的正面伤害。长程探索的留物收益需要结合生存状态、剩余次数和同类装备判断。
-
-`uv run --no-sync python tools/build_benchmark.py` 测量同种子下的构筑差异，输出到 `replays/build-benchmark/`。长跑在固定温度和补给点的无怪路线中进行，初始手枪和斧头之外有六个携带位，最多推进 24 个模拟分钟。战斗使用开阔地四波和正常移动、命中及消耗规则。掉落样本由原生地图生成器抽取。可用 `--suite route`、`combat`、`pressure`、`packing`、`acquisition` 或 `shelter` 单独复测。
+功能检查使用 `python -B -m tools.verify_arena` 和 `python -B -m tools.verify_first_ring`。

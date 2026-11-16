@@ -14,6 +14,8 @@ class WorldDelta(dict):
 
 
 class Storage:
+    version = 4
+
     @staticmethod
     def parts(state):
         structures = state.get("structures")
@@ -42,16 +44,13 @@ class Storage:
         return {**state, "structures": identifiers, **{"structure:" + value["id"]: value for value in structures}}
 
     @staticmethod
-    def unpack(parts, sparse=False):
+    def unpack(parts):
         structures = parts.get("structures")
         if not isinstance(structures, list) or not all(isinstance(identifier, str) for identifier in structures):
             return parts
-        if sparse:
-            records = {name.removeprefix("structure:"): value for name, value in parts.items() if name.startswith("structure:")}
-            ordered = [records.pop(identifier) for identifier in structures if identifier in records]
-            ordered.extend(records.values())
-        else:
-            ordered = [parts["structure:" + identifier] for identifier in structures]
+        records = {name.removeprefix("structure:"): value for name, value in parts.items() if name.startswith("structure:")}
+        ordered = [records.pop(identifier) for identifier in structures if identifier in records]
+        ordered.extend(records.values())
         return {**{name: value for name, value in parts.items() if not name.startswith("structure:")}, "structures": ordered}
 
     def __init__(self, path: Path | str):
@@ -62,7 +61,6 @@ class Storage:
         self.connection = None
         self._version = None
         self._state = None
-        self._migrate_parts = False
         try:
             self.connection = sqlite3.connect(self.path, timeout=10, check_same_thread=False)
             self.connection.execute("PRAGMA journal_mode=WAL")
@@ -75,57 +73,42 @@ class Storage:
             raise
 
     def load(self) -> dict | None:
-        record = self.connection.execute("SELECT version, payload FROM world WHERE singleton=1").fetchone()
+        record = self.connection.execute("SELECT version FROM world WHERE singleton=1").fetchone()
         if record is None:
             self._version = None
             self._state = {}
-            self._migrate_parts = False
             return None
-        if record[0] not in (1, 2, 3, 4):
-            raise ValueError(f"Unsupported save version: {record[0]}")
-        state = self.parts(json.loads(record[1])) if record[0] == 1 else {name: json.loads(payload) for name, payload in self.connection.execute("SELECT name, payload FROM world_parts ORDER BY rowid")}
-        if record[0] == 2:
-            normalized = self.parts(state)
-            self._migrate_parts = normalized is not state
-            state = normalized
-        else:
-            self._migrate_parts = False
+        if record[0] != self.version:
+            raise ValueError(f"Unsupported save version {record[0]}. Use a new save path.")
+        state = {name: json.loads(payload) for name, payload in self.connection.execute("SELECT name, payload FROM world_parts ORDER BY rowid")}
         self._version = record[0]
         self._state = copy.deepcopy(state)
-        return self.unpack(state, sparse=record[0] >= 3)
+        return self.unpack(state)
 
     def save(self, state: dict) -> None:
         if self._state is None:
             self.load()
-        migrate = self._version in (None, 1) or self._migrate_parts
         if isinstance(state, WorldDelta):
             values = {**state, **{"structure:" + identifier: value for identifier, value in state.structures.items()}}
             removed = {"structure:" + identifier for identifier in state.removed}
-            if migrate:
-                values = {**self._state, **values}
-                for name in removed:
-                    values.pop(name, None)
+            if self._version is None:
                 values.setdefault("structures", list(state.structures))
         else:
             values = self.parts(state)
             removed = self._state.keys() - values.keys()
-        changed = {name: json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False) for name, value in values.items() if migrate or name not in self._state or value != self._state[name]}
-        version = 4 if values.get("terrain_format", self._state.get("terrain_format")) == 1 else 3
-        if not changed and not removed and self._version == version:
+        changed = {name: json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False) for name, value in values.items() if name not in self._state or value != self._state[name]}
+        if not changed and not removed and self._version is not None:
             return
         saved = {name: json.loads(payload) for name, payload in changed.items()}
         with self.connection:
-            if migrate:
-                self.connection.execute("DELETE FROM world_parts")
-            if self._version != version:
-                self.connection.execute("INSERT INTO world(singleton, version, payload) VALUES(1, ?, '{}') ON CONFLICT(singleton) DO UPDATE SET version=excluded.version, payload='{}'", (version,))
+            if self._version is None:
+                self.connection.execute("INSERT INTO world(singleton, version, payload) VALUES(1, ?, '{}')", (self.version,))
             self.connection.executemany("INSERT INTO world_parts(name, payload) VALUES(?, ?) ON CONFLICT(name) DO UPDATE SET payload=excluded.payload", changed.items())
             self.connection.executemany("DELETE FROM world_parts WHERE name=?", [(name,) for name in removed])
         self._state.update(saved)
         for name in removed:
             self._state.pop(name, None)
-        self._version = version
-        self._migrate_parts = False
+        self._version = self.version
 
     def close(self) -> None:
         if self.connection is not None:

@@ -183,7 +183,7 @@ def render_items(manual):
     for kind, settings in rules.GUNS.items():
         pellets = settings.get("pellets", 5 if kind == "shotgun" else 1)
         spread = settings.get("spread", 12 if kind == "shotgun" else 0)
-        mode = "追踪最近怪物" if kind == "homing_missile" else "可按住连发" if kind == "rifle" or settings.get("automatic") else "单击发射"
+        mode = "可按住连发" if kind == "rifle" or settings.get("automatic") else "单击发射"
         status = weapon_status(settings)
         mechanics = "，".join([mode] + ([f"±{spread}°"] if spread else []) + ([status] if status != "—" else []))
         hits = f"{ceil(small_hp / (settings['damage'] * pellets))} 发"

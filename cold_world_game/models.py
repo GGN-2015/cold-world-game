@@ -1,11 +1,10 @@
-import math
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field, is_dataclass
 from itertools import chain
 from uuid import uuid4
 
-from .constants import AMMO_PACKS, BIOME_ITEMS, CREATIVE_ITEMS, DURIAN_PEEL, MAX_HUNGER
+from .constants import ITEM_KINDS, AMMO_PACKS, BIOME_ITEMS, CREATIVE_ITEMS, MAX_HUNGER
 from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, GUNS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MELEE_WEAPONS, RETURN_ITEMS, SOLID
 from .wildlife import MONSTER_TYPES, WRENCH_USES
 
@@ -37,6 +36,8 @@ class Item:
 
     @classmethod
     def create(cls, kind: str, count=1) -> "Item":
+        if kind not in ITEM_KINDS:
+            raise ValueError(f"Unknown item kind: {kind}")
         settings = RETURN_ITEMS.get(kind) or MELEE_WEAPONS.get(kind) or HEALING_ITEMS.get(kind, {})
         uses = WRENCH_USES if kind == "repair_wrench" else settings.get("uses", BIOME_ITEMS.get(kind, {}).get("uses", IGNITERS.get(kind)))
         return cls(kind, ammo=GUNS[kind]["ammo"] if kind in GUNS else AMMO_PACKS.get(kind), uses=uses, count=count)
@@ -252,29 +253,17 @@ class Projectile:
 def item_from(data: dict | None) -> Item | None:
     if not data:
         return None
-    values = dict(data)
-    settings = RETURN_ITEMS.get(values["kind"]) or MELEE_WEAPONS.get(values["kind"]) or HEALING_ITEMS.get(values["kind"], {})
-    if "uses" in settings and values.get("uses") is None:
-        values["uses"] = settings["uses"]
-    return Item(**values)
+    if data["kind"] not in ITEM_KINDS:
+        raise ValueError(f"Unknown item kind: {data['kind']}")
+    return Item(**data)
 
 
 def projectile_from(data: dict) -> Projectile:
-    values = dict(data)
-    if values.get("kind") == "durian_peel" and values.get("detonates_at") is not None:
-        horizontal = (values.get("target_x") or 0) - values["x"]
-        vertical = (values.get("target_y") or 0) - values["y"]
-        magnitude = math.hypot(horizontal, vertical)
-        if magnitude <= 1e-9:
-            horizontal, vertical, magnitude = 1.0, 0.0, 1.0
-        values.update(velocity_x=horizontal / magnitude * DURIAN_PEEL["speed"], velocity_y=vertical / magnitude * DURIAN_PEEL["speed"], damage=0, detonates_at=None, weapon_kind="durian_peel", range_player=values["owner"])
-    return Projectile(**values)
+    return Projectile(**data)
 
 
 def structure_from(data: dict) -> Structure:
     values = dict(data)
-    if values["kind"] == "mounted_gun" and "ammo" not in values:
-        values["ammo"] = 200
     values["slots"] = [item_from(item) for item in data["slots"]]
     values["igniter"] = item_from(data["igniter"])
     return Structure(**values)
@@ -286,11 +275,6 @@ def player_from(data: dict) -> Player:
     values["backpack"] = [item_from(item) for item in data.get("backpack", [None] * BACKPACK_SLOTS)]
     values["money"] = data.get("money", 0)
     values["hunger"] = min(MAX_HUNGER, max(0.0, data.get("hunger", MAX_HUNGER)))
-    for storage in (values["inventory"], values["backpack"]):
-        for slot, item in enumerate(storage):
-            if item and item.kind == "coin":
-                values["money"] += 1
-                storage[slot] = None
     return Player(**values)
 
 

@@ -309,7 +309,7 @@ export class GameUI {
     } else if (equipped?.kind === 'durian_peel') {
       text = t('hint.durianPeel', this.catalog.throwable_weapons?.durian_peel);
     } else if (!fuelWeapon && this.catalog.explosive_weapons?.[equipped?.kind]) {
-      text = t(equipped.kind === 'coin_launcher' ? 'hint.coinLauncher' : 'hint.grenade', { ...this.catalog.explosive_weapons[equipped.kind], money: this.state.you.money ?? 0 });
+      text = t('hint.grenade', this.catalog.explosive_weapons[equipped.kind]);
     } else if (this.catalog.drinks?.[equipped?.kind] && !(target?.category === 'structure' && containers.has(target.kind) && distance(this.state.you, target) <= 2)) {
       text = t('hint.drink', this.catalog.drinks[equipped.kind]);
     } else if (this.catalog.healing_items?.[equipped?.kind] && !(target?.category === 'structure' && containers.has(target.kind) && distance(this.state.you, target) <= 2)) {

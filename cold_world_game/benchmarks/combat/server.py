@@ -71,7 +71,7 @@ class Fixture:
             world._path_jobs.clear()
             world._path_queue.clear()
             world._velocities.clear()
-            effects = ("axe", "rifle", "flame_staff", "shotgun", "ice_staff", "homing_missile", "coin_launcher", "rifle")
+            effects = ("axe", "rifle", "flame_staff", "shotgun", "ice_staff", "hunting_rifle", "grenade", "rifle")
             for index in range(self.config["players"]):
                 player = world.players[f"bench-{index:02d}"]
                 player.x, player.y = player_position(index)

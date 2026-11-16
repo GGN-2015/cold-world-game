@@ -167,7 +167,7 @@ def generate(save, canvas, palette, effects, bake, destination):
         effects[name] = {"asset": name, "frame_width": 96, "frame_height": 96, "frames": 6, "duration": .3}
         bake(kind, name, settings["arc_degrees"])
     source = Image.open(destination / "fx_explosion.png").convert("RGBA").resize((192, 32), Image.Resampling.NEAREST)
-    for name, tint in (("fx_frost_blast", (70, 190, 255)), ("fx_fire_blast", (255, 130, 35)), ("fx_pulse_blast", (190, 140, 255))):
+    for name, tint in (("fx_frost_blast", (70, 190, 255)), ("fx_fire_blast", (255, 130, 35))):
         sheet = source.copy()
         pixels = sheet.load()
         for vertical in range(32):

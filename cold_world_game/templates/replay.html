@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="寒境录像回放">
+  <title>寒境 · 录像回放</title>
+  <link rel="icon" href="/static/assets/snowflake.png">
+  <link rel="stylesheet" href="/static/css/arena.css">
+  <script type="module" src="/static/js/replay.js"></script>
+</head>
+<body data-page-title="replay.heading" data-page-description="replay.help"{% if arena %} data-arena="true"{% endif %}>
+  <main>
+    <header class="page-header">
+      <h1 data-i18n="replay.heading"></h1>
+      <nav><a href="/" data-i18n="{{ 'arena.heading' if arena else 'arena.game' }}"></a><button type="button" data-language-toggle>EN</button></nav>
+    </header>
+    <div class="workspace">
+      <section class="panel setup">
+        <h2 data-i18n="replay.saved"></h2>
+        <form id="history">
+          {% if password_required %}
+          <label><span data-i18n="replay.password"></span><input id="password" type="password" required autocomplete="current-password"></label>
+          {% endif %}
+          <button id="refresh" type="submit" disabled data-i18n="replay.refresh"></button>
+        </form>
+        <label><span data-i18n="replay.source"></span>
+          <select id="source">
+            <option value="" data-i18n="replay.source.all"></option>
+            <option value="arena" data-i18n="replay.source.arena"></option>
+            <option value="gameplay" data-i18n="replay.source.gameplay"></option>
+            <option value="batch" data-i18n="replay.source.batch"></option>
+            <option value="uploads" data-i18n="replay.source.uploads"></option>
+          </select>
+        </label>
+        <label><span data-i18n="replay.search"></span><input id="replay-search" type="search"></label>
+        <div id="records" class="records"></div>
+        <form id="upload">
+          <label><span data-i18n="replay.file"></span><input id="file" name="file" type="file" accept=".replay,.json,.gz" required></label>
+          <button id="upload-button" type="submit" disabled data-i18n="replay.upload"></button>
+        </form>
+        <p id="error" class="error" role="alert" hidden></p>
+      </section>
+      <section class="panel battle">
+        <div class="battle-header">
+          <h2 id="replay-status" data-i18n="replay.help"></h2>
+          <button id="download" type="button" disabled data-i18n="replay.download"></button>
+        </div>
+        <canvas id="world" data-i18n-aria-label="replay.heading"></canvas>
+        <div class="transport">
+          <label><span class="hint" data-i18n="replay.timeline"></span><input id="timeline" type="range" min="0" value="0" step=".001" disabled></label>
+          <div class="replay-controls">
+            <button id="play" type="button" disabled data-i18n="replay.play"></button>
+            <label><span data-i18n="replay.speed"></span><select id="speed"><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
+            <span id="time">0.0 / 0.0 s</span>
+          </div>
+        </div>
+        <section id="inspection" class="inspection" hidden>
+          <div>
+            <h2 data-i18n="replay.player"></h2>
+            <p id="vitals" class="hint"></p>
+            <div id="equipment" class="equipment"></div>
+            <p id="opened-container" class="hint"></p>
+            <pre id="trace" class="trace"></pre>
+          </div>
+          <div>
+            <h2 data-i18n="replay.events"></h2>
+            <div id="events" class="records" aria-live="off"></div>
+            <pre id="event-detail" class="trace"></pre>
+          </div>
+        </section>
+        <details id="replay-config" class="inspection" hidden><summary data-i18n="replay.config"></summary><pre id="config-detail" class="trace"></pre></details>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
