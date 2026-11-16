@@ -123,6 +123,17 @@ def check_history(path):
     game = create_app(password="test", save_path=path / "save", seed=45, start_engine=False, replay_dir=replay_dir)
     server = game.extensions["cold_world_game"]
     try:
+        game_client = game.test_client()
+        assert game_client.get("/").status_code == 200
+        assert game_client.get("/arena/").status_code == 200
+        assert game_client.get("/replay/").status_code == 200
+        arena_info = game_client.get("/api/arena/info").json
+        assert arena_info["password_required"] and arena_info["max_sessions"] == 4
+        assert "guns" in game_client.get("/api/info").json
+        assert game_client.get("/api/server").json["arena_websocket"] == "/ws/arena"
+        assert game_client.get("/api/replays").status_code == 403
+        assert game_client.get(replay, headers=headers).json["source"] == "arena"
+        assert game.extensions["cold_world_arena"].library.directory == replay_dir.resolve()
         server.world.join("tester")
         capture = GameplayCapture(library, server.world, "tester")
         record_id = capture.command({"type": "record_start"})["id"]
@@ -136,7 +147,7 @@ def check_history(path):
         ]}, library))
         assert summaries[0]["result"]["x"] > 0
         assert len(client.get(f"/api/replays/{summaries[0]['id']}", headers=headers).json["segments"]) == 2
-        records = {entry["id"]: entry for entry in game.test_client().get("/api/replays", headers=headers).json["records"]}
+        records = {entry["id"]: entry for entry in game_client.get("/api/replays", headers=headers).json["records"]}
         assert {"arena", "batch", "gameplay", "uploads"} <= {entry["location"] for entry in records.values()}
         assert records[record_id]["status"] == "completed"
         assert any(entry["status"] == "disconnected" for entry in records.values())

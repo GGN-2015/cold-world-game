@@ -57,7 +57,7 @@ function controls(action, fields = {}) {
 }
 
 function connect() {
-  const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+  const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/arena`);
   connection = ws;
   ws.onopen = () => ws.send(JSON.stringify({ type: 'join', password: node('password').value }));
   ws.onmessage = ({ data }) => {
@@ -202,7 +202,7 @@ window.addEventListener('cold-world-languagechange', () => { if (options) { popu
 
 initializeLanguage();
 try {
-  const [assets, response] = await Promise.all([loadAssets(), fetch('/api/info')]);
+  const [assets, response] = await Promise.all([loadAssets(), fetch('/api/arena/info')]);
   if (!response.ok) throw new Error('catalog_unavailable');
   options = await response.json();
   renderer = new WorldRenderer(node('world'), assets.images, assets.animations, assets.effects, options.catalog, [32, 18], assets.monsterHitboxes);

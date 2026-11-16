@@ -13,11 +13,10 @@ from simple_websocket import ConnectionClosed
 from werkzeug.serving import make_server
 
 from ..actions import GameError
-from ..app import parse_message, password_matches
 from ..constants import TICK_RATE
 from ..replay_routes import register_replay_routes
 from ..replays import ReplayLibrary, ReplayWriter
-from ..server import send
+from ..server import parse_message, password_matches, send
 from ..world import World
 from .simulation import (
     FINISHED_STATUSES,
@@ -172,39 +171,29 @@ class ArenaServer:
                 pass
 
 
-def create_arena_app(password=None, max_sessions=4, history_dir=None, replay_dir=None):
-    root = Path(__file__).resolve().parent.parent
-    app = Flask(__name__, template_folder=str(root / "templates"), static_folder=str(root / "static"), static_url_path="/static")
-    app.config.update(MAX_CONTENT_LENGTH=32768, SOCK_SERVER_OPTIONS={"ping_interval": 25, "max_message_size": 32768})
-    library = ReplayLibrary(replay_dir)
+def register_arena_routes(app, sock, library, password, *, max_sessions=4, history_dir=None,
+                          allowed_origins=(), connection_owner=None):
     for directory in (history_dir, Path("arena-history"), Path("arena-history/fights"), Path.home() / ".cold-world-arena/fights"):
         if directory:
             library.import_arena(directory)
     runtime = ArenaServer(max_sessions, library)
     app.extensions["cold_world_arena"] = runtime
-    sock = Sock(app)
 
-    @app.get("/")
-    def index():
-        return render_template("arena.html")
+    def arena_index():
+        return render_template("arena.html", has_game=connection_owner is not None)
 
-    register_replay_routes(app, library, password, arena=True)
+    def arena_info():
+        return jsonify({"catalog": World.catalog(), "weapons": WEAPONS, "waves": WAVES, "terrain": TERRAIN,
+                        "strategies": STRATEGIES, "password_required": password is not None, "max_sessions": runtime.limit})
 
-    @app.get("/api/info")
-    def info():
-        return jsonify({"catalog": World.catalog(), "weapons": WEAPONS, "waves": WAVES, "terrain": TERRAIN, "strategies": STRATEGIES, "password_required": password is not None})
-
-    @app.get("/health")
-    def health():
-        return jsonify({"ok": not runtime.stopping.is_set(), "mode": "arena"})
-
-    @sock.route("/ws")
-    def websocket_handler(websocket):
+    def arena_websocket(websocket):
         session = ArenaSession()
         registered = False
+        if connection_owner is not None and not connection_owner.register(websocket):
+            return
         try:
             origin = request.headers.get("Origin")
-            if origin and urlsplit(origin).netloc != request.host:
+            if origin and urlsplit(origin).netloc != request.host and origin not in allowed_origins:
                 raise GameError("invalid_origin", "Origin is not allowed")
             message = parse_message(websocket.receive(timeout=10))
             if message.get("type") != "join" or password is not None and not password_matches(message.get("password"), password):
@@ -252,9 +241,35 @@ def create_arena_app(password=None, max_sessions=4, history_dir=None, replay_dir
         except Exception:
             LOGGER.exception("Arena connection failed")
         finally:
-            session.close()
-            if registered:
-                runtime.unregister(websocket)
+            try:
+                session.close()
+            finally:
+                if registered:
+                    runtime.unregister(websocket)
+                if connection_owner is not None:
+                    connection_owner.unregister(websocket)
+
+    app.add_url_rule("/arena/", view_func=arena_index)
+    app.add_url_rule("/api/arena/info", view_func=arena_info)
+    sock.route("/ws/arena")(arena_websocket)
+    if connection_owner is None:
+        app.add_url_rule("/", view_func=arena_index)
+        app.add_url_rule("/api/info", view_func=arena_info)
+        sock.route("/ws", endpoint="arena_websocket_legacy")(arena_websocket)
+
+
+def create_arena_app(password=None, max_sessions=4, history_dir=None, replay_dir=None):
+    root = Path(__file__).resolve().parent.parent
+    app = Flask(__name__, template_folder=str(root / "templates"), static_folder=str(root / "static"), static_url_path="/static")
+    app.config.update(MAX_CONTENT_LENGTH=32768, SOCK_SERVER_OPTIONS={"ping_interval": 25, "max_message_size": 32768})
+    library = ReplayLibrary(replay_dir)
+    register_arena_routes(app, Sock(app), library, password, max_sessions=max_sessions, history_dir=history_dir)
+    register_replay_routes(app, library, password, arena=True)
+
+    @app.get("/health")
+    def health():
+        runtime = app.extensions["cold_world_arena"]
+        return jsonify({"ok": not runtime.stopping.is_set(), "mode": "arena"})
 
     return app
 

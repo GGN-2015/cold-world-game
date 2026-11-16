@@ -9,9 +9,12 @@
 | `GET /` | 内置浏览器游戏与登录页 |
 | `GET /api/server` | 服务信息 |
 | `GET /api/info` | 规则目录、协议标识、配方与价格 |
+| `GET /arena/` | 武器试验场 |
+| `GET /api/arena/info` | 试验场规则、武器、怪群、策略和会话上限 |
 | `GET /health` | 健康状态与 `persistence` 保存年龄/失败次数；故障暂停时HTTP 503 |
 | `/static/` | 同源PNG、WAV、JavaScript与CSS |
 | `/ws` | 实时WebSocket，HTTPS站点用WSS |
+| `/ws/arena` | 同端口的试验场 WebSocket，使用游戏服口令 |
 
 10秒内发送首条消息：
 
@@ -38,6 +41,8 @@
 可选能力均只作用当前连接：`quiet_inputs` 省略不带seq的input/stop成功回执；`client_movement` 启用本机算移动、服务器汇总坐标；`state_deltas` 启用差分；`player_roster` 订阅名单。未协商的客户端仍有完整状态和服务端移动模式。
 
 ## 服务端录像
+
+试验场通过 `/ws/arena` 加入。首条消息为 `{"type":"join","password":"服务器口令"}`。收到 `ready` 后可发送 `start` 创建独立进程，再使用 `control` 编辑场景。完成后返回的 `run_id` 可用来打开 `/replay/?run=<id>`。
 
 实战连接使用 `{"type":"record_start","seq":1}` 开始录制，`record_stop` 停止并保存。两条请求的回执都包含 `result.id`。录制绑定当前连接的玩家视角。连接结束时，进行中的录像以 `disconnected` 状态保存。
 

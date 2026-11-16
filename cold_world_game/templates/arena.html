@@ -13,7 +13,7 @@
   <main>
     <header class="page-header">
       <h1 data-i18n="arena.heading"></h1>
-      <nav><a href="/replay/" data-i18n="replay.heading"></a><button type="button" data-language-toggle>EN</button></nav>
+      <nav>{% if has_game %}<a href="/" data-i18n="arena.game"></a>{% endif %}<a href="/replay/" data-i18n="replay.heading"></a><button type="button" data-language-toggle>EN</button></nav>
     </header>
     <div class="workspace">
       <section class="panel setup">

@@ -1,5 +1,3 @@
-import hmac
-import json
 import logging
 import socket
 import time
@@ -10,41 +8,14 @@ from flask_sock import Sock
 from simple_websocket import ConnectionClosed
 
 from .actions import GameError
+from .arena.server import register_arena_routes
 from .replay_routes import register_replay_routes
 from .replays import GameplayCapture, ReplayLibrary
-from .server import GameServer, send
+from .server import GameServer, parse_message, password_matches, send
 from .sync import state_delta
 from .wire import CompactSync
 
 LOGGER = logging.getLogger(__name__)
-
-
-def reject_constant(value):
-    raise ValueError(f"Invalid JSON number: {value}")
-
-
-def password_matches(supplied, expected):
-    if not isinstance(supplied, str):
-        return False
-    try:
-        return hmac.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8"))
-    except UnicodeError:
-        return False
-
-
-def parse_message(raw):
-    if not isinstance(raw, str) or len(raw) > 32768:
-        raise GameError("invalid_message", "Messages must be JSON text, up to 32768 characters")
-    try:
-        message = json.loads(raw, parse_constant=reject_constant)
-    except (ValueError, RecursionError) as error:
-        raise GameError("invalid_json", "Invalid JSON message") from error
-    if not isinstance(message, dict):
-        raise GameError("invalid_message", "Messages must be JSON objects")
-    sequence = message.get("seq")
-    if sequence is not None and (isinstance(sequence, bool) or not isinstance(sequence, int) or not 0 <= sequence <= 2 ** 53 - 1):
-        raise GameError("invalid_sequence", "seq must be a nonnegative safe integer")
-    return message
 
 
 def create_app(password=None, save_path=None, seed=None, start_engine=True, allowed_origins=(), admin=None, replay_dir=None):
@@ -64,10 +35,12 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
         return app.send_static_file("wiki/index.html")
 
     register_replay_routes(app, library, server.password, allowed_origins=allowed_origins)
+    register_arena_routes(app, sock, library, server.password, allowed_origins=allowed_origins, connection_owner=server)
 
     @app.get("/api/server")
     def server_info():
-        return jsonify({"name": "cold-world-game", "version": "0.1.0", "websocket": "/ws", "info": "/api/info", "client": "/"})
+        return jsonify({"name": "cold-world-game", "version": "0.1.0", "websocket": "/ws", "info": "/api/info", "client": "/",
+                        "arena": "/arena/", "arena_websocket": "/ws/arena", "replay": "/replay/"})
 
     @app.get("/health")
     def health():

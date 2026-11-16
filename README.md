@@ -25,7 +25,7 @@ uv run cold-world-game game --host 0.0.0.0 --password your-password --save-path 
 
 ## 统一命令入口
 
-`uv run cold-world-game game ...` 启动游戏，`uv run cold-world-game arena ...` 启动独立武器试验场，`uv run cold-world-game test ...` 运行隔离测试；直接运行根命令或 `test` 只显示帮助，不会启动服务器或压测。
+`uv run cold-world-game game ...` 提供游戏、武器试验场和录像页面。`uv run cold-world-game arena ...` 可单独启动试验场，`uv run cold-world-game test ...` 运行隔离测试。直接运行根命令或 `test` 会显示帮助。
 
 ```sh
 uv run cold-world-game game --help
@@ -40,11 +40,7 @@ uv run --frozen --group benchmark cold-world-game test combat --browser-channel 
 
 ## 武器试验场
 
-```sh
-uv run cold-world-game arena --host 127.0.0.1 --port 5001
-```
-
-打开 `http://127.0.0.1:5001/`，建立场景后可调整 AI 装备、状态、地形和怪群。试验场、游戏内录制和 `replay-batch` 共用 `/replay/`。默认录像保存在 `replays/library/`，回放页支持下载和上传。[使用说明](docs/guide/arena.md)
+启动游戏服后，打开同一地址下的 `/arena/`，用游戏服口令建立场景。试验场在独立子进程中运行，可调整 AI 装备、状态、地形和怪群。试验场、游戏内录制和 `replay-batch` 的录像都在同一地址下的 `/replay/` 查看，默认保存在 `replays/library/`。[使用说明](docs/guide/arena.md)
 
 ## 手册树
 

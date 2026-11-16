@@ -9,11 +9,11 @@
   <link rel="stylesheet" href="/static/css/arena.css">
   <script type="module" src="/static/js/replay.js"></script>
 </head>
-<body data-page-title="replay.heading" data-page-description="replay.help"{% if arena %} data-arena="true"{% endif %}>
+<body data-page-title="replay.heading" data-page-description="replay.help">
   <main>
     <header class="page-header">
       <h1 data-i18n="replay.heading"></h1>
-      <nav><a href="/" data-i18n="{{ 'arena.heading' if arena else 'arena.game' }}"></a><button type="button" data-language-toggle>EN</button></nav>
+      <nav>{% if not arena %}<a href="/" data-i18n="arena.game"></a>{% endif %}<a href="/arena/" data-i18n="arena.heading"></a><button type="button" data-language-toggle>EN</button></nav>
     </header>
     <div class="workspace">
       <section class="panel setup">
