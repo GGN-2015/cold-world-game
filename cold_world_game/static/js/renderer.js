@@ -1,4 +1,4 @@
-import { buildings, containers, distance, downedBuildings, tileAt } from './catalog.js';
+import { buildings, containers, distance, tileAt } from './catalog.js';
 import { t } from './i18n.js';
 import { ActorAnimator } from './animation.js';
 import { isMobileDevice } from './mobile.js';
@@ -48,7 +48,7 @@ function demoWorld() {
 }
 
 export class WorldRenderer {
-  constructor(canvas, images, animations = {}, effects = {}, catalog = {}, viewport = null, monsterHitboxes = {}, { replay = false } = {}) {
+  constructor(canvas, images, animations = {}, effects = {}, catalog = {}, viewport = null, monsterHitboxes = {}) {
     this.canvas = canvas;
     this.context = canvas.getContext('2d', { alpha: false });
     this.images = images;
@@ -56,8 +56,6 @@ export class WorldRenderer {
     this.monsterHitboxes = new MonsterHitboxes(monsterHitboxes);
     this.fixedViewport = viewport;
     this.recordedFrames = false;
-    this.replay = replay;
-    this.replayCamera = null;
     this.animator = new ActorAnimator(animations);
     this.effects = new CombatEffects(effects);
     this.collision = new CollisionMap(catalog);
@@ -69,7 +67,6 @@ export class WorldRenderer {
     this.positions = new Map();
     this.pointer = { x: 0, y: 0, active: false };
     this.selected = 0;
-    this.wandVertical = false;
     this.panelOpen = false;
     this.target = null;
     this.fps = 60;
@@ -89,8 +86,8 @@ export class WorldRenderer {
     this.scale = this.fixedViewport ? this.width / this.fixedViewport[0] : isMobileDevice ? Math.max(this.width / 28, this.height / 24) : this.width / 32;
     this.pixelRatio = ratio;
     this.snow = null;
-    this.fogCanvas = null;
     this.projectileGlows = new Map();
+    for (const color of ['#ff356d', '#63e7ff', '#ffad43', '#ff493d']) this.projectileGlow(color, 0.8, Math.max(5, this.scale * 0.16));
   }
 
   setState(state) {
@@ -101,8 +98,8 @@ export class WorldRenderer {
         const current = new Map(state.structures.map(entity => [entity.id, entity]));
         for (const entity of this.staticEntities) Object.assign(entity, current.get(entity.id));
       } else {
-        this.floors = state.structures.filter((entity) => entity.kind === 'floor' || entity.kind === 'bridge_deck' || entity.on_floor);
-        this.staticEntities = state.structures.filter((entity) => !['floor', 'bridge_deck'].includes(entity.kind)).map((entity) => ({ ...entity, category: 'structure' })).sort((first, second) => first.y - second.y);
+        this.floors = state.structures.filter((entity) => entity.kind === 'floor');
+        this.staticEntities = state.structures.filter((entity) => entity.kind !== 'floor').map((entity) => ({ ...entity, category: 'structure' })).sort((first, second) => first.y - second.y);
       }
       this.terrainGeometry = state.terrain_geometry;
     }
@@ -115,7 +112,7 @@ export class WorldRenderer {
       this.animator.reset();
       this.effects.reset(state.event_sequence || 0);
     }
-    if (!this.replay && this.motion.observe(state)) {
+    if (this.motion.observe(state)) {
       this.positions.clear();
       this.animator.reset();
     }
@@ -128,7 +125,6 @@ export class WorldRenderer {
 
   reset() {
     this.state = null;
-    this.wandVertical = false;
     this.structureSource = null;
     this.floors = null;
     this.staticEntities = null;
@@ -166,7 +162,7 @@ export class WorldRenderer {
   }
 
   smooth(entity) {
-    const point = this.state && !this.replay ? (entity.id === this.state.you.id && this.movement.enabled ? this.movement.sample() : this.motion.sample(entity)) : { x: entity.x, y: entity.y };
+    const point = this.state && !this.recordedFrames ? (entity.id === this.state.you.id && this.movement.enabled ? this.movement.sample() : this.motion.sample(entity)) : { x: entity.x, y: entity.y };
     const previous = this.positions.get(entity.id) || point;
     const displacement = distance(previous, point);
     this.positions.set(entity.id, point);
@@ -177,7 +173,6 @@ export class WorldRenderer {
   findTarget() {
     if (!this.state || !this.pointer.active) return null;
     const point = this.pointer;
-    if (!this.throughFog(point)) return null;
     if (this.catalog.revival_items?.[this.state.you.inventory[this.selected]?.kind]) {
       const player = this.state.players.find((entity) => entity.id !== this.state.you.id && entity.temperature < 5 && distance(this.positions.get(entity.id) || entity, point) <= 0.75);
       if (player) return { ...player, category: 'player' };
@@ -191,77 +186,18 @@ export class WorldRenderer {
     return structure ? { ...structure, category: 'structure' } : null;
   }
 
-  generatedTile(tile) {
-    return this.state.chunks.some(([horizontal, vertical]) => Math.abs(tile.x - horizontal * 15) <= 7 && Math.abs(tile.y - vertical * 15) <= 7);
-  }
-
-  canPlace(tile, kind) {
+  canPlace(tile, item) {
     const state = this.state;
-    if (state.you.downed && !downedBuildings.has(kind)) return false;
-    if (!this.generatedTile(tile)) return false;
-    const biomes = state.environment.biomes;
-    const surface = state.structures.find((entity) => entity.x === tile.x && entity.y === tile.y);
-    const lake = biomes?.lake.some(([x, y]) => Math.abs(tile.x - x) <= 7 && Math.abs(tile.y - y) <= 7);
-    const supportedFire = lake && kind === 'campfire' && ['floor', 'bridge_deck'].includes(surface?.kind);
-    if (lake && (kind === 'campfire' && !supportedFire || kind === 'floor' && !biomes.effects.some(effect =>
-      effect.kind === 'ice' && state.elapsed < effect.until && distance(tile, effect) <= effect.radius))) return false;
-    if (surface && !supportedFire) return false;
-    if (containers.has(kind) && state.structures.some((entity) => containers.has(entity.kind) && Math.max(Math.abs(entity.x - tile.x), Math.abs(entity.y - tile.y)) <= 1)) return false;
-    return kind === 'floor' || ![...state.players, ...state.monsters].some((entity) => {
+    if (!state || !item || !buildings.has(item.kind) || this.panelOpen) return false;
+    if (state.you.downed && item.kind !== 'campfire') return false;
+    if (distance(this.movement.enabled ? this.movement.position : state.you, tile) > 3) return false;
+    if (!state.chunks.some(([horizontal, vertical]) => Math.abs(tile.x - horizontal * 15) <= 7 && Math.abs(tile.y - vertical * 15) <= 7)) return false;
+    if (state.structures.some((entity) => entity.x === tile.x && entity.y === tile.y)) return false;
+    if (containers.has(item.kind) && state.structures.some((entity) => containers.has(entity.kind) && Math.max(Math.abs(entity.x - tile.x), Math.abs(entity.y - tile.y)) <= 1)) return false;
+    return ![...state.players, ...state.monsters].some((entity) => {
       const point = entity.id === state.you.id && this.movement.enabled ? this.movement.position : this.positions.get(entity.id) || entity;
       return Math.hypot(Math.max(Math.abs(point.x - tile.x) - 0.5, 0), Math.max(Math.abs(point.y - tile.y) - 0.5, 0)) < 0.35;
     });
-  }
-
-  throughFog(point) {
-    const weather = this.state?.environment.biomes;
-    return !weather?.fog || (this.fogLights || []).some(light => distance(point, light) <= light.radius);
-  }
-
-  drawFog(state, local) {
-    const weather = state.environment.biomes;
-    this.fogLights = [];
-    if (!weather?.fog) return;
-    const radii = weather.light_radii ?? { player: 3, lantern: 6, campfire: 3.5, street_lamp: 10 };
-    this.fogLights = [
-      { x: local.x, y: local.y, radius: weather.lantern ? radii.lantern : radii.player },
-      ...(weather.other_lanterns ?? []).map(player => ({
-        ...(this.positions.get(player.id) ?? player), radius: radii.lantern,
-      })),
-      ...weather.effects.filter(effect => effect.kind === 'light'),
-      ...state.structures.filter(entity => (entity.lit || entity.kind === 'street_lamp' && entity.repaired)
-        && Math.abs(entity.x - local.x) <= this.width / this.scale / 2 + 10
-        && Math.abs(entity.y - local.y) <= this.height / this.scale / 2 + 10)
-        .map(entity => ({ ...entity, radius: entity.lit ? radii.campfire : radii.street_lamp })),
-    ];
-    if (!this.fogCanvas) {
-      this.fogCanvas = document.createElement('canvas');
-      this.fogCanvas.width = Math.ceil(this.width / 2);
-      this.fogCanvas.height = Math.ceil(this.height / 2);
-    }
-    const mask = this.fogCanvas.getContext('2d');
-    mask.setTransform(.5, 0, 0, .5, 0, 0);
-    mask.globalCompositeOperation = 'copy';
-    mask.fillStyle = '#a2b1b7';
-    mask.fillRect(0, 0, this.width + 2, this.height + 2);
-    mask.globalCompositeOperation = 'destination-out';
-    for (const light of this.fogLights) {
-      const point = this.screenPoint(light.x, light.y);
-      const radius = light.radius * this.scale;
-      if (light.lit) {
-        mask.fillStyle = '#000';
-        mask.beginPath();
-        mask.arc(point.x, point.y, radius, 0, 2 * Math.PI);
-        mask.fill();
-        continue;
-      }
-      const edge = mask.createRadialGradient(point.x, point.y, radius * .75, point.x, point.y, radius);
-      edge.addColorStop(0, 'rgba(0,0,0,1)');
-      edge.addColorStop(1, 'rgba(0,0,0,0)');
-      mask.fillStyle = edge;
-      mask.fillRect(point.x - radius, point.y - radius, radius * 2, radius * 2);
-    }
-    this.context.drawImage(this.fogCanvas, 0, 0, this.width, this.height);
   }
 
   draw(delta) {
@@ -270,18 +206,17 @@ export class WorldRenderer {
     this.effects.advance(delta);
     this.fps += (1 / Math.max(delta, 0.001) - this.fps) * 0.04;
     const state = this.state || this.demo;
-    if (!this.replay) this.motion.advance(delta);
+    if (!this.recordedFrames) this.motion.advance(delta);
     const monsters = state.monsters.map((entity) => this.smooth(entity));
-    const worldTime = state.elapsed + (this.replay || state.paused ? 0 : Math.max(0, Math.min(0.3, performance.now() / 1000 - this.motion.arrival)));
+    const worldTime = state.elapsed + (this.recordedFrames || state.paused ? 0 : Math.max(0, Math.min(0.3, performance.now() / 1000 - this.motion.arrival)));
     this.movement.selected = this.selected;
     if (!this.recordedFrames) this.movement.advance(delta, monsters);
     const players = state.players.map((entity) => this.smooth(entity));
     if (this.state) this.animator.observe({ elapsed: this.recordedFrames ? state.elapsed : this.motion.time ?? state.elapsed, paused: state.paused, players, monsters });
     const local = players.find((entity) => entity.id === state.you.id) || state.you;
     if (this.state) {
-      const focus = this.replayCamera ?? local;
-      this.camera.x = focus.x;
-      this.camera.y = focus.y;
+      this.camera.x = local.x;
+      this.camera.y = local.y;
     } else {
       this.camera.x = -3 + Math.sin(this.elapsed * 0.07) * 0.3;
       this.camera.y = 1 + Math.cos(this.elapsed * 0.08) * 0.2;
@@ -294,19 +229,6 @@ export class WorldRenderer {
     const minimumX = Math.floor(this.camera.x - halfWidth - 1);
     const minimumY = Math.floor(this.camera.y - halfHeight - 1);
     this.drawSnow(minimumX, minimumY, halfWidth, halfHeight);
-    for (const [x, y] of state.environment.biomes?.lake || []) {
-      const point = this.screenPoint(x - 7.5, y - 7.5);
-      context.fillStyle = '#82bcca80';
-      context.fillRect(point.x, point.y, 15 * this.scale, 15 * this.scale);
-    }
-    for (const effect of state.environment.biomes?.effects || []) {
-      if (effect.kind !== 'ice') continue;
-      const point = this.screenPoint(effect.x, effect.y);
-      context.fillStyle = '#bbedf5aa';
-      context.beginPath();
-      context.arc(point.x, point.y, effect.radius * this.scale, 0, Math.PI * 2);
-      context.fill();
-    }
     const visible = (entity) => Math.abs(entity.x - this.camera.x) < halfWidth + 2 && Math.abs(entity.y - this.camera.y) < halfHeight + 3;
     for (const entity of this.floors || state.structures.filter((entity) => entity.kind === 'floor')) if (visible(entity)) this.sprite('floor', entity.x, entity.y, 1.03);
     for (const entity of state.ground) if (visible(entity)) {
@@ -317,22 +239,16 @@ export class WorldRenderer {
       ...players.map((entity) => ({ ...entity, category: 'player' })),
       ...monsters.map((entity) => ({ ...entity, category: 'monster' })),
     ].filter(visible).sort((first, second) => first.y - second.y);
+    this.target = this.findTarget();
     for (const entity of entities) {
       if (entity.category === 'structure') {
         const pose = this.effects.pose(entity.id);
         if (entity.kind === 'tree') this.sprite('tree', entity.x + pose.x, entity.y + pose.y, 2.05, 2.65, 0.62);
-        else if (entity.kind === 'mounted_gun' || (entity.kind === 'service_gun' && entity.repaired)) {
+        else if (entity.kind === 'mounted_gun') {
           const occupant = players.find(player => player.id === entity.occupant);
           const direction = occupant?.id === state.you.id ? (Math.round(Math.atan2(this.pointer.y - occupant.y, this.pointer.x - occupant.x) / (Math.PI / 4)) + 8) % 8 : occupant?.seat_direction || 0;
           this.sprite(`mounted_gun_${['e', 'se', 's', 'sw', 'w', 'nw', 'n', 'ne'][direction]}`, entity.x, entity.y, 1.3, 1.3, 0.08);
-        } else {
-          const wall = ['wall', 'ring_wall', 'door'].includes(entity.kind);
-          const asset = entity.kind === 'door' && entity.door_open ? 'door_open' : entity.lit ? (entity.kind === 'fixed_heater' ? 'fixed_heater_lit' : 'campfire_lit') : entity.kind;
-          this.sprite(asset, entity.x + pose.x, entity.y + pose.y, wall ? 1.15 : 1.05, wall ? 1.6 : 1.05, wall ? 0.27 : 0.06);
-          if (entity.repaired && ['cable_station', 'bridge_pier', 'street_lamp'].includes(entity.kind)) {
-            this.label('●', entity.x, entity.y - .7, '#f2dd8b', 12);
-          }
-        }
+        } else this.sprite(entity.lit ? 'campfire_lit' : entity.kind, entity.x + pose.x, entity.y + pose.y, entity.kind === 'wall' ? 1.15 : 1.05, entity.kind === 'wall' ? 1.6 : 1.05, entity.kind === 'wall' ? 0.27 : 0.06);
         if (entity.monster_demolition) this.label(t('world.demolition'), entity.x, entity.y - 1, '#df715b', 10);
       } else if (entity.category === 'player') {
         const owned = entity.id === state.you.id;
@@ -359,12 +275,10 @@ export class WorldRenderer {
           this.effects.frame(this, 'fx_sleep_zzz', entity.x + 0.28, entity.y - (entity.big ? 1.15 : 0.9), entity.big ? 0.95 : 0.8, sleepPhase - Math.floor(sleepPhase));
         } else if (entity.big && entity.rising != null) {
           const duration = this.catalog.monster_activity?.rise_seconds ?? 1;
-          const elapsed = this.replay || state.paused ? 0 : Math.max(0, Math.min(0.3, performance.now() / 1000 - this.motion.arrival));
-          this.effects.frame(this, 'monster_big_rise', entity.x, entity.y - 0.3, 1.6, Math.min(1, entity.rising + elapsed / duration), 0, 1.9);
+          const elapsed = this.recordedFrames || state.paused ? 0 : Math.max(0, Math.min(0.3, performance.now() / 1000 - this.motion.arrival));
+          this.effects.frame(this, 'monster_big_rise', entity.x, entity.y - offset, width, Math.min(1, entity.rising + elapsed / duration), 0, height);
         } else {
-          const kind = `monster_${entity.species || (entity.big ? 'big' : entity.fast ? 'fast' : 'small')}`;
-          const large = entity.big || ['frost_guard', 'ember_guard'].includes(entity.species);
-          this.actorSprite(worldTime < (entity.frozen_until ?? 0) && this.images.has(`${kind}_frozen`) ? `${kind}_frozen` : kind, entity, large ? 1.6 : 1.1, large ? 1.9 : 1.25, large ? 0.3 : 0.13);
+          this.actorSprite(monsterSprite(entity, worldTime), entity, width, height, offset);
         }
         if (worldTime < (entity.burning_until ?? 0)) this.effects.frame(this, 'fx_burning', entity.x, entity.y - 0.35, entity.big ? 1.3 : 0.9, worldTime * 2 % 1);
         if (entity.impaled) {
@@ -389,9 +303,7 @@ export class WorldRenderer {
       context.fillRect(point.x - radius, point.y - radius, radius * 2, radius * 2);
       this.sprite('spark', fire.x + Math.sin(this.elapsed * 2) * 0.12, fire.y - (this.elapsed * 0.8 % 1) - 0.4, 0.3);
     }
-    const bullets = state.projectiles.filter((projectile) => !this.catalog.explosive_weapons?.[projectile.kind] &&
-      projectile.kind !== 'homing_missile' && projectile.kind !== 'durian_peel');
-    this.drawProjectiles(this.replay ? bullets : bullets.map((projectile) => ({ ...projectile, ...this.motion.sample(projectile) })));
+    this.drawProjectiles(state.projectiles.filter((projectile) => !this.catalog.explosive_weapons?.[projectile.kind] && !this.catalog.throwable_weapons?.[projectile.kind] && projectile.kind !== 'homing_missile').map((projectile) => this.recordedFrames ? projectile : ({ ...projectile, ...this.motion.sample(projectile) })));
     for (const projectile of state.projectiles) {
       if (projectile.kind === 'durian_peel' && projectile.detonates_at == null) {
         const point = this.recordedFrames ? projectile : this.motion.sample(projectile);
@@ -414,15 +326,13 @@ export class WorldRenderer {
       this.sprite(projectile.kind === 'coin_launcher' ? 'grenade' : projectile.kind, horizontal, vertical, 0.5);
     }
     this.effects.draw(this);
-    this.drawFog(state, local);
-    this.target = this.findTarget();
-    if (this.state && this.pointer.active && !this.panelOpen && this.throughFog(this.pointer)) this.drawPointer();
+    if (this.state && this.pointer.active && !this.panelOpen) this.drawPointer();
     if (this.state?.interaction.progress > 0) {
       const target = state.structures.find((structure) => `structure:${structure.id}` === state.interaction.target);
       const held = state.you.inventory[this.selected];
       const returning = state.interaction.target?.startsWith('return:');
       const reviving = state.interaction.target?.startsWith('revive:');
-      const duration = state.interaction.duration ?? (state.interaction.target?.startsWith('repair:') ? 1.5 : returning ? this.catalog.return_items?.[held?.kind]?.duration ?? 1.5 : reviving ? this.catalog.revival_items?.[held?.kind]?.duration ?? 1.5 : this.catalog.healing_items?.[held?.kind]?.duration ?? this.catalog.explosive_weapons?.[held?.kind]?.duration ?? this.catalog.harvest_tools?.[held?.kind]?.[target?.kind] ?? (target?.kind === 'wall' || containers.has(target?.kind) ? 1.5 : 0.5));
+      const duration = returning ? this.catalog.return_items?.[held?.kind]?.duration ?? 1.5 : reviving ? this.catalog.revival_items?.[held?.kind]?.duration ?? 1.5 : this.catalog.throwable_weapons?.[held?.kind]?.throw_duration ?? this.catalog.healing_items?.[held?.kind]?.duration ?? this.catalog.explosive_weapons?.[held?.kind]?.duration ?? this.catalog.harvest_tools?.[held?.kind]?.[target?.kind] ?? (target?.kind === 'wall' || containers.has(target?.kind) ? 1.5 : 0.5);
       if (returning) this.effects.frame(this, 'fx_teleport', local.x, local.y - 0.4, 2.6, (this.elapsed * 0.7) % 1);
       this.bar(local.x, local.y + 0.7, Math.min(1, state.interaction.progress / duration), returning ? '#ac9afa' : '#efbb78', 0.9);
     }
@@ -495,7 +405,7 @@ export class WorldRenderer {
     const width = Math.max(5, this.scale * 0.16);
     for (const projectile of projectiles) {
       if (Number.isFinite(projectile.range_radius)) {
-        const local = !this.replay && this.state && projectile.range_player === this.state.you.id;
+        const local = this.state && projectile.range_player === this.state.you.id;
         const center = local ? this.positions.get(this.state.you.id) || this.state.you : { x: projectile.range_x, y: projectile.range_y };
         const radius = local ? Math.hypot(...this.viewport()) / 2 : projectile.range_radius;
         if (Math.hypot(projectile.x - center.x, projectile.y - center.y) > radius + 1e-9) continue;
@@ -506,8 +416,7 @@ export class WorldRenderer {
       const tailX = point.x - projectile.velocity_x / magnitude * this.scale * length;
       const tailY = point.y - projectile.velocity_y / magnitude * this.scale * length;
       const weapon = this.catalog.guns?.[projectile.weapon_kind];
-      const guardColor = { ice_beam: '#63e7ff', ember_shot: '#ffad43', tree_shot: '#a8d58e' }[projectile.weapon_kind];
-      const color = guardColor || (projectile.hostile ? '#ff356d' : weapon?.freeze_duration ? '#63e7ff' : weapon?.burn_duration ? '#ffad43' : '#ff493d');
+      const color = projectile.hostile ? '#ff356d' : weapon?.freeze_duration ? '#63e7ff' : weapon?.burn_duration ? '#ffad43' : '#ff493d';
       context.beginPath();
       context.moveTo(tailX, tailY);
       context.lineTo(point.x, point.y);
@@ -537,9 +446,16 @@ export class WorldRenderer {
     const context = this.context;
     const tile = { x: tileAt(this.pointer.x), y: tileAt(this.pointer.y) };
     const point = this.screenPoint(tile.x, tile.y);
-    const wand = this.catalog.building_wands?.[item?.kind];
-    if (wand || buildings.has(item?.kind)) {
-      this.drawPlacementPreview(tile, item, wand);
+    if (item && buildings.has(item.kind)) {
+      const valid = this.canPlace(tile, item);
+      context.fillStyle = valid ? 'rgba(105,195,157,.23)' : 'rgba(222,115,100,.22)';
+      context.strokeStyle = valid ? '#9ee0b4' : '#f19782';
+      context.fillRect(point.x - this.scale / 2, point.y - this.scale / 2, this.scale, this.scale);
+      context.lineWidth = 2;
+      context.strokeRect(point.x - this.scale / 2, point.y - this.scale / 2, this.scale, this.scale);
+      context.globalAlpha = 0.55;
+      this.sprite(item.kind, tile.x, tile.y, 1.05);
+      context.globalAlpha = 1;
     } else if (this.target?.category === 'structure') {
       context.strokeStyle = distance(this.state.you, this.target) <= (containers.has(this.target.kind) ? 2 : 3) ? '#f4d3a0' : '#afbdc0';
       context.lineWidth = 1.5;
@@ -555,31 +471,6 @@ export class WorldRenderer {
     context.moveTo(aim.x, aim.y - 8); context.lineTo(aim.x, aim.y - 5);
     context.moveTo(aim.x, aim.y + 5); context.lineTo(aim.x, aim.y + 8);
     context.stroke();
-  }
-
-  drawPlacementPreview(center, item, wand) {
-    const context = this.context;
-    const player = this.movement.enabled ? this.movement.position : this.state.you;
-    const kind = wand?.building ?? item.kind;
-    const offsets = wand?.tiles ?? [[0, 0]];
-    const vertical = wand?.rotate && this.wandVertical;
-    const inRange = distance(center, player) <= 3 && this.generatedTile(center);
-    const cost = wand ? this.catalog.recipes[kind].inputs.wood : 0;
-    let wood = wand ? [...this.state.you.inventory, ...this.state.you.backpack].filter(item => item?.kind === 'wood').length : 0;
-    for (const [dx, dy] of offsets) {
-      const cell = { x: center.x + (vertical ? dy : dx), y: center.y + (vertical ? dx : dy) };
-      const valid = inRange && wood >= cost && this.canPlace(cell, kind);
-      if (valid) wood -= cost;
-      const point = this.screenPoint(cell.x, cell.y);
-      context.fillStyle = valid ? 'rgba(105,195,157,.23)' : 'rgba(222,115,100,.22)';
-      context.strokeStyle = valid ? '#9ee0b4' : '#f19782';
-      context.lineWidth = 2;
-      context.fillRect(point.x - this.scale / 2, point.y - this.scale / 2, this.scale, this.scale);
-      context.strokeRect(point.x - this.scale / 2, point.y - this.scale / 2, this.scale, this.scale);
-      context.globalAlpha = 0.55;
-      this.sprite(kind, cell.x, cell.y, 1.05);
-      context.globalAlpha = 1;
-    }
   }
 
   label(text, horizontal, vertical, color, size) {

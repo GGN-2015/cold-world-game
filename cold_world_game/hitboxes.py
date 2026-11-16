@@ -55,7 +55,7 @@ def monster_hitbox(monster, elapsed, activity):
         name += "_rise"
     elif elapsed < monster.frozen_until:
         name += "_frozen"
-    return MONSTER_HITBOXES.get(name) or MONSTER_HITBOXES.get(f"monster_{monster.kind}") or MONSTER_HITBOXES["monster_small"]
+    return MONSTER_HITBOXES[name]
 
 
 def segment_rectangle(start_x, start_y, end_x, end_y, left, top, right, bottom):

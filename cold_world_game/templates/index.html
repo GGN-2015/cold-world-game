@@ -40,14 +40,6 @@
             <button id="leave-button" class="icon-button glass" data-i18n="button.leave" data-i18n-title="button.leaveHint" data-i18n-aria-label="button.leaveHint" title="保存并离开" aria-label="保存并离开">离开</button>
           </div>
         </header>
-        <div id="room-thermometer" class="room-thermometer glass" hidden>
-          <div class="room-thermometer-head">
-            <span data-i18n="thermal.local">环境温度</span>
-            <strong id="room-temperature"></strong>
-          </div>
-          <meter id="room-temperature-meter" min="-40" max="40" low="0" high="15" optimum="30" value="0" data-i18n-aria-label="thermal.local" aria-label="环境温度"></meter>
-          <div id="room-status"></div>
-        </div>
         <aside id="player-roster" class="player-roster glass" aria-labelledby="players-title" hidden>
           <header class="roster-heading"><div><span class="eyebrow" data-i18n="players.eyebrow">雪原同行者</span><h2 id="players-title" data-i18n="players.title">玩家列表</h2><p id="players-summary"></p></div><button id="players-close" type="button" class="close-button" data-i18n-aria-label="players.close" aria-label="收起玩家列表">×</button></header>
           <div id="players-list" class="roster-list" role="list" data-i18n-aria-label="players.title"></div>
@@ -82,11 +74,9 @@
           <button id="touch-aim" type="button" class="touch-stick" data-i18n-aria-label="touch.aimLabel"><span class="touch-thumb"></span><span class="touch-stick-label" data-i18n="touch.aim">瞄准</span></button>
           <div class="touch-actions">
             <button id="touch-use" type="button" class="touch-action" data-i18n="touch.use" data-i18n-aria-label="touch.useLabel">使用</button>
-            <button id="touch-reload" type="button" class="touch-action" data-i18n="touch.reload" hidden>装填</button>
             <button id="touch-place" type="button" class="touch-action" data-i18n="touch.place" data-i18n-aria-label="touch.placeLabel">放置</button>
             <button id="touch-dismantle" type="button" class="touch-action" data-i18n="touch.dismantle" data-i18n-aria-label="touch.dismantleLabel">拆除</button>
             <button id="touch-drop" type="button" class="touch-action" data-i18n="touch.drop" data-i18n-aria-label="touch.dropLabel">丢弃</button>
-            <button id="touch-rotate" type="button" class="touch-action" data-i18n="touch.rotate" hidden>旋转</button>
           </div>
         </div>
         <section class="inventory-dock">
@@ -118,7 +108,6 @@
           <button id="join-button" type="submit" class="primary-button"><span>进入雪原</span><span aria-hidden="true">↗</span></button>
           <div id="server-status" class="server-status" role="status"><i></i><span>正在准备雪原与贴图…</span></div>
           <p class="login-note" data-i18n-html="login.note">名字首次使用时创建角色，再次进入恢复原存档。<br>同一个名字同一时间只能有一个窗口在线。</p>
-          <a class="login-note" href="{{ url_for('static', filename='wiki/index.html') }}" target="_blank" rel="noopener" data-i18n="button.wiki">寒境 Wiki</a>
         </form>
       </div>
       <footer class="landing-footer"><span data-i18n-html="landing.controls">WASD 移动 <b>·</b> 鼠标探索 <b>·</b> B 背包与合成</span><span data-i18n="landing.pause">最后一位旅人离开，世界会停下来等你。</span></footer>

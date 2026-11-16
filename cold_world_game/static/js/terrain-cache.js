@@ -26,7 +26,7 @@ export class TerrainCache extends EventTarget {
       for(const identifier of chunk.remove){added.delete(identifier);removed.add(identifier);}
       for(const record of chunk.add){removed.delete(record.id);added.set(record.id,record);}
       const entry={...prior,...chunk,added,removed,records:prior?.records||[]};this.chunks.set(chunk.id,entry);
-      entry.loading=prior?.loading||Promise.resolve(chunk.hash?this.generate(chunk):[]);
+      entry.loading=prior?.loading||Promise.resolve(chunk.version>=18?this.generate(chunk):[]);
       const base=await entry.loading;
       if(epoch!==this.epoch||this.chunks.get(chunk.id)!==entry)return;
       const records=new Map(base.filter(record=>!removed.has(record.id)).map(record=>[record.id,record]));

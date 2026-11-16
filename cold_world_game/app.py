@@ -57,10 +57,6 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
     def index():
         return render_template("index.html")
 
-    @app.get("/wiki/")
-    def wiki():
-        return app.send_static_file("wiki/index.html")
-
     @app.get("/api/server")
     def server_info():
         return jsonify({"name": "cold-world-game", "version": "0.1.0", "websocket": "/ws", "info": "/api/info", "client": "/"})

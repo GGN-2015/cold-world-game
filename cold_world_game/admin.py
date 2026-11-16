@@ -2,8 +2,7 @@ import math
 import shlex
 
 from .actions import GameError
-from .biome_layout import BIOME_RING, polar, sectors
-from .constants import CREATIVE_ITEMS, ITEM_KINDS
+from .constants import ITEM_KINDS
 from .models import Item
 from .inventory import insert_item, personal_storages
 
@@ -26,25 +25,15 @@ class Administration:
             raise GameError("admin_command", "Invalid quoting; use double quotes around player IDs containing spaces") from error
         command = parts[0] if parts else ""
         if command == "help" and len(parts) == 1:
-            return {"output": "give PLAYER_ID ITEM_ID\ncreative [PLAYER_ID]\nheal PLAYER_ID\ntp PLAYER_ID X Y\nbiomes\nitems [SEARCH]\nhelp\nQuote player IDs containing spaces. Command names and item IDs are case-sensitive English identifiers."}
-        if command == "biomes" and len(parts) == 1:
-            ring = BIOME_RING["radius"]
-            result = []
-            for kind, start, end in sectors(self.seed):
-                angle = (start + end) / 2
-                x, y = polar(ring - 55, angle)
-                result.append(f"{kind} ({start % 360:.0f}°–{end % 360:.0f}°): {x} {y}")
-            return {"output": "Inner approaches (X Y):\n" + "\n".join(result)}
+            return {"output": "give PLAYER_ID ITEM_ID\nheal PLAYER_ID\ntp PLAYER_ID X Y\nitems [SEARCH]\nhelp\nQuote player IDs containing spaces. Command names and item IDs are case-sensitive English identifiers."}
         if command == "items" and len(parts) <= 2:
             query = parts[1] if len(parts) == 2 else ""
             items = [kind for kind in sorted(ITEM_KINDS) if query in kind]
             return {"output": "Items: " + ", ".join(items) if items else "No matching item IDs"}
-        usage = {"give": "give PLAYER_ID ITEM_ID", "creative": "creative [PLAYER_ID]", "heal": "heal PLAYER_ID", "tp": "tp PLAYER_ID X Y"}
-        if command not in usage:
+        if command not in ("give", "heal", "tp"):
             raise GameError("admin_command", "Unknown command. Use help for available commands")
-        if command == "creative" and len(parts) == 1:
-            parts.append(actor.id)
-        if len(parts) != {"give": 3, "creative": 2, "heal": 2, "tp": 4}[command]:
+        usage = {"give": "give PLAYER_ID ITEM_ID", "heal": "heal PLAYER_ID", "tp": "tp PLAYER_ID X Y"}
+        if len(parts) != {"give": 3, "heal": 2, "tp": 4}[command]:
             raise GameError("admin_command", "Usage: " + usage[command])
         target_id = parts[1]
         if target_id not in self.players:
@@ -52,11 +41,6 @@ class Administration:
         if target_id not in self.online:
             raise GameError("admin_player_offline", "Player is offline: " + target_id)
         target = self.players[target_id]
-        if command == "creative":
-            self.touch()
-            outputs = [f"{kind}: {self.admin_give(target, kind)}" for kind in CREATIVE_ITEMS]
-            self.activate_creative_vitals(target)
-            return {"output": f"Gave creative kit to {target_id}\n" + "\n".join(outputs)}
         if command == "tp":
             try:
                 horizontal, vertical = float(parts[2]), float(parts[3])
@@ -78,20 +62,16 @@ class Administration:
         if kind not in ITEM_KINDS:
             raise GameError("admin_item_unknown", "Unknown item ID: " + kind + ". Use items to list valid IDs")
         self.touch()
-        destination = self.admin_give(target, kind)
-        if kind in CREATIVE_ITEMS:
-            self.activate_creative_vitals(target)
-        return {"output": f"Gave {kind} to {target_id}: {destination}"}
-
-    def admin_give(self, target, kind):
         if kind == "coin":
             target.money += 1
-            return "money balance"
-        item = Item.create(kind)
-        for name in ("backpack", "inventory"):
-            storage = getattr(target, name)
-            if None in storage:
-                storage[storage.index(None)] = item
-                return name
-        self.drop_item(item, target.x, target.y)
-        return "ground at player's feet"
+            destination = "money balance"
+        else:
+            item = Item.create(kind)
+            for name, storage in personal_storages(target, ("backpack", "inventory")):
+                if not insert_item([(name, storage)], item):
+                    destination = name
+                    break
+            else:
+                self.drop_item(item, target.x, target.y)
+                destination = "ground at player's feet"
+        return {"output": f"Gave {kind} to {target_id}: {destination}"}

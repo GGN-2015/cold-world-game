@@ -51,7 +51,7 @@
 
 `effects` 中的图集均为从左到右排列，单行、无边距，使用 `frame_width`、`frame_height`、`frames`、`duration` 配置；常规动作与死亡动画为六帧，睡眠飘字为24帧。挥斧、爪痕、红色受击、木屑和枪口闪光分别使用独立 PNG；六种怪物死亡图集展示逐步倾倒、落下、透明消散，时长 0.65 秒。替换时保留透明背景和一致的落脚基准。
 
-`fx_axe_sweep` 持续 0.3 秒，提供八张已烘焙方向 PNG：`fx_axe_sweep_e.png`、`fx_axe_sweep_se.png`、`fx_axe_sweep_s.png`、`fx_axe_sweep_sw.png`、`fx_axe_sweep_w.png`、`fx_axe_sweep_nw.png`、`fx_axe_sweep_n.png`、`fx_axe_sweep_ne.png`。每张 1152×192，含六个 192×192 帧，斧头与半圆刃光已合成；运行时只选择方向和帧并贴图。`directions` 记录方向资源名，`direction_frame_width/height` 记录帧尺寸，`radius_ratio:0.46875` 让图像宽高按本次挥击的 `range / radius_ratio` 缩放，跟随实际攻击半径。实际命中使用原始瞄准向量。基础 `fx_axe_sweep.png` 用作旧资源的后备。
+`fx_axe_sweep` 持续 0.3 秒，提供八张已烘焙方向 PNG：`fx_axe_sweep_e.png`、`fx_axe_sweep_se.png`、`fx_axe_sweep_s.png`、`fx_axe_sweep_sw.png`、`fx_axe_sweep_w.png`、`fx_axe_sweep_nw.png`、`fx_axe_sweep_n.png`、`fx_axe_sweep_ne.png`。每张 1152×192，含六个 192×192 帧，斧头与半圆刃光已合成；运行时只选择方向和帧并贴图，不实时旋转刃光或计算斧头轨迹。`directions` 记录方向资源名，`direction_frame_width/height` 记录帧尺寸，`radius_ratio:0.46875` 让图像宽高 `range / radius_ratio` 对应实际 3 格攻击半径。实际命中使用原始瞄准向量，不量化为八方向。保留基础 `fx_axe_sweep.png` 作为旧资源兼容后备。
 
 图中完整半圆底色和外弧表示范围，亮刃从一侧扫向另一侧；一次群攻只绘制一份，不按命中数复制。本机先在下一渲染帧播放，服务器确认后不会再播一遍；其他玩家的挥斧由已确认事件驱动。`monster_big_rise` 由快照世界时间驱动，替代正常角色绘制而非叠加粒子；休眠和起立期间不播放跑动差分。
 

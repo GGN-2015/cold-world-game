@@ -50,10 +50,6 @@ def monster_hitboxes():
             sources[name] = (animation["asset"], animation["frame_width"], animation["frame_height"])
     for name in ("monster_big_sleep", "monster_fast_sleep"):
         sources[name] = (name, 96, 96)
-    for species in ("tree_spirit", "frost_guard", "ember_guard"):
-        name = f"monster_{species}"
-        with Image.open(DESTINATION / f"{name}.png") as image:
-            sources[name] = (name, *image.size)
     rising = COMBAT_EFFECTS["monster_big_rise"]
     sources["monster_big_rise"] = (rising["asset"], rising["frame_width"], rising["frame_height"])
     for name, (asset, frame_width, frame_height) in sources.items():
@@ -67,7 +63,7 @@ def monster_hitboxes():
                         for horizontal in range(32):
                             if alpha.getpixel((horizontal, vertical)) >= threshold:
                                 rows[vertical] |= 1 << horizontal
-        big = name.startswith("monster_big") or name in {"monster_frost_guard", "monster_ember_guard"}
+        big = name.startswith("monster_big")
         definitions[name] = {"width": 1.6 if big else 1.1, "height": 1.9 if big else 1.25, "offset": 0.3 if big else 0.13, "alpha_threshold": threshold, "rows": rows}
     return {"size": 32, "alpha_threshold": 128, "bullet_radius": 0.1, "profiles": definitions}
 
@@ -1325,16 +1321,14 @@ def main(hitboxes_only=False):
     outdoor_art = importlib.util.module_from_spec(specification)
     specification.loader.exec_module(outdoor_art)
     outdoor_art.generate(save, ANIMATIONS, COMBAT_EFFECTS, traveler_frame, frozen_monster_image)
-    from first_ring_assets import generate as generate_first_ring_assets
-    generate_first_ring_assets(DESTINATION, ASSETS)
-    specification = importlib.util.spec_from_file_location("manual_art", Path(__file__).with_name("manual_assets.py"))
-    manual_art = importlib.util.module_from_spec(specification)
-    specification.loader.exec_module(manual_art)
-    manual_art.illustrate(Path(__file__).resolve().parents[1], ASSETS)
     specification = importlib.util.spec_from_file_location("manuals", Path(__file__).with_name("generate_manuals.py"))
     manuals = importlib.util.module_from_spec(specification)
     specification.loader.exec_module(manuals)
     manuals.generate()
+    specification = importlib.util.spec_from_file_location("manual_art", Path(__file__).with_name("manual_assets.py"))
+    manual_art = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(manual_art)
+    manual_art.illustrate(Path(__file__).resolve().parents[1], ASSETS)
     (DESTINATION / "manifest.json").write_text(json.dumps({"version": 2, "pixel_art": True, "assets": ASSETS, "animations": ANIMATIONS, "effects": COMBAT_EFFECTS, "monster_hitboxes": monster_hitboxes()}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Exported {len(ASSETS)} replaceable PNG assets to {DESTINATION}")
 

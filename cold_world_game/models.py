@@ -1,13 +1,11 @@
 import math
+from dataclasses import dataclass, field, is_dataclass
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field, is_dataclass
-from itertools import chain
 from uuid import uuid4
 
-from .constants import AMMO_PACKS, BIOME_ITEMS, CREATIVE_ITEMS, DURIAN_PEEL, MAX_HUNGER
-from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, GUNS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MELEE_WEAPONS, RETURN_ITEMS, SOLID
-from .wildlife import MONSTER_TYPES, WRENCH_USES
+from .constants import BACKPACK_SLOTS, DEFAULT_VIEWPORT, DURIAN_PEEL, GUNS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MELEE_WEAPONS, RETURN_ITEMS
+from .wildlife import MONSTER_TYPES
 
 
 _identifier_factory = ContextVar("cold_world_identifier_factory", default=None)
@@ -38,8 +36,7 @@ class Item:
     @classmethod
     def create(cls, kind: str, count=1) -> "Item":
         settings = RETURN_ITEMS.get(kind) or MELEE_WEAPONS.get(kind) or HEALING_ITEMS.get(kind, {})
-        uses = WRENCH_USES if kind == "repair_wrench" else settings.get("uses", BIOME_ITEMS.get(kind, {}).get("uses", IGNITERS.get(kind)))
-        return cls(kind, ammo=GUNS[kind]["ammo"] if kind in GUNS else AMMO_PACKS.get(kind), uses=uses, count=count)
+        return cls(kind, ammo=GUNS[kind]["ammo"] if kind in GUNS else None, uses=settings.get("uses", IGNITERS.get(kind)), count=count)
 
 
 @dataclass
@@ -55,22 +52,10 @@ class Structure:
     balance: int = 0
     ammo: int | None = None
     owner: str | None = None
-    repaired: bool = False
-    door_open: bool = False
-    biome_link: list[int] | None = None
-    biome_anchor: list[int] | None = None
-    biome_guard: str | None = None
-    on_floor: bool = False
-    cover_hits: int = 0
-    restocked: int = 0
 
     @property
     def lit(self) -> bool:
         return self.burn_remaining > 0
-
-    @property
-    def solid(self) -> bool:
-        return self.kind in SOLID and not (self.kind == "door" and self.door_open)
 
     @property
     def empty(self) -> bool:
@@ -85,7 +70,7 @@ class Player:
     inventory: list[Item | None] = field(default_factory=lambda: [None] * INVENTORY_SLOTS)
     backpack: list[Item | None] = field(default_factory=lambda: [None] * BACKPACK_SLOTS)
     temperature: float = 36.0
-    hunger: float = MAX_HUNGER
+    hunger: float = 10.0
     selected: int = 0
     next_shot: float = 0.0
     next_axe_attack: float = 0.0
@@ -94,27 +79,6 @@ class Player:
     money: int = 0
     last_login_at: float | None = None
     excitement_remaining: float = 0.0
-    chilled_until: float = 0.0
-    scorched_until: float = 0.0
-    next_scorch: float = 0.0
-
-    def creative_effects(self):
-        effects = {}
-        for item in chain(self.inventory, self.backpack):
-            if item and item.kind in CREATIVE_ITEMS:
-                effects.update(CREATIVE_ITEMS[item.kind])
-        return effects
-
-    def apply_creative_vitals(self, effects):
-        self.temperature = effects.get("temperature", self.temperature)
-        self.hunger = effects.get("hunger", self.hunger)
-
-    def carries(self, kind):
-        return any(item and item.kind == kind for item in chain(self.inventory, self.backpack))
-
-    def holds(self, kind):
-        item = self.inventory[self.selected]
-        return item is not None and item.kind == kind
 
 
 @dataclass
@@ -146,12 +110,6 @@ class Controls:
     seat: str | None = None
     view_width: float = DEFAULT_VIEWPORT[0]
     view_height: float = DEFAULT_VIEWPORT[1]
-    next_biome_scan: float = 0.0
-    next_fog_spawn: float = 0.0
-    next_paced_spawn: float | None = None
-    reload_target: str | None = None
-    reload_until: float = 0.0
-    reload_duration: float = 0.0
 
     def stop_attack(self) -> None:
         self.held = False
@@ -203,13 +161,10 @@ class Monster:
     next_burn: float = 0.0
     burn_owner: str | None = None
     impaled: bool = False
-    impaled_until: float = 0.0
     next_impale: float = 0.0
     impale_owner: str | None = None
     species: str = "small"
     xray: bool = False
-    dazed_until: float = 0.0
-    next_light_daze: float = 0.0
 
     @property
     def kind(self):
@@ -246,7 +201,8 @@ class Projectile:
     detonates_at: float | None = None
     target_id: str | None = None
     weapon_kind: str | None = None
-    mounted: bool = False
+    view_width: float | None = None
+    view_height: float | None = None
 
 
 def item_from(data: dict | None) -> Item | None:
@@ -285,7 +241,6 @@ def player_from(data: dict) -> Player:
     values["inventory"] = [item_from(item) for item in data["inventory"]]
     values["backpack"] = [item_from(item) for item in data.get("backpack", [None] * BACKPACK_SLOTS)]
     values["money"] = data.get("money", 0)
-    values["hunger"] = min(MAX_HUNGER, max(0.0, data.get("hunger", MAX_HUNGER)))
     for storage in (values["inventory"], values["backpack"]):
         for slot, item in enumerate(storage):
             if item and item.kind == "coin":

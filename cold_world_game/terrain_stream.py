@@ -5,7 +5,6 @@ import random
 import secrets
 
 from .constants import CHUNK_SIZE, TERRAIN_VERSION
-from .biome_layout import chunk_biomes, ring_parameters, stations
 from .geometry import chunk
 from .models import encode
 from .procedural import appearance, derive, plan, profile, RandomStream
@@ -29,18 +28,6 @@ class TerrainStream:
                 raise ValueError("Missing procedural generation profile")
             self.generation_profiles = {**self.generation_profiles, key: profile()}
         return self.generation_profiles[key]
-
-    def biome_parameters(self, point):
-        version = self.chunk_versions.get(point, 1)
-        if version >= 23:
-            settings = self.terrain_profile(version)
-            if "biome_ring" in settings:
-                return ring_parameters(settings)
-        return None
-
-    def chunk_biomes(self, point):
-        settings = self.biome_parameters(point)
-        return chunk_biomes(self.seed, *point, *settings) if settings else ()
 
     def invalidate_chunk(self, structure, removed=False):
         point = chunk(structure.x), chunk(structure.y)
@@ -96,9 +83,7 @@ class TerrainStream:
                 if structure:
                     records.append(appearance(structure))
         version = self.chunk_versions.get(point, 1)
-        parameters = self.biome_parameters(point)
-        biome_geometry = parameters and (self.chunk_biomes(point) or point in stations(self.seed, *parameters))
-        if version >= 18 and not biome_geometry:
+        if version >= 18:
             fingerprint, baseline = self._natural_geometry[point]
             current = {record["id"]: record for record in records}
             records = [record for record in records if record["id"] not in baseline]
@@ -161,9 +146,6 @@ class TerrainStream:
     def structure_states(self, player, demolitions=None):
         nearby = {(chunk(player.x) + horizontal, chunk(player.y) + vertical) for horizontal in range(-2, 3) for vertical in range(-2, 3)}
         states = {structure.id: {"id": structure.id, "lit": True} for structure in self._campfires.values() if structure.lit and abs(structure.x-player.x)<=38 and abs(structure.y-player.y)<=38}
-        for heater in self._campfires.values():
-            if heater.kind == "fixed_heater" and (chunk(heater.x), chunk(heater.y)) in nearby:
-                states.setdefault(heater.id, {"id": heater.id})["repaired"] = heater.repaired
         for player_id, controls in self.controls.items():
             seat = self.structures.get(controls.seat)
             if seat and (chunk(seat.x), chunk(seat.y)) in nearby:
@@ -173,12 +155,10 @@ class TerrainStream:
                 for identifier in self._seats_by_chunk.get((horizontal, vertical), ()):
                     seat = self.structures[identifier]
                     states.setdefault(identifier, {"id": identifier, "occupant": None})["ammo"] = seat.ammo
-                    if seat.kind == "service_gun":
-                        states[identifier]["repaired"] = seat.repaired
-        for monster in self.monsters.values():
-            target = self.structures.get(monster.demolition)
-            if target and (chunk(target.x), chunk(target.y)) in nearby and not self.monster_inactive(monster):
-                states.setdefault(monster.demolition, {"id": monster.demolition})["monster_demolition"] = True
+        for identifier in self.active_demolitions() if demolitions is None else demolitions:
+            target = self.structures.get(identifier)
+            if target and (chunk(target.x), chunk(target.y)) in nearby:
+                states.setdefault(identifier, {"id": identifier})["monster_demolition"] = True
         return sorted(states.values(), key=lambda value: value["id"])
 
     def event_random(self, system, entity="world"):

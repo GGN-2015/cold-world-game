@@ -85,109 +85,12 @@ function building(stream,centerX,centerY) {
   throw new Error('procedural_building_unreachable');
 }
 
-function ringInside(seed, horizontal, vertical, size, radius) {
-  const radius2 = radius ** 2;
-  const inside = (x, y) => (x*size)**2 + (y*size)**2 <= radius2;
-  if (inside(horizontal, vertical)) return true;
-  const visited = new Set([key(horizontal, vertical)]);
-  const pending = [[horizontal, vertical]];
-  while (pending.length) {
-    const [x, y] = pending.pop();
-    if (new RandomStream(chunkSeed(seed, x, y)).random() < .9) continue;
-    for (const dx of [-1, 0, 1]) for (const dy of [-1, 0, 1]) {
-      const point = key(x + dx, y + dy);
-      if (visited.has(point)) continue;
-      if (inside(x + dx, y + dy)) return true;
-      visited.add(point);
-      pending.push([x + dx, y + dy]);
-    }
-  }
-  return false;
-}
-
-function ringBoundary(seed, horizontal, vertical, size, radius) {
-  const half = Math.floor(size / 2);
-  const x = horizontal * size, y = vertical * size;
-  const inside = (dx, dy) => ringInside(seed, horizontal + dx, vertical + dy, size, radius);
-  const boundary = new Set();
-  if (inside(0, 0)) return boundary;
-  for (const sx of [-1, 1]) {
-    if (inside(sx, 0)) {
-      for (let offset = -half; offset <= half; offset++) boundary.add(key(x + sx*half, y + offset));
-    }
-    if (inside(0, sx)) {
-      for (let offset = -half; offset <= half; offset++) boundary.add(key(x + offset, y + sx*half));
-    }
-    for (const sy of [-1, 1]) if (inside(sx, sy)) boundary.add(key(x + sx*half, y + sy*half));
-  }
-  return boundary;
-}
-
-function gateTiles(seed, size, radius, step, rotation, index) {
-  const angle = rotation + index * step;
-  const tx = Math.floor(radius * Math.cos(angle) + .5), ty = Math.floor(radius * Math.sin(angle) + .5);
-  const half = Math.floor(size / 2);
-  const cx = Math.floor((tx + half) / size), cy = Math.floor((ty + half) / size);
-  const boundary = new Set();
-  for (let x = cx - 3; x <= cx + 3; x++) for (let y = cy - 3; y <= cy + 3; y++) {
-    for (const value of ringBoundary(seed, x, y, size, radius)) boundary.add(value);
-  }
-  if (!boundary.size) return boundary;
-  const distance2 = position => {const [x, y] = point(position);return (x - tx)**2 + (y - ty)**2;};
-  const anchor = sorted(boundary).sort((a, b) => distance2(a) - distance2(b))[0];
-  const [ax, ay] = point(anchor);
-  const linked = new Set([anchor]), pending = [anchor];
-  for (const at of pending) {
-    const [x,y] = point(at);
-    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
-      const px = x + dx, py = y + dy, neighbor = key(px, py);
-      if (Math.max(Math.abs(px - ax), Math.abs(py - ay)) > 2 || linked.has(neighbor) || !boundary.has(neighbor)) continue;
-      linked.add(neighbor); pending.push(neighbor);
-    }
-  }
-  return linked;
-}
-
-function addRing(seed, settings, horizontal, vertical, objects) {
-  const { radius, gates } = settings.ring, size = settings.size;
-  const boundary = ringBoundary(seed, horizontal, vertical, size, radius);
-  if (!boundary.size) return objects;
-  const step = 2 * Math.PI / gates;
-  const rotation = new RandomStream(derive(seed, 'first_ring:v1')).random() * step;
-  const gateCache = new Map();
-  return [...objects.filter(entry => !boundary.has(entry.position)), ...sorted(boundary).map(position => {
-    const [tx, ty] = point(position);
-    const offset = (Math.atan2(ty, tx) - rotation) / step;
-    const index = Math.floor(offset + .5);
-    if (Math.abs(offset - index) * step >= .075) return { kind: 'ring_wall', position };
-    const gate = (index + gates) % gates;
-    if (!gateCache.has(gate)) gateCache.set(gate, gateTiles(seed, size, radius, step, rotation, gate));
-    return { kind: gateCache.get(gate).has(position) ? 'ring_gate' : 'ring_wall', position };
-  })];
-}
-
-function addServiceDevices(base, horizontal, vertical, x, y, objects, interior) {
-  for (const [kind, startX] of [['fixed_heater', 2], ['service_gun', -2]]) {
-    const stream = new RandomStream(derive(base, 'feature', `service:${kind}:v1`));
-    if (stream.random() >= .018 && (startX !== horizontal || vertical !== 0)) continue;
-    const occupied = new Set([...objects.map(entry => entry.position), ...interior]);
-    const candidates = [];
-    for (let dx = -7; dx <= 7; dx++) for (let dy = -7; dy <= 7; dy++) {
-      const px = x + dx, py = y + dy;
-      if (Math.max(Math.abs(dx), Math.abs(dy)) !== 7) continue;
-      const blocked = [-1, 0, 1].some(sx => [-1, 0, 1].some(sy => occupied.has(key(px + sx, py + sy))));
-      if (!blocked) candidates.push(key(px, py));
-    }
-    if (candidates.length) objects.push({ kind, position: stream.choice(candidates) });
-  }
-}
-
 export function plan(seed,horizontal,vertical,settings) {
   if(settings.algorithm!==1)throw new Error('unsupported_terrain_algorithm');
   const base=chunkSeed(seed,horizontal,vertical),stream=new RandomStream(base),centerX=horizontal*settings.size,centerY=vertical*settings.size,roll=stream.random();
-  let objects=[], interior=new Set();
+  let objects=[];
   if((horizontal===0&&vertical===0)||roll>=.9) {
-    const house=building(stream,centerX,centerY);objects=house.objects;interior=house.interior;
+    const house=building(stream,centerX,centerY);objects=house.objects;
     for(const [kind,name,chance]of settings.machines) {
       const feature=new RandomStream(derive(base,'feature',name));if(feature.random()>=chance)continue;
       const blocked=new Set(objects.map(object=>object.position)),containers=objects.filter(object=>object.kind!=='wall').map(object=>object.position),bounds=[centerX-8,centerX+8,centerY-8,centerY+8],entrance=key(bounds[0],bounds[2]);
@@ -211,12 +114,6 @@ export function plan(seed,horizontal,vertical,settings) {
       for(let offsetX=-6;offsetX<=6;offsetX++)for(let offsetY=-6;offsetY<=6;offsetY++){const position=key(centerX+offsetX,centerY+offsetY);if(!occupied.has(position)&&(settings.version<22||kind!=='mounted_gun'||!occupied.has(key(centerX+offsetX+1,centerY+offsetY))))candidates.push(position);}
       if(candidates.length)objects.push({kind,position:feature.choice(candidates)});
     }
-  }
-  if (settings.ring) {
-    objects = addRing(seed, settings, horizontal, vertical, objects);
-  }
-  if (settings.ring || settings.biome_ring) {
-    addServiceDevices(base, horizontal, vertical, centerX, centerY, objects, interior);
   }
   return objects.map(object=>{const [tileX,tileY]=point(object.position);return {id:`n:${horizontal}:${vertical}:${tileX}:${tileY}:${object.kind}`,kind:object.kind,x:tileX,y:tileY,lit:false,monster_demolition:false};});
 }

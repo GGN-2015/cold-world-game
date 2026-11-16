@@ -1,4 +1,4 @@
-import { buildings, containers, errorText, gunSeats, seats, tileAt } from './catalog.js';
+import { buildings, containers, errorText, seats, tileAt } from './catalog.js';
 import { GameConnection } from './network.js';
 import { loadAssets, WorldRenderer } from './renderer.js';
 import { GameUI } from './ui.js';
@@ -273,42 +273,11 @@ function attack(pressed, shift = false, cancelled = false) {
   if (!pressed) chargedAttack = null;
   attackHeld = pressed;
   input(true);
-  const attackId = (throwing ? quickSwing : fresh) && !gunSeats.has(state.you.seated) ? localCombat.begin(state, selected, aimPoint()) : null;
-  if (!attackId) {
-    if (fresh && state.you.inventory[selected]?.kind === 'repair_wrench') ui.action('attack', { pressed, shift });
-    else connection.send('attack', { pressed, shift, cancelled });
-    return;
-  }
+  const attackId = (throwing ? quickSwing : fresh) && state.you.seated !== 'mounted_gun' ? localCombat.begin(state, selected, aimPoint()) : null;
+  if (!attackId) { connection.send('attack', { pressed, shift, cancelled }); return; }
   connection.command('attack', { pressed, shift, cancelled, attack_id: attackId }).then((result) => {
     if (result.swing !== true) localCombat.reject(attackId);
   }).catch(() => localCombat.reject(attackId));
-}
-
-function selectedWand() {
-  return renderer?.catalog.building_wands?.[state?.you.inventory[selected]?.kind];
-}
-
-function reload() {
-  const rules = renderer.catalog.reload_rules;
-  if (!rules || ui.isOpen() || !(gunSeats.has(state.you.seated) || rules[state.you.inventory[selected]?.kind])) return;
-  attackHeld = false;
-  connection.send('attack', { pressed: false });
-  ui.action('reload');
-}
-
-function placeAt(point) {
-  const wand = selectedWand();
-  input(true);
-  attackHeld = false;
-  connection.send('attack', { pressed: false });
-  const placement = wand?.rotate ? { ...point, vertical: renderer.wandVertical } : point;
-  ui.action('place', placement, wand ? ({ count }) => t('build.wandPlaced', { count }) : '');
-}
-
-function rotateWand() {
-  if (!selectedWand()?.rotate) return false;
-  renderer.wandVertical = !renderer.wandVertical;
-  return true;
 }
 
 canvas.addEventListener('pointermove', (event) => {
@@ -330,25 +299,15 @@ canvas.addEventListener('pointerdown', (event) => {
     const point = { x: tileAt(renderer.pointer.x), y: tileAt(renderer.pointer.y) };
     const container = state.structures.some((entity) => containers.has(entity.kind) && entity.x === point.x && entity.y === point.y);
     const seat = state.structures.find(entity => seats.has(entity.kind) && entity.x === point.x && entity.y === point.y);
-    const door = state.structures.find(entity => entity.kind === 'door' && entity.x === point.x && entity.y === point.y);
-    const cable = state.structures.find(entity => entity.kind === 'cable_station' && entity.repaired && entity.x === point.x && entity.y === point.y);
-    if (gunSeats.has(state.you.seated)) {
+    if (state.you.seated === 'mounted_gun') {
       attack(true, event.shiftKey);
-    } else if (selectedWand()) {
-      placeAt(point);
-    } else if (door && !event.shiftKey) {
-      input(true); ui.action('toggle_door', { id: door.id });
-    } else if (door) {
-      attack(true, true);
-    } else if (cable) {
-      input(true);
-      ui.action('attack', { pressed: true });
-    } else if (seat && item?.kind !== 'repair_wrench' && !event.shiftKey) {
+    } else if (seat && !event.shiftKey) {
       stop(); input(true); ui.action('sit', { id: seat.id });
-    } else if (item?.kind === 'repair_wrench') {
-      attack(true, event.shiftKey);
     } else if (buildings.has(item?.kind) && (!container || event.shiftKey)) {
-      placeAt(point);
+      input(true);
+      attackHeld = false;
+      connection.send('attack', { pressed: false, cancelled: true });
+      ui.action('place', point);
     } else {
       attack(true, event.shiftKey);
     }
@@ -371,7 +330,6 @@ const scrollSelect = (event) => {
   const now = performance.now();
   if (now - (scrollSelect.last || 0) < 110) return;
   scrollSelect.last = now;
-  if (event.currentTarget === canvas && !ui.isOpen() && rotateWand()) return;
   select((selected + (event.deltaY > 0 ? 1 : 9)) % 10);
 };
 canvas.addEventListener('wheel', scrollSelect, { passive: false });
@@ -415,9 +373,6 @@ window.addEventListener('keydown', (event) => {
   } else if (event.code === 'KeyQ') {
     event.preventDefault();
     if (!event.repeat) { stop(); input(); ui.action('drop', { slot: selected }); }
-  } else if (event.code === 'KeyR') {
-    event.preventDefault();
-    if (!event.repeat) reload();
   } else if (event.code === 'KeyB' || event.code === 'KeyI') {
     event.preventDefault();
     if (!event.repeat) ui.togglePanel('inventory');
@@ -510,15 +465,11 @@ async function initialize() {
         input();
       },
       use: attack,
-      reload,
       useAtPoint: () => {
         const point = aimPoint();
-        const held = state?.you.inventory[selected]?.kind;
-        if (selectedWand() && !gunSeats.has(state?.you.seated)) return false;
-        return Boolean(gunSeats.has(state?.you.seated) || held === 'repair_wrench' || state?.structures.some(entity => (seats.has(entity.kind) || ['door', 'cable_station'].includes(entity.kind)) && entity.x === tileAt(point.x) && entity.y === tileAt(point.y)) || catalog.explosive_weapons?.[held] || catalog.revival_items?.[held]);
+        return Boolean(state?.you.seated === 'mounted_gun' || state?.structures.some(entity => seats.has(entity.kind) && entity.x === tileAt(point.x) && entity.y === tileAt(point.y)) || catalog.throwable_weapons?.[state?.you.inventory[selected]?.kind] || catalog.explosive_weapons?.[state?.you.inventory[selected]?.kind] || catalog.revival_items?.[state?.you.inventory[selected]?.kind]);
       },
-      place: () => { const point = aimPoint(); placeAt({ x: tileAt(point.x), y: tileAt(point.y) }); },
-      rotate: rotateWand,
+      place: () => { input(true); const point = aimPoint(); ui.action('place', { x: tileAt(point.x), y: tileAt(point.y) }); },
       drop: () => { stop(); input(); ui.action('drop', { slot: selected }); },
     });
     initialized = true;

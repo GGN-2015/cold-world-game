@@ -35,7 +35,7 @@ def illustrate(root, assets):
         return " ".join(f"![{names[kind]}]({directory}/{assets[kind]['file']})" for kind in kinds)
 
     for path in sorted((root / "docs").rglob("*.md")):
-        if path.parent.name == "wiki" or path.stem in {"README", "combat", "foods", "tools", "weapons", "machines", "building", "economy", "outdoor-facilities"}:
+        if path.stem in {"README", "combat", "foods", "tools", "weapons", "machines", "building", "economy", "outdoor-facilities"}:
             continue
         original = path.read_text(encoding="utf-8")
         source = image_pattern.sub("", original)

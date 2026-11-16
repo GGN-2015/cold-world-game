@@ -1,17 +1,13 @@
 import { NORMAL_STORAGE_KINDS, isPersonalStorage, itemCount, mergeable, stackLimit } from './items.js';
-import { heatSources } from './catalog.js';
 const destinations = new Set(['inventory', 'backpack', 'chest', 'fuel', 'igniter', 'wallet']);
 const sources = new Set(['inventory', 'backpack', 'chest', 'igniter', 'fuel']);
-
-
-export const canSwapPersonal = (from, to) => isPersonalStorage(from.kind) && isPersonalStorage(to.kind) && from.kind !== to.kind;
 
 function readSlot(state, endpoint) {
   if (isPersonalStorage(endpoint.kind)) return state.you[endpoint.kind]?.[endpoint.slot];
   if (state.container?.id !== endpoint.id) return undefined;
   if (endpoint.kind === 'chest' && state.container.kind === 'chest') return state.container.slots?.[endpoint.slot];
-  if (endpoint.kind === 'igniter' && heatSources.has(state.container.kind)) return state.container.igniter;
-  if (endpoint.kind === 'fuel' && heatSources.has(state.container.kind)) return state.container.fuel ? {kind:'wood', id:`fuel:${endpoint.id}`, ammo:null, uses:null} : null;
+  if (endpoint.kind === 'igniter' && state.container.kind === 'campfire') return state.container.igniter;
+  if (endpoint.kind === 'fuel' && state.container.kind === 'campfire') return state.container.fuel ? {kind:'wood', id:`fuel:${endpoint.id}`, ammo:null, uses:null} : null;
   return undefined;
 }
 
@@ -19,7 +15,7 @@ function validSlot(state, endpoint) {
   if (isPersonalStorage(endpoint.kind)) return Number.isInteger(endpoint.slot) && endpoint.slot >= 0 && endpoint.slot < state.you[endpoint.kind].length;
   if (state.container?.id !== endpoint.id) return false;
   if (endpoint.kind === 'chest') return state.container.kind === 'chest' && Number.isInteger(endpoint.slot) && endpoint.slot >= 0 && endpoint.slot < state.container.slots.length;
-  return heatSources.has(state.container.kind) && ['igniter', 'fuel'].includes(endpoint.kind);
+  return state.container.kind === 'campfire' && ['igniter', 'fuel'].includes(endpoint.kind);
 }
 
 function writeSlot(state, endpoint, item) {
@@ -50,7 +46,7 @@ export class StoragePrediction {
 
   enqueue(sequence, payload) {
     if (!Number.isSafeInteger(this.state?.command_sequence) || !sources.has(payload.from?.kind) || !destinations.has(payload.to?.kind)) return false;
-    this.pending.set(sequence, { from: { ...payload.from }, to: { ...payload.to }, item_id: payload.item_id, swap_item_id: payload.swap_item_id, item_kind: payload.item_kind });
+    this.pending.set(sequence, { from: { ...payload.from }, to: { ...payload.to }, item_id: payload.item_id, item_kind: payload.item_kind });
     return true;
   }
 
@@ -75,14 +71,6 @@ export class StoragePrediction {
       const item = readSlot(view, payload.from);
       if (!item || payload.item_id != null && item.id !== payload.item_id || payload.item_kind != null && item.kind !== payload.item_kind) continue;
       const destination = item.kind === 'coin' && isPersonalStorage(payload.to.kind) ? { kind: 'wallet' } : payload.to;
-      if (payload.swap_item_id !== undefined) {
-        if (!canSwapPersonal(payload.from, destination) || !validSlot(view, destination)) continue;
-        const replacement = readSlot(view, destination);
-        if (replacement?.id !== payload.swap_item_id) continue;
-        writeSlot(view, payload.from, replacement);
-        writeSlot(view, destination, item);
-        continue;
-      }
       let amount = itemCount(item);
       if (destination.kind === 'wallet') {
         if (item.kind !== 'coin') continue;

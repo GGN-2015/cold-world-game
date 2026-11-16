@@ -1,25 +1,19 @@
 import math
 
-from .actions import GameError
-from .biomes import BIOME_DEVICES
-from .constants import AMMO_PACKS, BIOME_ITEMS, DEFAULT_VIEWPORT, DURIAN_PEEL, HUNGER_PER_DAMAGE, MAX_HUNGER, MAX_HUNGER_LOSS_PER_HIT, MOUNTED_COVER_HITS, RELOAD_RULES, THROWABLE_WEAPONS
 from .constants import BODY_RADIUS, BULLET_BLOCKERS, DEMOLITION, DRINKS, EXPLOSIVE_WEAPONS, FLAME_STAFF, FOODS, GUNS, HARVEST_TOOLS, HEALING_ITEMS, KNOCKBACK, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, PANEL_DEMOLITION, PASSIVE_ITEMS, PROJECTILE_RANGE, READY_TO_EAT_FOODS, RETURN_ITEMS, REVIVAL_ITEMS, SMALL_MONSTER_FOOD_CHANCE, SMALL_MONSTER_FOOD_WEIGHTS
 from .expansion import carried_modifier
 from .geometry import distance, normalized, segment_box, segment_circle, tile
 from .hitboxes import MONSTER_BOUNDS, monster_hitbox, segment_monster
-from .inventory import clone_storages, consume_selected, consume_use, has_personal_item, insert_item, take_item
-from .models import Item, Projectile, Structure, identifier
+from .inventory import clear_selected_if, consume_selected, consume_use, has_personal_item
+from .models import Item, Projectile, identifier
 from .missiles import homing_position
-from .wildlife import BIOME_GUARDS, MOUNTED_RESUPPLY
+from .constants import DEFAULT_VIEWPORT, DURIAN_PEEL, THROWABLE_WEAPONS
 
 
 class Combat:
     def update_player_attack(self, player, controls, seconds):
         seat = self.seated_structure(controls)
-        if controls.reload_target:
-            self.update_reload(player, controls)
-            return
-        if seat and seat.kind in {"mounted_gun", "service_gun"}:
+        if seat and seat.kind == "mounted_gun":
             self.fire_mounted_gun(player, controls, seat)
             return
         item = player.inventory[player.selected]
@@ -54,19 +48,7 @@ class Combat:
         if player.temperature < 5:
             controls.stop_attack()
             return
-        if item.kind == "repair_wrench" and controls.target and controls.target.startswith("repair:"):
-            device = self.structure_at(tile(controls.aim_x), tile(controls.aim_y))
-            if device is None or device.kind not in BIOME_DEVICES or controls.target != "repair:" + device.id:
-                controls.stop_attack()
-                return
-            try:
-                self.repair_device(player, controls, device, item, seconds)
-            except GameError:
-                controls.stop_attack()
-            return
-        if item.kind == "flamethrower":
-            self.spray_fire(player, controls, item)
-        elif item.kind == "durian_peel":
+        if item.kind in THROWABLE_WEAPONS:
             self.throw_durian_peel(player, controls, item, seconds)
         elif item.kind in EXPLOSIVE_WEAPONS:
             self.use_explosive(player, controls, item, seconds)
@@ -82,78 +64,10 @@ class Combat:
         else:
             controls.stop_attack()
 
-    def reload_source(self, player, controls):
-        seat = self.seated_structure(controls)
-        if seat and seat.kind in {"mounted_gun", "service_gun"}:
-            rounds = AMMO_PACKS["rifle_ammo"] if seat.restocked < MOUNTED_RESUPPLY else 0
-            return seat, "rifle_ammo", 2, rounds
-        item = player.inventory[player.selected]
-        if item and item.kind in RELOAD_RULES:
-            pack, duration = RELOAD_RULES[item.kind]
-            if pack == "gasoline":
-                return item, pack, duration, BIOME_ITEMS[item.kind]["uses"] - (item.uses or 0)
-            return item, pack, duration, GUNS[item.kind]["ammo"] - (item.ammo or 0)
-        return None, None, 0, 0
+    def homing_targets(self, player):
+        return self.monsters.values()
 
-    def reload_packs(self, player, kind, *, whole=False):
-        field = "uses" if kind == "gasoline" else "ammo"
-        return [(storage, slot, item) for storage in (player.backpack, player.inventory)
-                for slot, item in enumerate(storage) if item and item.kind == kind and getattr(item, field)
-                and (not whole or item.ammo == AMMO_PACKS[kind])]
-
-    def begin_reload(self, player, controls):
-        target, pack, duration, room = self.reload_source(player, controls)
-        if controls.ui or player.temperature < 5 or target is None:
-            raise GameError("reload_unavailable", "Equip a reloadable weapon or take a mounted gun seat while standing")
-        mounted = isinstance(target, Structure)
-        if room <= 0:
-            if mounted:
-                raise GameError("reload_mounted_limit", "This mounted gun's refill limit has been reached")
-            raise GameError("reload_fuel_full" if pack == "gasoline" else "reload_full", "This weapon is full")
-        if not self.reload_packs(player, pack, whole=mounted):
-            if mounted:
-                raise GameError("reload_need_full_rifle_ammo", "Mounted guns need a full rifle ammo pack")
-            raise GameError(f"reload_need_{pack}", f"Reload requires {pack.replace('_', ' ')}")
-        if controls.reload_target != target.id:
-            controls.stop_attack()
-            controls.reload_target = target.id
-            controls.reload_until = self.elapsed + duration
-            controls.reload_duration = duration
-        return {"duration": duration}
-
-    def update_reload(self, player, controls):
-        target, pack, _, room = self.reload_source(player, controls)
-        if target is None or target.id != controls.reload_target or controls.ui or player.temperature < 5 or room <= 0:
-            controls.reload_target = None
-            return
-        if self.elapsed + 1e-9 < controls.reload_until:
-            return
-        controls.reload_target = None
-        mounted = isinstance(target, Structure)
-        packs = self.reload_packs(player, pack, whole=mounted)
-        if not packs:
-            return
-        self.touch()
-        if pack == "gasoline":
-            storage, slot, fuel = packs[0]
-            target.uses = (target.uses or 0) + min(room, fuel.uses)
-            storage[slot] = None
-            return
-        if mounted:
-            self.record_structure(target.id, checkpoint=True)
-        for storage, slot, item in packs:
-            amount = min(room, item.ammo)
-            item.ammo -= amount
-            room -= amount
-            target.ammo = (target.ammo or 0) + amount
-            if mounted:
-                target.restocked += amount
-            if item.ammo == 0:
-                storage[slot] = None
-            if room == 0:
-                break
-
-    def fire_gun(self, player, controls, item, *, mounted=False):
+    def fire_gun(self, player, controls, item):
         if self.elapsed + 1e-9 < player.next_shot or player.last_shot_tick == self.tick_number:
             return
         direction_x, direction_y = normalized(controls.aim_x - player.x, controls.aim_y - player.y)
@@ -182,7 +96,7 @@ class Combat:
         offsets = tuple(-spread + 2 * spread * index / (pellets - 1) for index in range(pellets)) if pellets > 1 else (0,)
         for offset in offsets:
             heading = angle + math.radians(offset)
-            projectile = Projectile(player.x, player.y, math.cos(heading) * settings["speed"], math.sin(heading) * settings["speed"], 0, 5 if mounted else settings["damage"], player.id, shot=shot, origin_x=player.x, origin_y=player.y, spawned_at=self.elapsed, range_player=player.id, mounted=mounted)
+            projectile = Projectile(player.x, player.y, math.cos(heading) * settings["speed"], math.sin(heading) * settings["speed"], 0, settings["damage"], player.id, shot=shot, origin_x=player.x, origin_y=player.y, spawned_at=self.elapsed, range_player=player.id)
             projectile.weapon_kind = item.kind
             if target is not None:
                 projectile.kind = "homing_missile"
@@ -194,15 +108,13 @@ class Combat:
                 projectile.remaining = self.projectile_range(projectile)
             self.projectiles[projectile.id] = projectile
         if item.ammo == 0:
-            if not mounted and item.kind not in RELOAD_RULES:
-                player.inventory[player.selected] = None
+            clear_selected_if(player, item)
             controls.stop_attack()
 
     def eat(self, player, controls, item, seconds):
         point = tile(controls.aim_x), tile(controls.aim_y)
         fire_requirement_met = item.kind in READY_TO_EAT_FOODS or any(fire.lit and 1 <= abs(tile(player.x) - fire.x) + abs(tile(player.y) - fire.y) <= 3 for fire in self._campfires.values())
-        structure = self.structure_at(*point)
-        if player.hunger >= MAX_HUNGER or not fire_requirement_met or (structure and structure.kind != "floor"):
+        if player.hunger > 10 or not fire_requirement_met or self.structure_at(*point):
             controls.target = None
             controls.progress = 0
             return
@@ -210,8 +122,7 @@ class Combat:
         self.progress(controls, target, seconds)
         if controls.progress + 1e-9 >= 0.5:
             self.touch()
-            player.hunger = min(MAX_HUNGER, player.hunger + FOODS[item.kind])
-            player.apply_creative_vitals(player.creative_effects())
+            player.hunger += FOODS[item.kind]
             self.emit_event("eat", player.id, item.kind, player.x, player.y)
             player.inventory[player.selected] = Item.create("durian_peel") if item.kind == "durian" else None
             controls.stop_attack()
@@ -227,47 +138,12 @@ class Combat:
         self.emit_event("eat", player.id, item.kind, player.x, player.y)
         controls.stop_attack()
 
-    def spray_fire(self, player, controls, item):
-        if not item.uses or self.elapsed + 1e-9 < player.next_shot or player.last_shot_tick == self.tick_number:
-            return
-        dx, dy = normalized(controls.aim_x - player.x, controls.aim_y - player.y)
-        if dx == dy == 0:
-            return
-        settings = EXPLOSIVE_WEAPONS[item.kind]
-        reach, half_width = settings["cast_range"], .75
-        end_x, end_y = player.x + dx * reach, player.y + dy * reach
-        for structure in self.nearby_structures(player.x, player.y, end_x, end_y):
-            if structure.kind not in {"wall", "door", "ring_wall"} or not structure.solid:
-                continue
-            intersection = segment_box(player.x, player.y, end_x, end_y, structure.x, structure.y)
-            if intersection is not None:
-                reach = min(reach, settings["cast_range"] * intersection)
-
-        def in_strip(target):
-            x, y = target.x - player.x, target.y - player.y
-            return 0 <= x * dx + y * dy < reach and abs(x * dy - y * dx) <= half_width
-
-        self.touch()
-        item.uses -= 1
-        player.next_shot = self.elapsed + settings["interval"]
-        player.last_shot_tick = self.tick_number
-        self.emit_event("fire_spray", player.id, item.kind, player.x, player.y, direction=[dx, dy], range=reach)
-        trees = [tree for tree in self.trees_in_radius(player.x, player.y, reach + half_width) if in_strip(tree)]
-        self.ignite_trees(player.x, player.y, reach + half_width, player.id, trees=trees)
-        for monster in list(self.monsters.values()):
-            if in_strip(monster):
-                self.apply_weapon_status(monster, settings, player.id)
-                self.hurt_monster(monster, settings["damage"], player.id, item.kind, (dx, dy), knockback=False)
-        if not item.uses:
-            controls.stop_attack()
-
     def use_explosive(self, player, controls, item, seconds):
         settings = EXPLOSIVE_WEAPONS[item.kind]
         if player.money < settings["coin_cost"]:
             controls.stop_attack()
             return
-        cast_range = min(settings.get("cast_range", math.inf), math.hypot(controls.view_width, controls.view_height) / 2)
-        if not self.generated(controls.aim_x, controls.aim_y) or math.hypot(controls.aim_x - player.x, controls.aim_y - player.y) > cast_range + 1e-9:
+        if not self.generated(controls.aim_x, controls.aim_y) or math.hypot(controls.aim_x - player.x, controls.aim_y - player.y) > math.hypot(controls.view_width, controls.view_height) / 2 + 1e-9:
             controls.target = None
             controls.progress = 0.0
             return
@@ -284,10 +160,7 @@ class Combat:
         self.emit_event("throw", player.id, item.kind, player.x, player.y, target_x=projectile.target_x, target_y=projectile.target_y)
         controls.progress = 0.0
         if settings["coin_cost"] == 0:
-            if item.uses is not None:
-                item.uses -= 1
-            if not item.uses:
-                player.inventory[player.selected] = None
+            consume_selected(player)
             controls.stop_attack()
 
     def throw_durian_peel(self, player, controls, item, seconds):
@@ -315,28 +188,23 @@ class Combat:
         if not monster.impaled:
             monster.impaled = True
             monster.next_impale = self.elapsed + DURIAN_PEEL["impale_interval"]
-            monster.impaled_until = self.elapsed + DURIAN_PEEL["impale_duration"]
             monster.impale_owner = owner
         self.emit_event("hit", owner, "durian_peel", monster.x, monster.y, target=monster.id, target_type="monster", direction=list(normalized(*direction)), knockback=[0.0, 0.0])
 
     def update_impalement(self):
         for monster in list(self.monsters.values()):
-            if not monster.impaled or min(monster.next_impale, monster.impaled_until) > self.elapsed + 1e-9:
+            if not monster.impaled or monster.next_impale > self.elapsed + 1e-9:
                 continue
             self.touch()
-            while monster.id in self.monsters and monster.next_impale <= min(self.elapsed, monster.impaled_until) + 1e-9:
+            while monster.id in self.monsters and monster.next_impale <= self.elapsed + 1e-9:
                 monster.next_impale += DURIAN_PEEL["impale_interval"]
                 self.hurt_monster(monster, DURIAN_PEEL["impale_damage"], monster.impale_owner, "durian_peel", (0.0, 0.0), knockback=False, feedback=False)
-            if self.elapsed + 1e-9 >= monster.impaled_until:
-                monster.impaled = False
-                monster.impale_owner = None
 
     def explode(self, projectile):
         settings = EXPLOSIVE_WEAPONS[projectile.kind]
         targets = [monster for monster in self.monsters.values() if (monster.x - projectile.target_x) ** 2 + (monster.y - projectile.target_y) ** 2 <= settings["radius"] ** 2 + 1e-9]
         self.touch()
         self.emit_event("explosion", projectile.owner, projectile.kind, projectile.target_x, projectile.target_y, radius=settings["radius"], damage=projectile.damage)
-        self.resolve_biome_explosion(projectile, settings)
         for monster in targets:
             self.apply_weapon_status(monster, settings, projectile.owner)
             self.hurt_monster(monster, projectile.damage, projectile.owner, projectile.kind, (0.0, 0.0), knockback=False, feedback=False)
@@ -353,15 +221,14 @@ class Combat:
             if monster.next_burn > monster.burning_until + 1e-9:
                 monster.next_burn = 0.0
 
-    def restore_player(self, player, temperature=36.0, hunger=MAX_HUNGER):
+    def restore_player(self, player, temperature=36.0, hunger=10.0):
         controls = self.controls.get(player.id)
         if controls:
             if player.temperature < 5:
                 controls.movement_epoch += 1
             controls.stop_attack()
         player.temperature = temperature
-        player.hunger = min(MAX_HUNGER, max(player.hunger, hunger))
-        player.apply_creative_vitals(player.creative_effects())
+        player.hunger = max(player.hunger, hunger)
 
     def use_revival_item(self, player, controls, item, seconds):
         settings = REVIVAL_ITEMS[item.kind]
@@ -388,18 +255,6 @@ class Combat:
         if controls.progress + 1e-9 < settings["duration"]:
             return
         supplies = settings.get("supplies", {})
-        if supplies:
-            storages = clone_storages(player)
-            selected_storage = storages[1][1]
-            if item.uses is None:
-                take_item(selected_storage, player.selected)
-            else:
-                consume_use(selected_storage, player.selected, selected_storage[player.selected])
-            destinations = list(reversed(storages))
-            for kind, count in supplies.items():
-                if insert_item(destinations, Item.create(kind, count)):
-                    controls.stop_attack()
-                    return
         self.touch()
         previous = player.temperature
         if "temperature" in settings:
@@ -407,19 +262,20 @@ class Combat:
         elif "temperature_delta" in settings:
             player.temperature = min(36.0, player.temperature + settings["temperature_delta"])
         if "hunger" in settings:
-            player.hunger = min(MAX_HUNGER, max(player.hunger, settings["hunger"]))
+            player.hunger = max(player.hunger, settings["hunger"])
         elif "hunger_delta" in settings:
-            player.hunger = min(MAX_HUNGER, player.hunger + settings["hunger_delta"])
-        player.apply_creative_vitals(player.creative_effects())
+            player.hunger = max(player.hunger, min(10.0, player.hunger + settings["hunger_delta"]))
         if previous < 5 <= player.temperature:
             controls.movement_epoch += 1
-        if supplies:
-            for kind, storage in storages:
-                setattr(player, kind, storage)
-        elif item.uses is None:
+        if item.uses is None:
             consume_selected(player)
         else:
             consume_use(player.inventory, player.selected, item)
+        for kind, count in supplies.items():
+            for index in range(count):
+                self.drop_item(Item.create(kind), player.x, player.y)
+        if supplies:
+            self.pickup(player)
         self.emit_event("unpack" if supplies else "heal", player.id, item.kind, player.x, player.y)
         controls.stop_attack()
 
@@ -483,17 +339,14 @@ class Combat:
         direction_x, direction_y = normalized(controls.aim_x - player.x, controls.aim_y - player.y)
         if direction_x == direction_y == 0:
             return
-        attack_range = settings["range"]
-        if item.kind == "axe" and player.carries("axe_handle"):
-            attack_range += PASSIVE_ITEMS["axe_handle"]["axe_range_bonus"]
         targets = []
         for monster in self.monsters.values():
             offset_x, offset_y = monster.x - player.x, monster.y - player.y
-            if offset_x * offset_x + offset_y * offset_y <= attack_range ** 2 + 1e-9 and offset_x * direction_x + offset_y * direction_y >= math.hypot(offset_x, offset_y) * math.cos(math.radians(settings["arc_degrees"] / 2)) - 1e-9 and self.visible(player.x, player.y, monster.x, monster.y):
+            if offset_x * offset_x + offset_y * offset_y <= settings["range"] ** 2 + 1e-9 and offset_x * direction_x + offset_y * direction_y >= math.hypot(offset_x, offset_y) * math.cos(math.radians(settings["arc_degrees"] / 2)) - 1e-9 and self.visible(player.x, player.y, monster.x, monster.y):
                 targets.append((monster, offset_x, offset_y))
         self.touch()
         player.next_axe_attack = self.elapsed + settings["interval"]
-        self.emit_event("melee", player.id, item.kind, player.x, player.y, direction=[direction_x, direction_y], range=attack_range, arc_degrees=settings["arc_degrees"], targets=[monster.id for monster, offset_x, offset_y in targets], **({"attack_id": controls.attack_id} if controls.attack_id else {}))
+        self.emit_event("melee", player.id, item.kind, player.x, player.y, direction=[direction_x, direction_y], range=settings["range"], arc_degrees=settings["arc_degrees"], targets=[monster.id for monster, offset_x, offset_y in targets], **({"attack_id": controls.attack_id} if controls.attack_id else {}))
         for monster, offset_x, offset_y in targets:
             self.apply_weapon_status(monster, settings, player.id)
             self.hurt_monster(monster, settings["damage"], player.id, item.kind, (offset_x, offset_y))
@@ -548,27 +401,15 @@ class Combat:
         if controls.progress + 1e-9 >= durations[structure.kind]:
             self.touch()
             if structure.kind == "tree":
-                for tree in self.harvest_tree(structure, player, item.kind):
-                    if "forest" not in self.biomes_at(tree.x, tree.y):
-                        for _ in range(self.event_random("harvest", tree.id).randint(1, 3)):
-                            self.drop_item(Item.create("wood"), tree.x, tree.y)
-                    self.emit_event("break", player.id, "tree", tree.x, tree.y, target=tree.id)
-                    self.remove_structure(tree)
-            if structure.kind == "ring_gate":
-                materials = []
-            elif structure.kind == "tree":
-                materials = []
-            elif structure.kind in {"fence", "door"} or structure.kind in PANEL_DEMOLITION:
+                materials = [Item.create("wood") for count in range(self.event_random("harvest", structure.id).randint(1, 3))]
+            elif structure.kind == "fence" or structure.kind in PANEL_DEMOLITION:
                 materials = [Item.create(structure.kind)]
             else:
                 materials = [Item.create("wood")]
             for material in materials:
                 self.drop_item(material, structure.x, structure.y)
-            if structure.kind != "tree":
-                self.emit_event("break", player.id, structure.kind, structure.x, structure.y, target=structure.id)
-                self.remove_structure(structure)
-                if structure.on_floor:
-                    self.add_structure(Structure("floor", structure.x, structure.y))
+            self.emit_event("break", player.id, structure.kind, structure.x, structure.y, target=structure.id)
+            self.remove_structure(structure)
             if item.uses is not None:
                 consume_use(player.inventory, player.selected, item)
             controls.stop_attack()
@@ -596,10 +437,7 @@ class Combat:
                 controls.progress = 0.0
         return [body.x - previous_x, body.y - previous_y]
 
-    def hurt_monster(self, monster, amount, actor, kind, direction, shot=None, knockback=True, feedback=True, weapon=None):
-        if monster.kind in BIOME_GUARDS:
-            amount = self.biome_guard_damage(monster, weapon or kind, amount)
-            knockback = False
+    def hurt_monster(self, monster, amount, actor, kind, direction, shot=None, knockback=True, feedback=True):
         if monster.id not in self.monsters:
             return
         self.touch()
@@ -625,7 +463,7 @@ class Combat:
             if impacts is not None:
                 impacts.add(monster.id)
         if monster.hp <= 0:
-            drops = MONSTER_COIN_DROPS.get(monster.kind, ((0, 1),))
+            drops = MONSTER_COIN_DROPS[monster.kind]
             count = self.event_random("coin-drop", monster.id).choices([coins for coins, probability in drops], weights=[probability for coins, probability in drops])[0]
             for index in range(count):
                 self.drop_item(Item.create("coin"), monster.x, monster.y)
@@ -655,19 +493,15 @@ class Combat:
             amount *= carried_modifier(player, "damage_taken_multiplier", minimum=True)
             knockback *= carried_modifier(player, "knockback_taken_multiplier", minimum=True)
         player.temperature = max(0.0, player.temperature - amount)
-        hunger_loss = min(MAX_HUNGER_LOSS_PER_HIT, amount * HUNGER_PER_DAMAGE)
-        player.hunger = max(0.0, player.hunger - hunger_loss)
-        hit = player.temperature < previous or player.hunger < previous_hunger
-        player.apply_creative_vitals(player.creative_effects())
-        if hit:
+        player.hunger = max(0.0, player.hunger - amount)
+        if player.temperature < previous or player.hunger < previous_hunger:
             position_x, position_y = player.x, player.y
             if self.controls[player.id].seat and knockback > 0:
                 knockback = max(0.65, knockback)
             displacement = self.knock_back(player, direction, knockback, player_id=player.id) if direction is not None and knockback > 0 else [0.0, 0.0]
             self.emit_event("hurt", player.id, "player", position_x, position_y, target=player.id, target_type="player", source=source, direction=list(normalized(*direction)) if direction is not None else [0.0, 0.0], knockback=displacement)
         controls = self.controls[player.id]
-        if hit:
-            controls.reload_target = None
+        if player.temperature < previous or player.hunger < previous_hunger:
             if controls.seat:
                 controls.stop_attack()
             controls.seat = None
@@ -763,8 +597,8 @@ class Combat:
             top, bottom = min(projectile.y, end_y) - padding, max(projectile.y, end_y) + padding
             candidates = []
             blockers = MONSTER_BULLET_BLOCKERS if projectile.hostile else BULLET_BLOCKERS
-            for structure in self.nearby_structures(projectile.x, projectile.y, end_x, end_y):
-                if structure.kind in blockers and not (structure.kind == "door" and structure.door_open):
+            for structure in (() if projectile.kind == "durian_peel" else self.nearby_structures(projectile.x, projectile.y, end_x, end_y)):
+                if structure.kind in blockers:
                     fraction = segment_box(projectile.x, projectile.y, end_x, end_y, structure.x, structure.y)
                     if fraction is not None:
                         candidates.append((fraction, 0, "structure", structure))
@@ -791,12 +625,8 @@ class Combat:
             blocked = False
             for fraction, priority, kind, target in sorted(candidates, key=lambda candidate: (candidate[0], candidate[1])):
                 if kind == "structure":
-                    if projectile.mounted and target.kind in MOUNTED_COVER_HITS:
-                        self.record_structure(target.id, checkpoint=True)
-                        target.cover_hits += 1
-                        if target.cover_hits >= MOUNTED_COVER_HITS[target.kind]:
-                            self.remove_structure(target)
-                            self.emit_event("break", projectile.owner, target.kind, target.x, target.y, target=target.id)
+                    if projectile.hostile and target.kind == "mounted_gun":
+                        self.emit_event("ricochet", projectile.owner, "mounted_gun", projectile.x + (end_x - projectile.x) * fraction, projectile.y + (end_y - projectile.y) * fraction, target=target.id)
                     blocked = True
                     break
                 target_key = f"{kind}:{target.id}"
@@ -810,16 +640,8 @@ class Combat:
                     self.touch()
                     projectile.hit_targets.append(target_key)
                     hit_players = self.shot_hits.setdefault(projectile.shot, set())
-                    biome_shot = projectile.weapon_kind in BIOME_GUARDS.values()
-                    amount = projectile.damage if biome_shot else 5 if projectile.hostile else 1
-                    self.hurt_player(target, amount, source=projectile.owner, direction=(projectile.velocity_x, projectile.velocity_y), knockback=KNOCKBACK["monster_bullet" if projectile.hostile else "player_bullet"])
-                    if biome_shot:
-                        self.biome_projectile_hit(target, projectile)
-                        blocked = True
+                    self.hurt_player(target, 5 if projectile.hostile else 1, source=projectile.owner, direction=(projectile.velocity_x, projectile.velocity_y), knockback=KNOCKBACK["monster_bullet" if projectile.hostile else "player_bullet"])
                     hit_players.add(target.id)
-                    if blocked or (not projectile.hostile and not projectile.mounted):
-                        blocked = True
-                        break
                 elif kind == "monster" and target.id in self.monsters:
                     if projectile.kind == "durian_peel":
                         self.impale_monster(target, projectile.owner, (projectile.velocity_x, projectile.velocity_y))
@@ -828,10 +650,7 @@ class Combat:
                     self.touch()
                     projectile.hit_targets.append(target_key)
                     self.apply_weapon_status(target, GUNS.get(projectile.weapon_kind, {}), projectile.owner)
-                    self.hurt_monster(target, projectile.damage, projectile.owner, "bullet", (projectile.velocity_x, projectile.velocity_y), shot=projectile.shot, weapon=projectile.weapon_kind)
-                    if not projectile.mounted:
-                        blocked = True
-                        break
+                    self.hurt_monster(target, projectile.damage, projectile.owner, "bullet", (projectile.velocity_x, projectile.velocity_y), shot=projectile.shot)
             if blocked or speed * seconds > projectile.remaining + 1e-9:
                 del self.projectiles[projectile_id]
             else:
