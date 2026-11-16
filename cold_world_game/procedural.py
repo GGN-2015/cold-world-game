@@ -1,7 +1,11 @@
 import hashlib
 import json
+from functools import lru_cache
+from math import atan2, cos, floor, sin, tau
 
 from . import constants as rules
+from .biome_layout import BIOME_RING, add_biome_terrain
+from .loot import CHEST_LOOT
 from .models import Item, Structure
 from .room_machines import ROOM_MACHINES
 from .wildlife import OUTDOOR_FEATURES
@@ -76,8 +80,13 @@ def profile():
         ("piggy_bank", "piggy_bank:v1", rules.PIGGY_BANK_CHANCE),
     )]
     machines.extend([kind, "room_machine:" + kind + ":v1", definition["chance"]] for kind, definition in ROOM_MACHINES.items())
-    result = {"algorithm": 1, "version": rules.TERRAIN_VERSION, "size": rules.CHUNK_SIZE, "machines": machines, "outdoors": {kind: dict(definition) for kind, definition in OUTDOOR_FEATURES.items()}, "rare": [[kind, chance] for kind, chance in sorted(rare.items())], "foods": list(rules.COMMON_CHEST_FOODS), "igniters": list(rules.COMMON_CHEST_IGNITERS), "items": {kind: {"ammo": item.ammo, "uses": item.uses} for kind in sorted(rules.ITEM_KINDS) if (item := Item.create(kind))}}
+    result = {"algorithm": 1, "version": rules.TERRAIN_VERSION, "size": rules.CHUNK_SIZE, "machines": machines, "outdoors": {kind: dict(definition) for kind, definition in OUTDOOR_FEATURES.items()}, "rare": [[kind, chance] for kind, chance in sorted(rare.items())], "foods": list(rules.COMMON_CHEST_FOODS), "igniters": list(rules.COMMON_CHEST_IGNITERS), "items": {kind: {"ammo": item.ammo, "uses": item.uses} for kind in sorted(rules.ITEM_KINDS - rules.CREATIVE_ITEMS.keys()) if (item := Item.create(kind))}}
     result["chest_gun_chance"] = rules.CHEST_GUN_CHANCE
+    result["biome_ring"] = dict(BIOME_RING)
+    result["biome_loot"] = {"chance": rules.BIOME_LOOT_CHANCE, "items": sorted(rules.BIOME_ITEMS)}
+    result["extra_chest_loot"] = [[kind, settings] for kind, settings in rules.EXTRA_CHEST_LOOT.items()]
+    result["quality_loot"] = {"chance": rules.QUALITY_LOOT_CHANCE, "items": list(rules.QUALITY_LOOT)}
+    result["loot"] = CHEST_LOOT
     result["digest"] = hashlib.sha256(json.dumps(result, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     return result
 
@@ -92,6 +101,16 @@ def cell_seed(seed, horizontal, vertical, tile_x, tile_y):
 
 def chest_items(seed, horizontal, vertical, tile_x, tile_y, settings):
     base = cell_seed(seed, horizontal, vertical, tile_x, tile_y)
+    if "loot" in settings:
+        items = []
+        for category in ("weapon", "consumable", "equipment"):
+            for kind, chance, quantities in settings["loot"][category]:
+                stream = RandomStream(derive(base, "loot", "ordinary:v1", kind))
+                if stream.random() < chance:
+                    items.extend([kind] * stream.choice(quantities))
+        slots = items + [None] * max(0, 30 - len(items))
+        RandomStream(derive(base, "loot", "shuffle")).shuffle(slots)
+        return chest_slots(horizontal, vertical, tile_x, tile_y, settings, slots)
     items = []
     for name, chance in (("wood", .5), ("gun", settings.get("chest_gun_chance", .1)), ("food", .3), ("igniter", .2)):
         stream = RandomStream(derive(base, "loot", name))
@@ -109,8 +128,29 @@ def chest_items(seed, horizontal, vertical, tile_x, tile_y, settings):
     for kind, chance in settings["rare"]:
         if RandomStream(derive(base, "loot", kind)).random() < chance:
             items.append(kind)
+    if quality := settings.get("quality_loot"):
+        stream = RandomStream(derive(base, "loot", "quality:v1"))
+        candidates = [kind for kind in quality["items"] if kind not in items]
+        if candidates and stream.random() < quality["chance"]:
+            items.append(stream.choice(candidates))
     slots = items + [None] * max(0, 30 - len(items))
     RandomStream(derive(base, "loot", "shuffle")).shuffle(slots)
+    if loot := settings.get("biome_loot"):
+        stream = RandomStream(derive(base, "loot", "biome-kit:v1"))
+        empty = [index for index, kind in enumerate(slots) if kind is None]
+        if empty and stream.random() < loot["chance"]:
+            slots[stream.choice(empty)] = stream.choice(loot["items"])
+    for kind, loot in settings.get("extra_chest_loot", ()):
+        stream = RandomStream(derive(base, "loot", f"extra:{kind}:v1"))
+        if stream.random() >= loot["chance"] or (loot.get("unique") and kind in slots):
+            continue
+        empty = [index for index, entry in enumerate(slots) if entry is None]
+        for index in stream.sample(empty, min(len(empty), stream.randint(*loot["count"]))):
+            slots[index] = kind
+    return chest_slots(horizontal, vertical, tile_x, tile_y, settings, slots)
+
+
+def chest_slots(horizontal, vertical, tile_x, tile_y, settings, slots):
     return [Item(kind, id=f"ni:{horizontal}:{vertical}:{tile_x}:{tile_y}:{index}", **settings["items"][kind]) if kind else None for index, kind in enumerate(slots)]
 
 
@@ -186,6 +226,114 @@ class LayoutV1:
         raise RuntimeError("Unable to generate a reachable building")
 
 
+@lru_cache(maxsize=8192)
+def ring_inside(seed, horizontal, vertical, size, radius):
+    # Bend the perimeter around connected houses so their exterior doors stay reachable.
+    radius2 = radius**2
+    if (horizontal * size)**2 + (vertical * size)**2 <= radius2:
+        return True
+    visited = {(horizontal, vertical)}
+    pending = [(horizontal, vertical)]
+    while pending:
+        x, y = pending.pop()
+        if RandomStream(chunk_seed(seed, x, y)).random() < .9:
+            continue
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                point = x + dx, y + dy
+                if point in visited:
+                    continue
+                if (point[0] * size)**2 + (point[1] * size)**2 <= radius2:
+                    return True
+                visited.add(point)
+                pending.append(point)
+    return False
+
+
+@lru_cache(maxsize=8192)
+def ring_boundary(seed, horizontal, vertical, size, radius):
+    x, y = horizontal * size, vertical * size
+    if ring_inside(seed, horizontal, vertical, size, radius):
+        return frozenset()
+    half = size // 2
+    boundary = set()
+    for sx in (-1, 1):
+        if ring_inside(seed, horizontal + sx, vertical, size, radius):
+            boundary.update((x + sx*half, y + offset) for offset in range(-half, half + 1))
+        if ring_inside(seed, horizontal, vertical + sx, size, radius):
+            boundary.update((x + offset, y + sx*half) for offset in range(-half, half + 1))
+        for sy in (-1, 1):
+            if ring_inside(seed, horizontal + sx, vertical + sy, size, radius):
+                boundary.add((x + sx*half, y + sy*half))
+    return frozenset(boundary)
+
+
+@lru_cache(maxsize=512)
+def gate_tiles(seed, size, radius, gates, index):
+    step = tau / gates
+    angle = RandomStream(derive(seed, "first_ring:v1")).random() * step + index * step
+    tx, ty = floor(radius*cos(angle) + .5), floor(radius*sin(angle) + .5)
+    cx, cy = (tx + size//2)//size, (ty + size//2)//size
+    boundary = set().union(*(
+        ring_boundary(seed, x, y, size, radius)
+        for x in range(cx - 3, cx + 4)
+        for y in range(cy - 3, cy + 4)
+    ))
+    if not boundary:
+        return frozenset()
+    anchor = min(boundary, key=lambda p: ((p[0]-tx)**2 + (p[1]-ty)**2, *p))
+    gate = {
+        (tx, ty) for tx in range(anchor[0] - 2, anchor[0] + 3)
+        for ty in range(anchor[1] - 2, anchor[1] + 3)
+        if (tx, ty) in boundary
+    }
+    linked = {anchor}
+    pending = [anchor]
+    for x, y in pending:
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                point = x + dx, y + dy
+                if point in gate and point not in linked:
+                    linked.add(point)
+                    pending.append(point)
+    return frozenset(linked)
+
+
+def add_ring(seed, horizontal, vertical, settings, objects):
+    size = settings["size"]
+    radius, gates = settings["ring"]["radius"], settings["ring"]["gates"]
+    boundary = ring_boundary(seed, horizontal, vertical, size, radius)
+    if not boundary:
+        return objects
+    step = tau / gates
+    rotation = RandomStream(derive(seed, "first_ring:v1")).random() * step
+    result = [entry for entry in objects if (entry.x, entry.y) not in boundary]
+    for tx, ty in sorted(boundary):
+        offset = (atan2(ty, tx) - rotation) / step
+        index = floor(offset + .5)
+        gate = abs(offset - index)*step < .075 and (tx, ty) in gate_tiles(seed, size, radius, gates, index % gates)
+        result.append(Structure("ring_gate" if gate else "ring_wall", tx, ty))
+    return result
+
+
+def add_devices(horizontal, vertical, builder, center_x, center_y, objects, interior):
+    for kind, starter in (("fixed_heater", (2, 0)), ("service_gun", (-2, 0))):
+        stream = builder.feature_generator("service:" + kind + ":v1", horizontal, vertical)
+        if stream.random() >= .018 and starter != (horizontal, vertical):
+            continue
+        occupied = {(entry.x, entry.y) for entry in objects} | set(interior)
+        candidates = [
+            (center_x + x, center_y + y)
+            for x in range(-7, 8)
+            for y in range(-7, 8)
+            if max(abs(x), abs(y)) == 7
+            and all(not (center_x + x + dx, center_y + y + dy) in occupied
+                    for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+        ]
+        if candidates:
+            objects.append(Structure(kind, *stream.choice(candidates), ammo=0 if kind == "service_gun" else None))
+
+
 def plan(seed, horizontal, vertical, settings):
     if settings["algorithm"] != 1:
         raise ValueError("Unsupported procedural terrain algorithm")
@@ -211,6 +359,12 @@ def plan(seed, horizontal, vertical, settings):
                     candidates = [position for position in candidates if (position[0] + 1, position[1]) not in occupied]
                 if candidates:
                     objects.append(Structure(kind, *feature.choice(candidates), ammo=definition.get("ammo")))
+    if "ring" in settings:
+        objects = add_ring(seed, horizontal, vertical, settings, objects)
+    if "ring" in settings or "biome_ring" in settings:
+        add_devices(horizontal, vertical, builder, center_x, center_y, objects, interior)
+    if "biome_ring" in settings:
+        objects = add_biome_terrain(seed, horizontal, vertical, settings, objects, interior)
     for structure in objects:
         structure.id = f"n:{horizontal}:{vertical}:{structure.x}:{structure.y}:{structure.kind}"
         if structure.kind == "chest":
@@ -219,4 +373,11 @@ def plan(seed, horizontal, vertical, settings):
 
 
 def appearance(structure):
-    return {"id": structure.id, "kind": structure.kind, "x": structure.x, "y": structure.y, "lit": False, "monster_demolition": False}
+    state = {"id": structure.id, "kind": structure.kind, "x": structure.x, "y": structure.y, "lit": False, "monster_demolition": False}
+    if structure.kind == "door":
+        state["door_open"] = structure.door_open
+    if structure.kind in {"cable_station", "street_lamp", "bridge_pier"}:
+        state["repaired"] = structure.repaired
+    if structure.on_floor:
+        state["on_floor"] = True
+    return state

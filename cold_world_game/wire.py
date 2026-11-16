@@ -17,7 +17,10 @@ target_x target_y detonates_at trajectory flight_at time direction knockback dam
 range arc_degrees predicted weapon uses ammo item dropped_by immune_until lit monster_demolition
 fuel igniter burn_remaining balance progress ui_open is_admin tile offset ambient_temperature
 excitement_remaining year season day hour paused fault command_sequence unset online last_login_at
-server_time roster_delta entries version hash patch reset count view_width view_height
+server_time roster_delta entries version hash patch reset
+cold_phase cold_seconds cold_shelter repaired cold_rate
+room_temperature room_sealed floor_insulated heat_distance
+door_open duration
 """.split()))
 FIELD_CODES = {name: index for index, name in enumerate(FIELDS)}
 REFERENCES = frozenset("id owner actor source target target_id shot attack_id range_player overlap_player seat_id occupant demolition monster_demolition dropped_by remove order".split())

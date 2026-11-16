@@ -8,7 +8,7 @@ from .constants import CHUNK_SIZE, COMMON_CHEST_FOODS, COMMON_CHEST_IGNITERS, CO
 from .geometry import chunk
 from .models import Item, Structure
 from .room_machines import ROOM_MACHINES
-from .wildlife import OUTDOOR_FEATURES
+from .wildlife import OUTDOOR_FEATURES, SEATS
 
 
 def flood(start_points, blocked, bounds):
@@ -39,11 +39,11 @@ class Terrain:
             self._landmines.pop(structure.id, None)
             if structure.kind == "landmine":
                 self._landmines[structure.id] = structure
-            if structure.kind == "campfire":
+            if structure.kind in {"campfire", "fixed_heater"}:
                 self._campfires[structure.id] = structure
             if hasattr(self, "invalidate_chunk"):
                 self.invalidate_chunk(structure)
-                if structure.kind in OUTDOOR_FEATURES:
+                if structure.kind in SEATS:
                     self._seats_by_chunk.setdefault((chunk(structure.x), chunk(structure.y)), set()).add(structure.id)
         self._terrain_revision = getattr(self, "_terrain_revision", 0) + 1
         self.structures[structure.id] = structure
@@ -243,7 +243,7 @@ class Terrain:
         return slots
 
     def origin_spawn_points(self):
-        blocked = {(structure.x, structure.y) for structure in self.structures.values() if -7 <= structure.x <= 7 and -7 <= structure.y <= 7 and structure.kind in SOLID}
+        blocked = {(structure.x, structure.y) for structure in self.structures.values() if -7 <= structure.x <= 7 and -7 <= structure.y <= 7 and structure.solid and structure.kind != "door"}
         boundary = [(tile_x, tile_y) for tile_x in range(-7, 8) for tile_y in range(-7, 8) if abs(tile_x) == 7 or abs(tile_y) == 7]
         reachable = flood(boundary, blocked, (-7, 7, -7, 7))
         return [point for point in self.origin_region if tuple(point) in reachable]

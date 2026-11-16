@@ -15,9 +15,9 @@ export class MobileControls {
     this.bindStick(document.getElementById('touch-aim'), controls.aim);
     this.bindHold(document.getElementById('touch-use'), false);
     this.bindHold(document.getElementById('touch-dismantle'), true);
-    for (const [identifier, action] of [['touch-place', controls.place], ['touch-drop', controls.drop]]) {
+    for (const [identifier, action] of [['touch-place', controls.place], ['touch-drop', controls.drop], ['touch-rotate', controls.rotate], ['touch-reload', controls.reload]]) {
       const button = document.getElementById(identifier);
-      button.onclick = () => { if (controls.canPlay()) action(); };
+      if (button) button.onclick = () => { if (controls.canPlay()) action(); };
     }
     let canvasPressed = false;
     this.bindPointer(canvas, (event) => {

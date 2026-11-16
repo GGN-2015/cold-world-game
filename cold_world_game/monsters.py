@@ -4,16 +4,23 @@ import time
 from collections import deque
 from functools import lru_cache
 
-from .constants import BODY_RADIUS, CHUNK_SIZE, DAY_SECONDS, ICE_STAFF, KNOCKBACK, MONSTER_DEMOLITION, MONSTER_LIMIT, MONSTER_LIMIT_GROWTH_DISTANCE, MONSTER_PROJECTILE_SPEED, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_XRAY_CHANCE, NIGHT_MONSTER_HOURS, SOLID
+from .constants import BODY_RADIUS, CHUNK_SIZE, DAY_SECONDS, ICE_STAFF, KNOCKBACK, MONSTER_DEMOLITION, MONSTER_LIMIT, MONSTER_PROJECTILE_SPEED, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_XRAY_CHANCE, NIGHT_MONSTER_HOURS
 from .geometry import DIRECTIONS, distance, normalized, tile
 from .models import Monster, Projectile
-from .wildlife import MONSTER_TYPES
+from .wildlife import BIOME_GUARDS, MONSTER_TYPES
 
 
 PATH_STEPS = tuple((offset_x, offset_y, math.hypot(offset_x, offset_y)) for offset_x, offset_y in DIRECTIONS)
 DIAGONAL_COST = math.sqrt(2) - 2
 PATH_PLANS_PER_TICK = 8
 PATH_TIME_BUDGET = 0.008
+ZONE_ONE_SPAWN_PACING = {
+    # First delay (seconds), interval between spawns (seconds), nearby active monster limit.
+    "day": ((35, 55), (65, 90), 2),
+    "night": ((15, 25), (30, 45), 4),
+}
+PACED_SPAWN_RETRY = 15
+PACED_SPAWN_RADIUS = 32
 
 
 class Monsters:
@@ -65,32 +72,63 @@ class Monsters:
         return MONSTER_SPAWN_CHANCES["night" if hour >= start or hour < end else "day"]
 
     def monster_spawn_available(self):
-        farthest = max((math.hypot(player.x, player.y) for player in self.players.values() if player.temperature >= 5), default=None)
-        if farthest is None:
-            return False
-        return len(self.monsters) + 1 <= MONSTER_LIMIT * (1 + farthest / MONSTER_LIMIT_GROWTH_DISTANCE)
+        count = sum(not identifier.startswith(("biome:", "fog:")) for identifier in self.monsters)
+        return count < MONSTER_LIMIT
 
     def monster_spawn_radius(self, stream):
-        return math.sqrt(stream.uniform(20 ** 2, 120 ** 2))
+        return math.sqrt(stream.uniform(20 ** 2, PACED_SPAWN_RADIUS ** 2))
 
     def monster_perceives(self, monster, player):
         return True
 
     def spawn_monster(self):
-        if not self.online or not self.monster_spawn_available():
+        if not self.online:
             return
-        stream = self.event_random("spawn")
-        player = self.players[stream.choice(sorted(self.online))]
-        angle = stream.uniform(0, math.tau)
-        radius = self.monster_spawn_radius(stream)
-        position_x = player.x + math.cos(angle) * radius
-        position_y = player.y + math.sin(angle) * radius
-        if not self.generated(position_x, position_y) or self.structure_at(tile(position_x), tile(position_y)):
+        phase = "day" if self.monster_activity()[0] else "night"
+        if getattr(self, "_paced_spawn_phase", None) != phase:
+            self._paced_spawn_phase = phase
+            for controls in self.controls.values():
+                controls.next_paced_spawn = None
+
+        first_delay, interval, nearby_limit = ZONE_ONE_SPAWN_PACING[phase]
+        players = [self.players[player_id] for player_id in sorted(self.online)
+                   if self.players[player_id].temperature >= 5]
+        for player in players:
+            controls = self.controls[player.id]
+            if controls.next_paced_spawn is None:
+                delay = self.event_random(f"{phase}-spawn-delay", player.id).uniform(*first_delay)
+                controls.next_paced_spawn = self.elapsed + delay
+            if self.elapsed < controls.next_paced_spawn:
+                continue
+            nearby = sum(distance(monster, player) <= PACED_SPAWN_RADIUS and not self.monster_inactive(monster)
+                         for monster in self.monsters.values())
+            stream = self.event_random(f"{phase}-spawn", player.id)
+            if nearby >= nearby_limit or not self.monster_spawn_available() or not self.spawn_near_player(player, stream):
+                controls.next_paced_spawn = self.elapsed + PACED_SPAWN_RETRY
+                continue
+
+            next_spawn = self.elapsed + stream.uniform(*interval)
+            for teammate in players:
+                if distance(player, teammate) <= PACED_SPAWN_RADIUS:
+                    teammate_controls = self.controls[teammate.id]
+                    teammate_controls.next_paced_spawn = max(teammate_controls.next_paced_spawn or 0, next_spawn)
             return
-        if any(math.hypot(position_x - self.players[player_id].x, position_y - self.players[player_id].y) < 20 - 1e-9 for player_id in self.online):
-            return
-        if not self.can_stand(position_x, position_y, monster_id="spawning"):
-            return
+
+    def spawn_near_player(self, player, stream):
+        for _ in range(8):
+            angle = stream.uniform(0, math.tau)
+            radius = self.monster_spawn_radius(stream)
+            position_x = player.x + math.cos(angle) * radius
+            position_y = player.y + math.sin(angle) * radius
+            if not self.generated(position_x, position_y) or self.structure_at(tile(position_x), tile(position_y)):
+                continue
+            if any(math.hypot(position_x - self.players[player_id].x, position_y - self.players[player_id].y) < 20 for player_id in self.online):
+                continue
+            if self.can_stand(position_x, position_y, monster_id="spawning"):
+                break
+        else:
+            return False
+
         chances = self.monster_spawn_chances()
         roll = stream.random()
         cumulative = 0.0
@@ -103,6 +141,7 @@ class Monsters:
         monster = Monster(position_x, position_y, id=f"m:{self.tick_number}", big=species == "big", fast=species == "fast", species=species if species not in {"big", "fast"} else "small", hp=MONSTER_TYPES[species]["hp"])
         monster.xray = self.event_random("monster-xray", monster.id).random() < MONSTER_XRAY_CHANCE
         self.monsters[monster.id] = monster
+        return True
 
     def update_monsters(self, seconds):
         with self.monster_collisions():
@@ -126,7 +165,7 @@ class Monsters:
         deadline = time.perf_counter() + PATH_TIME_BUDGET
         self.advance_paths(deadline)
         standing_players = {player_id: self.players[player_id] for player_id in self.online if self.players[player_id].temperature >= 5}
-        identifiers = list(self.monsters)
+        identifiers = [identifier for identifier, monster in self.monsters.items() if monster.kind not in BIOME_GUARDS]
         cursor = getattr(self, "_path_cursor", None)
         if cursor in self.monsters:
             pivot = identifiers.index(cursor) + 1
@@ -136,6 +175,8 @@ class Monsters:
         if planning:
             self._path_cursor = due[min(len(due), PATH_PLANS_PER_TICK) - 1]
         for monster_id, monster in list(self.monsters.items()):
+            if monster.kind in BIOME_GUARDS:
+                continue
             xray = monster.xray and night
             target = standing_players.get(monster.target)
             if not xray and not (monster.big and target is not None) and all(distance(monster, self.players[player_id]) > 120 for player_id in self.online):
@@ -169,7 +210,7 @@ class Monsters:
                 monster.overlap_player = None
             if monster.demolition:
                 structure = self.structures.get(monster.demolition)
-                if structure and distance(monster, structure) <= 1 + 1e-9:
+                if structure and structure.solid and distance(monster, structure) <= 1 + 1e-9:
                     self.demolish(monster, structure, seconds)
                     continue
                 monster.demolition = None
@@ -270,7 +311,7 @@ class Monsters:
             else:
                 return
             structure = self.structure_at(tile(point_x), tile(point_y))
-            blocked = structure is not None and structure.kind in SOLID
+            blocked = structure is not None and structure.solid
             separation = math.hypot(point_x - monster.x, point_y - monster.y)
             if blocked:
                 if monster.big and structure.kind in MONSTER_DEMOLITION:
@@ -325,7 +366,7 @@ class Monsters:
             if abs(point[0] - start[0]) > 48 or abs(point[1] - start[1]) > 48 or point in occupied or point_chunk not in self.chunks:
                 return None
             structure = self.structure_at(*point)
-            if structure and structure.kind in SOLID:
+            if structure and structure.solid:
                 return MONSTER_DEMOLITION[structure.kind] if breakable and structure.kind in MONSTER_DEMOLITION else None
             return 0.0
 

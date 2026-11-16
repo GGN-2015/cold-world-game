@@ -118,6 +118,11 @@ class ArenaWorld(World):
     def monster_spawn_radius(self, stream):
         return 20.0
 
+    def fire_mounted_gun(self, player, controls, structure):
+        super().fire_mounted_gun(player, controls, structure)
+        if not structure.ammo:
+            self.leave_empty_mounted_gun(player, controls, structure)
+
     def visible_monsters(self, observer):
         return [monster for monster in self.monsters.values() if can_observe(observer, monster)]
 
@@ -131,12 +136,12 @@ class ArenaWorld(World):
         return can_observe(monster, player)
 
     def spawn_monster(self):
-        before = set(self.monsters)
-        super().spawn_monster()
-        for identifier in self.monsters.keys() - before:
-            monster = self.monsters[identifier]
+        if not self.monster_spawn_available():
+            return
+        player = self.players["arena-ai"]
+        if self.spawn_near_player(player, self.event_random("spawn")):
+            monster = self.monsters[f"m:{self.tick_number}"]
             monster.xray = True
-            player = self.players["arena-ai"]
             monster.wander_x, monster.wander_y = normalized(player.x - monster.x, player.y - monster.y)
 
     def monster_activity(self):

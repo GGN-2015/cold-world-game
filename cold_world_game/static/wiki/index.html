@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f7f8">
+  <meta name="description" content="寒境游戏百科，查询武器数值、战利品掉率、怪物弱点和建造规则。">
+  <title>寒境 Wiki</title>
+  <link rel="icon" href="/static/assets/snowflake.png" type="image/png">
+  <link rel="stylesheet" href="/static/wiki/wiki.css">
+  <script src="/static/wiki/wiki.js" type="module"></script>
+</head>
+<body>
+  <a class="skip" href="#main">跳到正文</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#/" aria-label="寒境 Wiki 首页">
+        <span class="brand-icon"><img src="/static/assets/snowflake.png" alt="" width="30" height="30"></span>
+        <span>寒境<span class="brand-divider"></span><span class="brand-wiki">Wiki</span></span>
+      </a>
+      <form class="search" id="search" role="search">
+        <label class="sr-only" for="query">搜索 Wiki</label>
+        <span class="search-icon" aria-hidden="true"></span>
+        <input id="query" type="search" placeholder="搜索条目，例如斧头、手提灯或冰守卫" autocomplete="off">
+        <kbd aria-hidden="true">/</kbd>
+        <div class="suggestions" id="suggestions" hidden></div>
+      </form>
+      <a class="button game-link" href="/">进入游戏 <span aria-hidden="true">↗</span></a>
+    </div>
+  </header>
+  <div class="shell">
+    <aside class="sidebar">
+      <nav id="wiki-nav" aria-label="百科分类"></nav>
+    </aside>
+    <main id="main" class="main" tabindex="-1">
+      <p class="status" role="status">正在加载百科资料…</p>
+      <noscript><p>打开 JavaScript 后可搜索和浏览百科。</p></noscript>
+    </main>
+  </div>
+  <footer class="foot"><a href="#/">寒境 Wiki</a><span id="terrain-version"></span></footer>
+</body>
+</html>
