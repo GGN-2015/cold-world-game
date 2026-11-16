@@ -736,8 +736,8 @@ export const expansionMessages = {
     "No fire needed. Equip and hold left click or Use for 0.5 s. Cannot eat above 10 hunger. Its peel replaces the fruit even with full storage; operation failure rolls everything back; complete snapshots are saved in the background."
   ],
   "guide.effect.durian_peel": [
-    "短按松开时挥出斧头同范围的3格、180°近战群攻，伤害6（斧头1.5倍），间隔0.5秒；近战不消耗。投掷沿瞄准直线以20格/秒飞行，扎入第一个怪物，每0.5秒造成4点持续伤害，不击退，直到死亡；同类扎伤不叠加。",
-    "Release a short tap for an axe-sized radius-3, 180° melee sweep: 6 damage (1.5× axe), 0.5 s cooldown, no consumption. A thrown peel flies straight at 20 tiles/s, impaling the first monster for 4 damage every 0.5 s until death, without knockback or stacking."
+    "短按松开可扫击面前1.5格、180°范围，基础伤害4，间隔0.7秒。投出后扎入首只怪物，每0.5秒造成1点基础伤害，最多6秒。同类扎伤不叠加。",
+    "A short tap sweeps a 1.5-tile, 180° arc for 4 base damage with a 0.7 s cooldown. A thrown peel impales the first monster for 1 base damage every 0.5 s for up to 6 s. Impalement does not stack."
   ],
   "guide.use.durian_peel": [
     "选中后短按左键近战，长按0.5秒投掷，不会先挥一次；手机短按/长按场景或使用按钮。成功投出消耗一片，最多每秒一次；不爆炸、不伤玩家或方块，穿过方块，飞出射手当前矩形视野即消失。扎伤随存档保存，离线停服暂停。Arena AI只投掷。",

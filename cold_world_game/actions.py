@@ -1,12 +1,15 @@
 import math
 import time
 
-from .constants import BACKPACK_SLOTS, BUILDINGS, BURN_SECONDS, CONTAINERS, DRINKS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FOODS, GUNS, HARVEST_TOOLS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, MAX_COINS, MELEE_WEAPONS, NORMAL_STORAGE_KINDS, PANEL_DEMOLITION, PERSONAL_STORAGE_KINDS, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS, SOLID
+from .constants import BACKPACK_SLOTS, BUILDINGS, CONTAINERS, DRINKS, DROP_DISTANCE, EXPLOSIVE_WEAPONS, FOODS, GUNS, HARVEST_TOOLS, HEALING_ITEMS, IGNITERS, INVENTORY_SLOTS, MACHINE_OFFERS, MAX_COINS, MELEE_WEAPONS, PANEL_DEMOLITION, PICKUP_RADIUS, RECIPES, RETURN_ITEMS, REVIVAL_ITEMS
 from .geometry import DIRECTIONS, circle_square, distance, normalized, segment_box, tile
-from .inventory import clone_storages, consume_kind, count_kind, insert_item, mergeable, stack_limit, storage_slots, take_item
+from .constants import AMMO_PACKS, BUILDING_WANDS, CREATIVE_ITEMS, DOWNED_BUILDINGS, NORMAL_STORAGE_KINDS, PERSONAL_STORAGE_KINDS, THROWABLE_WEAPONS
+from .inventory import capacity, clone_storages, consume_kind, count_kind, insert_item, mergeable, personal_storages, stack_limit, storage_slots, take_item
 from .models import GroundItem, Item, Structure
-from .wildlife import SEATS
-from .constants import THROWABLE_WEAPONS
+from .wildlife import REPAIRABLE, SEATS
+
+
+TAKE_ALL_BACKPACK_ONLY = {"wood", "spare_part", "papyrus"} | AMMO_PACKS.keys() | IGNITERS.keys()
 
 
 class GameError(Exception):
@@ -68,8 +71,11 @@ class Actions:
                 velocity_x, velocity_y = number(velocity[0], "velocity.x"), number(velocity[1], "velocity.y")
                 epoch = integer(command.get("movement_epoch"), "movement_epoch", 0, 2 ** 53 - 1)
                 if epoch == controls.movement_epoch and player.temperature >= 5 and not controls.seat:
-                    player.x, player.y = position_x, position_y
-                    controls.velocity_x, controls.velocity_y = velocity_x, velocity_y
+                    if self.barrier_blocks_movement(player.x, player.y, position_x, position_y):
+                        controls.movement_epoch += 1
+                    else:
+                        player.x, player.y = position_x, position_y
+                        controls.velocity_x, controls.velocity_y = velocity_x, velocity_y
             if math.hypot(move_x, move_y) > 1:
                 move_x, move_y = normalized(move_x, move_y)
             controls.move_x, controls.move_y = move_x, move_y
@@ -79,11 +85,17 @@ class Actions:
             controls.last_input = time.monotonic()
         elif kind == "sit":
             return self.sit(player, controls, command.get("id"))
+        elif kind == "toggle_door":
+            identifier = command.get("id")
+            return self.toggle_door(player, controls, self.structures.get(identifier) if isinstance(identifier, str) else None)
         elif kind == "select":
             selected = integer(command.get("slot"), "slot", 0, 9)
             if selected != player.selected:
                 controls.stop_attack()
+                controls.reload_target = None
                 player.selected = selected
+        elif kind == "reload":
+            return self.begin_reload(player, controls)
         elif kind == "attack":
             pressed = boolean(command.get("pressed"), "pressed")
             shift = boolean(command.get("shift", False), "shift")
@@ -101,14 +113,20 @@ class Actions:
                     swing = bool(self.strike_melee(player, controls))
                 controls.stop_attack()
                 return {"accepted": True, "swing": swing, **({"attack_id": attack_id} if attack_id is not None else {})}
-            if controls.ui:
+            if controls.ui or controls.reload_target:
                 return {"accepted": False}
             seat = self.seated_structure(controls)
-            if seat and seat.kind == "mounted_gun":
+            if seat and seat.kind != "park_bench":
                 controls.held = True
                 return {"accepted": True}
             item = player.inventory[player.selected]
             target = self.structure_at(tile(controls.aim_x), tile(controls.aim_y))
+            if target and target.kind == "door" and not shift and distance(player, target) <= 2:
+                return self.toggle_door(player, controls, target)
+            if target and target.kind == "cable_station" and target.repaired:
+                return self.use_cable(player, target)
+            if item and item.kind == "repair_wrench" and target and target.kind in REPAIRABLE:
+                return self.repair_device(player, controls, target, item)
             if target and target.kind in SEATS:
                 return self.sit(player, controls, target.id)
             if target and target.kind in CONTAINERS and (item is None or item.kind not in EXPLOSIVE_WEAPONS and item.kind not in THROWABLE_WEAPONS and item.kind not in REVIVAL_ITEMS and item.kind != "homing_missile") and (not shift or target.kind in PANEL_DEMOLITION) and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
@@ -128,7 +146,10 @@ class Actions:
                     swing = bool(self.strike_melee(player, controls))
             controls.held = player.inventory[player.selected] is not None
             controls.shift = shift
-            if item and item.kind in GUNS and (item.kind == "homing_missile" or GUNS[item.kind].get("instant", False)) and controls.pending_shot:
+            if item and item.kind == "flamethrower" and controls.pending_shot:
+                self.spray_fire(player, controls, item)
+                controls.pending_shot = False
+            if item and item.kind in GUNS and controls.pending_shot:
                 self.fire_gun(player, controls, item)
                 controls.pending_shot = False
             if attack_id is not None:
@@ -156,11 +177,14 @@ class Actions:
             return {"accepted": True}
         elif kind == "stop":
             controls.stop_attack()
+            controls.reload_target = None
             controls.move_x = controls.move_y = 0.0
             controls.velocity_x = controls.velocity_y = 0.0
         elif kind == "ui":
             controls.ui = boolean(command.get("open"), "open")
             controls.container = None
+            if controls.ui:
+                controls.reload_target = None
             controls.stop_attack()
         elif kind == "open":
             self.open_container(player, controls, command.get("id"))
@@ -170,6 +194,8 @@ class Actions:
             controls.stop_attack()
         elif kind == "craft":
             return self.craft(player, controls, command.get("recipe"))
+        elif kind == "copy_scroll":
+            return self.copy_scroll(player, controls, command.get("kind"))
         elif kind == "trade":
             return self.trade(player, controls, command)
         elif kind == "bank":
@@ -190,6 +216,10 @@ class Actions:
             return {"ground_id": ground.id}
         elif kind == "transfer":
             return self.transfer(player, controls, command)
+        elif kind == "take_all":
+            return self.take_all(player, controls, command.get("id"))
+        elif kind == "sort_backpack":
+            return self.sort_backpack(player)
         elif kind == "light":
             return self.light(player, controls, command.get("id"))
         elif kind == "ping":
@@ -202,12 +232,16 @@ class Actions:
     def cancel_selected(player, controls, slot):
         if slot == player.selected:
             controls.stop_attack()
+            controls.reload_target = None
 
     def craft(self, player, controls, recipe_id):
         if not isinstance(recipe_id, str) or recipe_id not in RECIPES:
             raise GameError("invalid_recipe", "Unknown recipe")
         recipe = RECIPES[recipe_id]
-        return self.consume_and_produce(player, controls, recipe)
+        inputs = recipe["inputs"]
+        if recipe_id != "recycle_fences" and player.creative_effects().get("free_craft"):
+            inputs = {}
+        return self.consume_and_produce(player, controls, recipe, inputs)
 
     def trade(self, player, controls, command):
         structure = self.access_container(player, command.get("id"))
@@ -219,7 +253,11 @@ class Actions:
         offer_id = command.get("offer")
         if not isinstance(offer_id, str) or offer_id not in offers:
             raise GameError("invalid_offer", "Unknown offer for this trading machine")
-        return self.consume_and_produce(player, controls, offers[offer_id])
+        offer = offers[offer_id]
+        inputs = offer["inputs"]
+        if "coin" in inputs and player.creative_effects().get("free_purchases"):
+            inputs = {kind: amount for kind, amount in inputs.items() if kind != "coin"}
+        return self.consume_and_produce(player, controls, offer, inputs)
 
     def bank(self, player, controls, command):
         structure = self.access_container(player, command.get("id"))
@@ -247,23 +285,22 @@ class Actions:
         player.money -= change
         return {"balance": structure.balance, "money": player.money, "amount": amount, "operation": operation}
 
-    def consume_and_produce(self, player, controls, recipe):
+    def consume_and_produce(self, player, controls, recipe, inputs):
         storages = clone_storages(player)
-        payment = recipe["inputs"].get("coin", 0)
+        payment = inputs.get("coin", 0)
         if player.money < payment:
             raise GameError("insufficient_money", "Not enough money")
-        for item_kind, quantity in recipe["inputs"].items():
+        for item_kind, quantity in inputs.items():
             if item_kind == "coin":
                 continue
-            if count_kind(storages, item_kind) < quantity:
-                raise GameError("materials_missing", "Not enough required materials")
             if consume_kind(storages, item_kind, quantity):
                 raise GameError("materials_missing", "Not enough required materials")
-        if recipe["output"] != "coin" and insert_item(storages, Item.create(recipe["output"], recipe["count"])):
+        if recipe["output"] != "coin" and insert_item(list(reversed(storages)), Item.create(recipe["output"], recipe["count"])):
             raise GameError("inventory_full", "Not enough room for every output item")
         self.touch()
         player.money -= payment
         controls.stop_attack()
+        controls.reload_target = None
         for kind, storage in storages:
             setattr(player, kind, storage)
         if recipe["output"] == "coin":
@@ -274,40 +311,103 @@ class Actions:
         target_x = integer(command.get("x"), "x", -10_000_000, 10_000_000)
         target_y = integer(command.get("y"), "y", -10_000_000, 10_000_000)
         item = player.inventory[player.selected]
-        if controls.ui or item is None or item.kind not in BUILDINGS:
+        wand = BUILDING_WANDS.get(item.kind) if item else None
+        building = wand["building"] if wand else item.kind if item else None
+        if controls.ui or building not in BUILDINGS:
             raise GameError("invalid_item", "Select a building and close the interface before placing")
-        if player.temperature < 5 and item.kind != "campfire":
-            raise GameError("downed", "Downed players can place campfires only")
+        if player.temperature < 5 and building not in DOWNED_BUILDINGS:
+            raise GameError("downed", "Downed players can only place campfires, walls, floors and doors")
         if math.hypot(target_x - player.x, target_y - player.y) > 3 or not self.generated(target_x, target_y):
             raise GameError("out_of_range", "Placement must be within 3 units in a generated chunk")
-        if self.structure_at(target_x, target_y):
+        if wand:
+            vertical = bool(wand.get("rotate")) and boolean(command.get("vertical", False), "vertical")
+            result = self.place_with_wand(player, wand, target_x, target_y, vertical)
+        else:
+            structure = self.place_tile(player, building, target_x, target_y)
+            take_item(player.inventory, player.selected)
+            result = {"id": structure.id}
+        controls.stop_attack()
+        for monster in self.monsters.values():
+            monster.next_plan = 0
+        return result
+
+    def place_with_wand(self, player, wand, target_x, target_y, vertical):
+        building = wand["building"]
+        wood_cost = RECIPES[building]["inputs"]["wood"]
+        storages = personal_storages(player, ("backpack", "inventory"))
+        wood = count_kind(storages, "wood")
+        if wood < wood_cost:
+            raise GameError("materials_missing", "The building wand needs wood")
+        ids = []
+        first_blocked = None
+        for dx, dy in wand["tiles"]:
+            if wood < wood_cost:
+                break
+            x, y = (target_x + dy, target_y + dx) if vertical else (target_x + dx, target_y + dy)
+            try:
+                if max(abs(x), abs(y)) > 10_000_000 or not self.generated(x, y):
+                    raise GameError("out_of_range", "Placement must be in a generated chunk")
+                structure = self.place_tile(player, building, x, y)
+            except GameError as error:
+                if first_blocked is None:
+                    first_blocked = error
+                continue
+            consume_kind(storages, "wood", wood_cost)
+            wood -= wood_cost
+            ids.append(structure.id)
+        if not ids:
+            raise first_blocked
+        return {"ids": ids, "count": len(ids)}
+
+    def place_tile(self, player, building, target_x, target_y):
+        surface = self.structure_at(target_x, target_y)
+        lake = "lake" in self.biomes_at(target_x, target_y)
+        supported_fire = lake and building == "campfire" and surface and surface.kind in {"floor", "bridge_deck"}
+        if lake and (building == "campfire" and not supported_fire
+                     or building == "floor" and not self.frozen_lake(target_x, target_y)):
+            raise GameError("lake_surface", "Freeze the lake, place a floor, then build your fire")
+        if surface and not supported_fire:
             raise GameError("occupied", "This tile is occupied")
-        neighbor = self.structure_at(target_x - 1, target_y)
-        if item.kind != "floor" and neighbor is not None and neighbor.kind == "mounted_gun":
-            raise GameError("seat_exit_reserved", "Only flooring can be placed to the right of a mounted gun")
-        if item.kind in CONTAINERS:
+        if building in CONTAINERS:
             for offset_x, offset_y in DIRECTIONS:
                 neighbor = self.structure_at(target_x + offset_x, target_y + offset_y)
                 if neighbor and neighbor.kind in CONTAINERS:
                     raise GameError("adjacent_container", "Chests, campfires, piggy banks and trading machines cannot touch in any of eight directions")
-        if any(circle_square(self.players[player_id].x, self.players[player_id].y, target_x, target_y) for player_id in self.online) or any(circle_square(monster.x, monster.y, target_x, target_y) for monster in self.monsters.values()):
+        if building != "floor" and (any(circle_square(self.players[player_id].x, self.players[player_id].y, target_x, target_y) for player_id in self.online) or any(circle_square(monster.x, monster.y, target_x, target_y) for monster in self.monsters.values())):
             raise GameError("occupied", "An entity overlaps this tile")
         self.touch()
-        structure = Structure(item.kind, target_x, target_y, slots=[None] * 30 if item.kind == "chest" else [], owner=player.id if item.kind == "landmine" else None)
+        if supported_fire:
+            self.remove_structure(surface)
+        structure = Structure(building, target_x, target_y, slots=[None] * 30 if building == "chest" else [], owner=player.id if building == "landmine" else None, on_floor=bool(supported_fire))
         self.add_structure(structure)
         if -7 <= target_x <= 7 and -7 <= target_y <= 7 and not self.origin_spawn_points():
             self.remove_structure(structure)
             raise GameError("spawn_blocked", "The last origin spawn route must remain open")
-        take_item(player.inventory, player.selected)
+        self.emit_event("place", player.id, structure.kind, structure.x, structure.y)
+        return structure
+
+    def toggle_door(self, player, controls, door):
+        if door is None or door.kind != "door":
+            raise GameError("invalid_item", "This door no longer exists")
+        if controls.ui or distance(player, door) > 2 or not self.visible(player.x, player.y, door.x, door.y, ignore=door.id):
+            raise GameError("out_of_range", "The door must be visible and within 2 units")
+        if door.door_open:
+            bodies = [self.players[player_id] for player_id in self.online]
+            if any(circle_square(body.x, body.y, door.x, door.y) for body in (*bodies, *self.monsters.values())):
+                raise GameError("occupied", "An entity is in the doorway")
+        self.record_structure(door.id, checkpoint=True)
+        door.door_open = not door.door_open
+        self.invalidate_chunk(door)
+        self._terrain_revision += 1
         controls.stop_attack()
         for monster in self.monsters.values():
             monster.next_plan = 0
-        self.emit_event("place", player.id, structure.kind, structure.x, structure.y)
-        return {"id": structure.id}
+        return {"door_open": door.door_open}
 
     def open_container(self, player, controls, structure_id):
         structure = self.access_container(player, structure_id)
         controls.stop_attack()
+        controls.reload_target = None
         controls.ui = True
         controls.container = structure.id
 
@@ -329,6 +429,62 @@ class Actions:
                 controls.container = None
                 controls.ui = False
                 controls.stop_attack()
+
+    def take_all(self, player, controls, structure_id):
+        chest = self.access_container(player, structure_id)
+        if chest.kind != "chest":
+            raise GameError("invalid_container", "Only chests can be looted")
+        if not controls.ui or controls.container != chest.id:
+            raise GameError("container_closed", "Open the chest before taking its contents")
+
+        storages = personal_storages(player)
+        backpack = storages[1:]
+        taken = 0
+        activate_creative = False
+        for slot, item in enumerate(chest.slots):
+            if item is None:
+                continue
+            destination = backpack if item.kind in TAKE_ALL_BACKPACK_ONLY else storages
+            available = MAX_COINS - player.money if item.kind == "coin" else capacity(destination, item)
+            amount = min(item.count, available)
+            if amount <= 0:
+                continue
+            if taken == 0:
+                self.record_structure(chest.id, checkpoint=True)
+            moved = take_item(chest.slots, slot, amount)
+            if moved.kind == "coin":
+                player.money += amount
+            else:
+                insert_item(destination, moved)
+                activate_creative |= moved.kind in CREATIVE_ITEMS
+            taken += amount
+        remaining = [item for item in chest.slots if item]
+        if not taken and remaining:
+            if all(item.kind == "coin" for item in remaining):
+                raise GameError("balance_limit", "The player balance would exceed the coin limit")
+            if all(item.kind == "coin" or item.kind in TAKE_ALL_BACKPACK_ONLY for item in remaining):
+                raise GameError("backpack_full", "No room in the backpack for the remaining supplies")
+            raise GameError("inventory_full", "No space in the hotbar or backpack")
+        if activate_creative:
+            self.activate_creative_vitals(player)
+        return {"count": taken, "remaining": sum(item.count for item in remaining)}
+
+    def sort_backpack(self, player):
+        def order(item):
+            kind = item.kind
+            if kind in MELEE_WEAPONS or kind in GUNS or kind in EXPLOSIVE_WEAPONS:
+                return 0, kind
+            if kind in AMMO_PACKS:
+                return 1, kind
+            if kind in FOODS or kind in DRINKS:
+                return 2, kind
+            return 3, kind
+
+        items = sorted((item for item in player.backpack if item is not None), key=order)
+        contents = items + [None] * (len(player.backpack) - len(items))
+        if contents != player.backpack:
+            self.touch()
+            player.backpack[:] = contents
 
     def endpoint(self, player, controls, endpoint, destination=False):
         if not isinstance(endpoint, dict):
@@ -355,7 +511,7 @@ class Actions:
                 raise GameError("container_closed", "Open the container before transferring items")
             if kind == "chest" and structure.kind == "chest":
                 return kind, structure, integer(endpoint.get("slot"), "slot", 0, len(structure.slots) - 1)
-            if kind in ("fuel", "igniter") and structure.kind == "campfire":
+            if kind in ("fuel", "igniter") and structure.kind in {"campfire", "fixed_heater"}:
                 return kind, structure, None
         raise GameError("invalid_endpoint", "Invalid transfer endpoint")
 
@@ -379,13 +535,24 @@ class Actions:
         item = self.endpoint_item(source)
         if item is None:
             raise GameError("empty_slot", "The source is empty")
-        if "item_id" in command and item.id != command["item_id"]:
+        if ("item_id" in command or "swap_item_id" in command) and item.id != command.get("item_id"):
             raise GameError("stale_item", "The source item has changed")
         if "item_kind" in command and item.kind != command["item_kind"]:
             raise GameError("stale_item", "The source item has changed")
         if item.kind == "coin" and destination[0] in ("inventory", "backpack"):
             destination = "wallet", player, None
         target_kind, target, target_slot = destination
+        if "swap_item_id" in command:
+            if {source[0], target_kind} != {"inventory", "backpack"}:
+                raise GameError("invalid_endpoint", "Swap requires a backpack and a hotbar slot")
+            replacement = self.endpoint_item(destination)
+            if replacement is None or replacement.id != command["swap_item_id"]:
+                raise GameError("stale_item", "The target item has changed")
+            self.touch()
+            self.cancel_selected(player, controls, source[2] if source[0] == "inventory" else target_slot)
+            storage_slots(player, source[0])[source[2]] = replacement
+            storage_slots(player, target_kind)[target_slot] = item
+            return {"item_id": item.id, "count": item.count}
         amount = item.count
         if target_kind == "ground":
             self.ensure_droppable(item)
@@ -421,6 +588,8 @@ class Actions:
             self.set_endpoint(source, None, player, controls)
             moved = item
         self.set_endpoint(destination, moved, player, controls)
+        if moved.kind in CREATIVE_ITEMS and target_kind in ("inventory", "backpack"):
+            self.activate_creative_vitals(player)
         return {"item_id": moved.id, "count": amount}
 
     def set_endpoint(self, endpoint, item, player, controls):
@@ -463,7 +632,7 @@ class Actions:
         for tile_x in range(tile(min(player.x, target_x)) - 1, tile(max(player.x, target_x)) + 2):
             for tile_y in range(tile(min(player.y, target_y)) - 1, tile(max(player.y, target_y)) + 2):
                 structure = self.structure_at(tile_x, tile_y)
-                if self.generated(tile_x, tile_y) and (structure is None or structure.kind not in SOLID):
+                if self.generated(tile_x, tile_y) and (structure is None or not structure.solid):
                     continue
                 fraction = segment_box(player.x, player.y, target_x, target_y, tile_x, tile_y)
                 if fraction is not None:
@@ -479,8 +648,12 @@ class Actions:
 
     def light(self, player, controls, structure_id):
         fire = self.access_container(player, structure_id)
-        if controls.container != fire.id or fire.kind != "campfire":
+        if controls.container != fire.id or fire.kind not in {"campfire", "fixed_heater"}:
             raise GameError("invalid_container", "Open this campfire first")
+        if fire.kind == "fixed_heater" and not fire.repaired:
+            raise GameError("device_broken", "Repair this heater before lighting it")
+        if "lake" in self.biomes_at(fire.x, fire.y) and not self.supports_lake_fire(fire):
+            raise GameError("lake_surface", "A fire needs a floor on the lake")
         if fire.lit or fire.fuel < 1 or not fire.igniter or not fire.igniter.uses:
             raise GameError("cannot_light", "An unlit fire needs fuel and a usable igniter")
         self.touch()
@@ -492,5 +665,5 @@ class Actions:
             player.backpack[player.backpack.index(None)] = fire.igniter
             fire.igniter = None
         fire.fuel -= 1
-        fire.burn_remaining = BURN_SECONDS
+        fire.burn_remaining = self.fire_duration(fire)
         return {"lit": True}

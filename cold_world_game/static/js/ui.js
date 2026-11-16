@@ -1,7 +1,7 @@
-import { assetUrl, containers, distance, errorText, itemDetail, itemName, machines, seats, seasonName } from './catalog.js';
+import { assetUrl, biomeDevices, containers, distance, errorText, gunSeats, itemDetail, itemName, machines, meleeSettings, scrolls, seats, seasonName } from './catalog.js';
 import { getLanguage, t } from './i18n.js';
 import { isMobileDevice } from './mobile.js';
-import { StoragePrediction } from './storage.js';
+import { canSwapPersonal, StoragePrediction } from './storage.js';
 import { itemGuide } from './item-guide.js';
 import { destinationSlot, isPersonalStorage, itemCount, mergeable, recipeFits } from './items.js';
 
@@ -114,8 +114,8 @@ export class GameUI {
     this.busy = true;
     this.refreshPanel();
     try {
-      await this.connection.command(type, payload);
-      if (success) this.toast(success, true);
+      const result = await this.connection.command(type, payload);
+      if (success) this.toast(typeof success === 'function' ? () => success(result) : success, true);
       return true;
     } catch (error) {
       this.toast(() => type === 'place' && error.code === 'out_of_range' ? t('error.placement_out_of_range') : errorText(error));
@@ -199,21 +199,39 @@ export class GameUI {
     const totalMinutes = Math.floor(state.environment.hour * 60) % 1440;
     byId('clock-label').textContent = `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
     byId('ambient-label').textContent = t('world.ambient', { temperature: you.ambient_temperature.toFixed(0) });
+    const { room_temperature: roomTemp, room_sealed: sealed, floor_coverage: coverage, floor_insulated: floor, heat_distance: heat } = state.environment;
+    const thermometer = byId('room-thermometer');
+    thermometer.hidden = roomTemp == null;
+    if (!thermometer.hidden) {
+      byId('room-temperature').textContent = `${roomTemp.toFixed(1)}°C`;
+      byId('room-temperature-meter').value = roomTemp;
+      byId('room-status').textContent = [
+        t(sealed ? 'thermal.sealed' : 'thermal.open'),
+        ...(sealed ? [coverage == null ? t(floor ? 'thermal.floor' : 'thermal.bare') : t('thermal.coverage', { coverage })] : []),
+        t(heat == null ? 'thermal.noHeat' : 'thermal.heat', { distance: heat }),
+      ].join(' · ');
+    }
     const excitement = byId('excitement-label');
     excitement.hidden = !(you.excitement_remaining > 0);
     excitement.textContent = you.excitement_remaining > 0 ? t('status.excited', { seconds: Math.ceil(you.excitement_remaining) }) : '';
     byId('temperature-label').textContent = `${you.temperature.toFixed(1)}°C`;
     byId('temperature-fill').style.width = `${Math.max(0, you.temperature / 36 * 100)}%`;
-    const displayHunger = you.hunger > 10 && you.hunger.toFixed(1) === '10.0' ? '>10' : you.hunger.toFixed(1);
-    byId('hunger-label').textContent = `${displayHunger}${you.hunger > 10 ? t('vital.full') : ''}`;
-    byId('hunger-label').title = t('vital.hungerHint', { value: you.hunger.toFixed(3) });
-    byId('hunger-fill').style.width = `${Math.max(0, Math.min(100, you.hunger * 10))}%`;
+    const maxHunger = this.catalog.max_hunger ?? 10;
+    byId('hunger-label').textContent = `${you.hunger.toFixed(1)} / ${maxHunger}`;
+    byId('hunger-label').title = t('vital.hungerHint', { value: you.hunger.toFixed(3), max: maxHunger });
+    byId('hunger-fill').style.width = `${Math.max(0, Math.min(100, you.hunger / maxHunger * 100))}%`;
     byId('money-label').textContent = String(you.money ?? 0);
     byId('money-balance').title = t('money.balance', { count: you.money ?? 0 });
-    byId('coordinate-label').textContent = t('world.coordinates', { x: you.x.toFixed(1), y: you.y.toFixed(1) });
+    const biome = state.environment.biomes;
+    const zones = (biome?.zones || []).map(zone => t(`biome.${zone}`));
+    if (biome?.fog && !biome.zones.includes('fog')) zones.push(t('biome.fog_edge'));
+    byId('coordinate-label').textContent = [t('world.coordinates', { x: you.x.toFixed(1), y: you.y.toFixed(1) }), ...zones].join(' · ');
     byId('player-label').textContent = you.id;
     byId('downed-notice').hidden = !you.downed;
     const selected = this.controls.selected();
+    byId('touch-rotate').hidden = !this.catalog.building_wands?.[you.inventory[selected]?.kind]?.rotate;
+    const reloadButton = byId('touch-reload');
+    if (reloadButton) reloadButton.hidden = !this.catalog.reload_rules || !(gunSeats.has(you.seated) || this.catalog.reload_rules[you.inventory[selected]?.kind]);
     const guideHotbarKey = `${selected}:${you.inventory[selected]?.id || ''}`;
     if (this.guideHotbarKey !== guideHotbarKey) {
       this.guideHotbarKey = guideHotbarKey;
@@ -250,21 +268,47 @@ export class GameUI {
     const hint = byId('context-hint');
     if (!this.state || this.isOpen()) { hint.hidden = true; return; }
     const equipped = this.state.you.inventory[this.controls.selected()];
-    const melee = this.catalog.melee_weapons?.[equipped?.kind] || (equipped?.kind === 'axe' ? this.catalog.axe : null);
+    const melee = meleeSettings(this.catalog, this.state.you, equipped?.kind);
+    const meleeHint = melee && { name: itemName(equipped.kind), range: melee.range, arc: melee.arc_degrees };
+    const fuelWeapon = equipped?.kind === 'flamethrower';
+    const reloadPack = this.catalog.reload_rules?.[equipped?.kind]?.[0];
+    const reloading = this.state.interaction?.target?.startsWith('reload:');
     const harvesting = this.catalog.harvest_tools?.[equipped?.kind] || (equipped?.kind === 'axe');
     let text = '';
     const seat = this.state.structures.find(structure => structure.id === this.state.you.seat_id);
-    if (this.state.you.seated === 'mounted_gun') {
-      text = t(isMobileDevice ? 'hint.turretTouch' : 'hint.turret', { ammo: seat?.ammo ?? 0 });
+    const mounted = gunSeats.has(this.state.you.seated);
+    if (mounted) {
+      if (!reloading) {
+        const activeHint = isMobileDevice ? 'hint.turretTouch' : 'hint.turret';
+        const emptyHint = isMobileDevice ? 'hint.turretEmptyTouch' : 'hint.turretEmpty';
+        text = t(seat?.ammo ? activeHint : emptyHint, { ammo: seat?.ammo });
+      }
+    } else if (this.catalog.building_wands?.[equipped?.kind]?.rotate) {
+      text = t(isMobileDevice ? 'hint.wandRotateTouch' : 'hint.wandRotate');
+    } else if (target?.kind === 'door') {
+      text = t(target.door_open ? 'hint.closeDoor' : 'hint.openDoor');
+    } else if (target?.kind === 'ring_gate') {
+      text = t('hint.ringGate');
+    } else if (target?.kind === 'ring_wall') {
+      text = t('hint.ringWall');
+    } else if (biomeDevices.has(target?.kind)) {
+      const action = target.repaired ? target.kind === 'cable_station' ? 'hint.cableCross' : 'hint.biomeRepaired' : 'hint.biomeRepair';
+      text = `${itemName(target.kind)} · ${t(action)}`;
+    } else if (target?.kind === 'fixed_heater' || target?.kind === 'service_gun') {
+      text = target.repaired && target.kind === 'service_gun'
+        ? t(isMobileDevice ? 'hint.seatTouch' : 'hint.seat', { name: itemName('mounted_gun') })
+        : `${itemName(target.kind)} · ${t(target.repaired ? 'hint.open' : 'hint.repairDevice')}`;
     } else if (target?.category === 'structure' && seats.has(target.kind)) {
       text = target.occupant && target.occupant !== this.state.you.id ? t('hint.seatOccupied', { name: itemName(target.kind), player: target.occupant }) : t(isMobileDevice ? 'hint.seatTouch' : 'hint.seat', { name: itemName(target.kind) });
     } else if (target?.kind === 'landmine') {
       text = t('hint.landmine');
     } else if (this.catalog.revival_items?.[equipped?.kind]) {
       text = t(target?.category === 'player' ? 'hint.reviveTarget' : 'hint.defibrillator', { name: target?.id || '', ...this.catalog.revival_items[equipped.kind] });
-    } else if (this.catalog.throwable_weapons?.[equipped?.kind]) {
-      text = t('hint.durianPeel', this.catalog.throwable_weapons[equipped.kind]);
-    } else if (this.catalog.explosive_weapons?.[equipped?.kind]) {
+    } else if (fuelWeapon && equipped.uses) {
+      text = t('hint.fireSpray', { name: itemName(equipped.kind), count: equipped.uses, range: this.catalog.explosive_weapons[equipped.kind].cast_range });
+    } else if (equipped?.kind === 'durian_peel') {
+      text = t('hint.durianPeel', this.catalog.throwable_weapons?.durian_peel);
+    } else if (!fuelWeapon && this.catalog.explosive_weapons?.[equipped?.kind]) {
       text = t(equipped.kind === 'coin_launcher' ? 'hint.coinLauncher' : 'hint.grenade', { ...this.catalog.explosive_weapons[equipped.kind], money: this.state.you.money ?? 0 });
     } else if (this.catalog.drinks?.[equipped?.kind] && !(target?.category === 'structure' && containers.has(target.kind) && distance(this.state.you, target) <= 2)) {
       text = t('hint.drink', this.catalog.drinks[equipped.kind]);
@@ -277,17 +321,22 @@ export class GameUI {
       if (containers.has(target.kind)) text = `${itemName(target.kind)} · ${t(near ? 'hint.open' : 'hint.nearer')}${harvesting && distance(this.state.you, target) <= 3 ? t(target.kind === 'piggy_bank' ? 'hint.bankDismantle' : target.kind === 'chest' ? 'hint.chestDismantle' : machines.has(target.kind) ? 'hint.vendingDismantle' : 'hint.fireDismantle') : ''}`;
       else if (harvesting) text = `${itemName(target.kind)} · ${t(target.monster_demolition ? 'hint.busy' : near ? 'hint.gather' : 'hint.nearer')}`;
     } else if (target) {
-      text = `${t(['crawler', 'armored', 'stalker'].includes(target.species) ? `hint.${target.species}Monster` : target.big ? 'hint.bigMonster' : target.fast ? 'hint.fastMonster' : 'hint.smallMonster')} · ${target.hp} HP`;
+      const guardians = ['tree_spirit', 'frost_guard', 'ember_guard'];
+      const name = guardians.includes(target.species) ? itemName(target.species) : t(['crawler', 'armored', 'stalker'].includes(target.species) ? `hint.${target.species}Monster` : target.big ? 'hint.bigMonster' : target.fast ? 'hint.fastMonster' : 'hint.smallMonster');
+      text = `${name} · ${target.hp} HP`;
       if (target.sleeping) text += t('hint.sleeping');
       else if (target.rising != null) text += t('hint.rising');
       else if (this.state.elapsed < (target.frozen_until ?? 0)) text += t('hint.frozen');
       if (this.state.elapsed < (target.burning_until ?? 0)) text += t('hint.burning');
       if (target.impaled) text += t('hint.impaled');
       if (melee) {
-        const attackHint = equipped.kind === 'flame_staff' ? 'hint.flameAttack' : equipped.kind === 'ice_staff' ? target.sleeping || target.rising != null ? 'hint.iceRestAttack' : 'hint.iceAttack' : 'hint.attack';
-        text += distance(this.state.you, target) <= melee.range ? t(attackHint) : t(equipped.kind === 'chainsaw' ? 'hint.chainsawRange' : equipped.kind === 'flame_staff' ? 'hint.flameRange' : equipped.kind === 'ice_staff' ? 'hint.iceRange' : 'hint.axeRange', { range: melee.range });
+        const attack = isMobileDevice ? 'hint.meleeSweepTouch' : 'hint.meleeSweep';
+        text += ' · ' + t(distance(this.state.you, target) <= melee.range ? attack : 'hint.meleeRange', meleeHint);
       }
-    } else if (melee) text = t(equipped.kind === 'chainsaw' ? isMobileDevice ? 'hint.chainsawSweepTouch' : 'hint.chainsawSweep' : equipped.kind === 'flame_staff' ? isMobileDevice ? 'hint.flameSweepTouch' : 'hint.flameSweep' : equipped.kind === 'ice_staff' ? isMobileDevice ? 'hint.iceSweepTouch' : 'hint.iceSweep' : isMobileDevice ? 'hint.axeSweepTouch' : 'hint.axeSweep', { range: melee.range });
+    } else if (melee) text = t(isMobileDevice ? 'hint.meleeSweepTouch' : 'hint.meleeSweep', meleeHint);
+    if (!mounted && !reloading && reloadPack && !(fuelWeapon ? equipped.uses : equipped.ammo)) {
+      text = [text, t(isMobileDevice ? 'hint.weaponEmptyTouch' : 'hint.weaponEmpty', { name: itemName(equipped.kind), pack: itemName(reloadPack) })].filter(Boolean).join(' · ');
+    }
     hint.textContent = text;
     hint.hidden = !text;
   }
@@ -317,22 +366,31 @@ export class GameUI {
       body.replaceChildren(layout);
       detail.append(element('h3', 'storage-heading', this.panel === 'container' ? itemName(container.kind) : t('button.craft')));
       if (this.panel === 'container' && container.kind === 'chest') {
+        const toolbar = element('div', 'panel-heading');
         this.storageView.chestCount = element('div', 'container-meta');
+        const takeAll = element('button', 'small-button', t('chest.takeAll'));
+        takeAll.type = 'button';
+        takeAll.onclick = () => this.action('take_all', { id: container.id }, ({ count, remaining }) =>
+          t(remaining ? 'chest.takenSome' : count ? 'chest.takenAll' : 'chest.alreadyEmpty', { count, remaining }));
+        this.storageView.takeAll = takeAll;
+        toolbar.append(this.storageView.chestCount, takeAll);
         this.storageView.chestGrid = element('div', 'chest-grid');
-        detail.append(this.storageView.chestCount, this.storageView.chestGrid);
+        detail.append(toolbar, this.storageView.chestGrid);
       } else if (this.panel === 'container' && container.kind === 'piggy_bank') {
         this.storageView.bank = this.renderBank(detail, container);
       } else {
         this.storageView.content = element('div');
         detail.append(this.storageView.content);
       }
-      if (this.panel === 'container') this.renderContainerDemolition(detail, container);
+      if (this.panel === 'container' && container.kind !== 'fixed_heater') this.renderContainerDemolition(detail, container);
       this.storageView.warning = element('p', 'panel-warning', t('panel.monsterWarning'));
       detail.append(this.storageView.warning);
     }
     const view = this.storageView;
     this.updateItemGuide(view.guide);
-    view.backpack.count.textContent = t('bag.slots', { count: this.state.you.backpack.filter(Boolean).length });
+    const backpackCount = this.state.you.backpack.filter(Boolean).length;
+    view.backpack.count.textContent = t('bag.slots', { count: backpackCount });
+    view.backpack.sort.disabled = this.busy || backpackCount === 0;
     view.backpack.money.textContent = t('money.balance', { count: this.state.you.money ?? 0 });
     view.backpack.hint.textContent = t(container?.kind === 'piggy_bank' ? 'bank.sharedHint' : container?.kind === 'gun_machine' ? 'gun.backpackHint' : machines.has(container?.kind) ? 'vending.backpackHint' : 'bag.transferHint');
     this.updateSlots(view.backpack.grid, this.state.you.backpack, (slot) => ({ kind: 'backpack', slot }));
@@ -345,7 +403,9 @@ export class GameUI {
       byId('panel-title').textContent = itemName(container.kind);
       byId('panel-description').textContent = t(this.catalog.room_machines?.[container.kind] ? 'machine.description' : container.kind === 'piggy_bank' ? 'bank.description' : container.kind === 'gun_machine' ? 'gun.description' : machines.has(container.kind) ? 'vending.description' : 'panel.containerDescription');
       if (container.kind === 'chest') {
-        view.chestCount.textContent = t('panel.chestSlots', { count: container.slots.filter(Boolean).length, capacity: container.slots.length });
+        const count = container.slots.filter(Boolean).length;
+        view.chestCount.textContent = t('panel.chestSlots', { count, capacity: container.slots.length });
+        view.takeAll.disabled = this.busy || count === 0;
         this.updateSlots(view.chestGrid, container.slots, (slot) => ({ kind: 'chest', id: container.id, slot }));
       } else if (container.kind === 'piggy_bank') {
         this.updateBank(view.bank, container);
@@ -402,9 +462,15 @@ export class GameUI {
       const entry = this.playerItems().find(entry => entry.item?.id === this.inspectedId);
       if (entry) this.movePersonalItem(entry.endpoint, entry.item);
     };
-    card.append(close, header, effect, use, detail, move);
+    const copy = element('button', 'small-button item-guide-move');
+    copy.type = 'button';
+    copy.onclick = () => {
+      const entry = this.playerItems().find(candidate => candidate.item?.id === this.inspectedId);
+      if (entry && scrolls.has(entry.item.kind)) this.action('copy_scroll', { kind: entry.item.kind }, () => t('guide.scrollCopied'));
+    };
+    card.append(close, header, effect, use, detail, move, copy);
     body.append(card);
-    return { card, icon, category, title, effect, use, detail, move };
+    return { card, icon, category, title, effect, use, detail, move, copy };
   }
 
   updateItemGuide(view) {
@@ -424,6 +490,9 @@ export class GameUI {
     const destination = entry.endpoint.kind === 'backpack' ? 'inventory' : 'backpack';
     view.move.textContent = t(destination === 'inventory' ? 'guide.toHotbar' : 'guide.toBackpack');
     view.move.disabled = this.busy || destinationSlot(this.state.you, destination, entry.item, this.catalog) < 0;
+    view.copy.hidden = !scrolls.has(entry.item.kind);
+    view.copy.disabled = this.busy;
+    view.copy.textContent = t('guide.copyScroll');
   }
 
   movePersonalItem(endpoint, item) {
@@ -569,12 +638,17 @@ export class GameUI {
   renderBackpack(body) {
     const count = element('div', 'container-meta');
     const money = element('div', 'container-meta wallet-summary');
-    body.append(element('h3', 'storage-heading', t('bag.title')), count, money);
+    const sort = element('button', 'small-button', t('bag.sort'));
+    sort.type = 'button';
+    sort.onclick = () => this.action('sort_backpack');
+    const toolbar = element('div', 'panel-heading');
+    toolbar.append(count, sort);
+    body.append(element('h3', 'storage-heading', t('bag.title')), toolbar, money);
     const grid = element('div', 'bag-grid');
     const hint = element('p', 'bag-description');
     body.append(grid, hint);
     body.append(element('p', 'bag-description', t('bag.pickupHint')));
-    return { count, money, grid, hint };
+    return { count, money, grid, hint, sort };
   }
 
   playerItems() {
@@ -589,20 +663,19 @@ export class GameUI {
   }
 
   touchTransferTo(endpoint, item) {
-    if (this.touchSelection && mergeable(this.catalog, item, this.touchSelection.item, endpoint.kind) && this.touchSelection.item.id !== item.id) {
-      const source = this.touchSelection;
+    const source = this.touchSelection;
+    if (source && this.canTransferSlot(source, endpoint, item)) {
       this.setTouchSelection(null);
-      this.transfer(source.endpoint, endpoint, source.item);
-      return;
-    }
-    if (item) {
+      this.transfer(source.endpoint, endpoint, source.item, item);
+    } else if (item) {
       const same = this.touchSelection?.item.id === item.id;
       this.setTouchSelection(same ? null : { endpoint, item });
-    } else if (this.touchSelection) {
-      const source = this.touchSelection;
-      this.setTouchSelection(null);
-      this.transfer(source.endpoint, endpoint, source.item);
     }
+  }
+
+  canTransferSlot(source, endpoint, item) {
+    return !item || item.id !== source.item.id &&
+      (mergeable(this.catalog, item, source.item, endpoint.kind) || canSwapPersonal(source.endpoint, endpoint));
   }
 
   updateSlots(grid, items, endpoint, hotbar = false) {
@@ -655,7 +728,8 @@ export class GameUI {
         if (!this.isOpen()) this.connection.send('ui', { open: true });
       });
       node.addEventListener('dragover', (event) => {
-        if (!this.dragSource || this.busy || node.slotState.item && !mergeable(this.catalog, node.slotState.item, this.dragSource.item, node.slotState.endpoint.kind)) return;
+        const { item, endpoint } = node.slotState;
+        if (!this.dragSource || this.busy || !this.canTransferSlot(this.dragSource, endpoint, item)) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';
         node.classList.add('drop-target');
@@ -664,7 +738,10 @@ export class GameUI {
       node.addEventListener('drop', (event) => {
         event.preventDefault();
         node.classList.remove('drop-target');
-        if (this.dragSource && (!node.slotState.item || mergeable(this.catalog, node.slotState.item, this.dragSource.item, node.slotState.endpoint.kind))) this.transfer(this.dragSource.endpoint, node.slotState.endpoint, this.dragSource.item);
+        const { item, endpoint } = node.slotState;
+        if (this.dragSource && this.canTransferSlot(this.dragSource, endpoint, item)) {
+          this.transfer(this.dragSource.endpoint, endpoint, this.dragSource.item, item);
+        }
       });
     }
     node.slotState = { item, endpoint };
@@ -705,7 +782,7 @@ export class GameUI {
     return node;
   }
 
-  transfer(source, destination, item) {
+  transfer(source, destination, item, replacement = null) {
     if (this.busy || !this.connection.ready) return Promise.resolve(false);
     if (destination.kind === 'ground' && item.kind === 'axe') {
       this.toast(() => t('error.item_not_droppable'));
@@ -715,8 +792,9 @@ export class GameUI {
     this.dragSource = null;
     if (item.kind === 'coin' && isPersonalStorage(destination.kind)) destination = { kind: 'wallet' };
     const payload = { from: source, to: destination };
-    if (this.catalog.stack_limits?.[item.kind]) payload.item_kind = item.kind;
-    else if (source.kind !== 'fuel') payload.item_id = item.id;
+    if (source.kind !== 'fuel') payload.item_id = item.id;
+    if (replacement && !mergeable(this.catalog, replacement, item, destination.kind)) payload.swap_item_id = replacement.id;
+    if (this.catalog.stack_limits?.[item.kind] || source.kind === 'fuel') payload.item_kind = item.kind;
     return this.connection.command('transfer', payload).then(() => true).catch((error) => {
       this.toast(() => errorText(error));
       return false;
@@ -725,11 +803,13 @@ export class GameUI {
 
   quickTake(endpoint, item) {
     if (item.kind === 'coin') return this.transfer(endpoint, { kind: 'wallet' }, item);
-    for (const kind of endpoint.kind === 'inventory' ? ['backpack'] : ['backpack', 'inventory']) {
-      const slot = destinationSlot(this.state.you, kind, item, this.catalog);
-      if (slot >= 0) return this.transfer(endpoint, { kind, slot }, item);
+    const inventory = destinationSlot(this.state.you, 'inventory', item, this.catalog);
+    if (inventory >= 0 && !isPersonalStorage(endpoint.kind)) {
+      return this.transfer(endpoint, { kind: 'inventory', slot: inventory }, item);
     }
-    this.toast(() => t('storage.backpackFull'));
+    const slot = destinationSlot(this.state.you, 'backpack', item, this.catalog);
+    if (slot < 0) return this.toast(() => t('storage.backpackFull'));
+    this.transfer(endpoint, { kind: 'backpack', slot }, item);
   }
 
   quickDeposit(endpoint, item) {
@@ -737,7 +817,7 @@ export class GameUI {
     if (!container) return;
     if (machines.has(container.kind)) return this.toast(() => t('vending.useOffers'));
     if (container.kind === 'chest') {
-      const slot = container.slots.findIndex((entry) => !entry);
+      const slot = destinationSlot({ chest: container.slots }, 'chest', item, this.catalog);
       if (slot < 0) return this.toast(() => t('storage.chestFull'));
       this.transfer(endpoint, { kind: 'chest', id: container.id, slot }, item);
     } else if (item.kind === 'wood') this.transfer(endpoint, { kind: 'fuel', id: container.id }, item);
@@ -746,23 +826,25 @@ export class GameUI {
   }
 
   renderCraft(body) {
-    body.append(element('p', 'craft-description', t('craft.description')));
+    const creative = this.state.you.creative?.free_craft;
+    body.append(element('p', 'craft-description', t(creative ? 'craft.creative' : 'craft.description')));
     const inventory = [...this.state.you.backpack, ...this.state.you.inventory];
-    const counts = {};
+    const counts = { coin: this.state.you.money ?? 0 };
     for (const item of inventory.filter(Boolean)) counts[item.kind] = (counts[item.kind] || 0) + itemCount(item);
     const list = element('div', 'recipe-list');
     for (const [identifier, recipe] of Object.entries(this.catalog.recipes)) {
       const card = element('button', 'recipe-card');
       card.type = 'button';
       card.dataset.recipe = identifier;
-      const enough = Object.entries(recipe.inputs).every(([kind, amount]) => (counts[kind] || 0) >= amount);
-      card.disabled = this.busy || !enough || !recipeFits(this.state.you, recipe, this.catalog);
+      const inputs = creative && identifier !== 'recycle_fences' ? [] : Object.entries(recipe.inputs);
+      const enough = inputs.every(([kind, amount]) => (counts[kind] || 0) >= amount);
+      card.disabled = this.busy || !enough || !recipeFits(this.state.you, { ...recipe, inputs: Object.fromEntries(inputs) }, this.catalog);
       const icon = element('span', 'recipe-icon');
       const image = element('img'); image.src = assetUrl(recipe.output); image.alt = '';
       icon.append(image, element('small', '', `×${recipe.count}`));
       const copy = element('span', 'recipe-copy');
       copy.append(element('strong', '', identifier === 'recycle_fences' ? t('craft.recycle') : itemName(recipe.output)));
-      copy.append(element('span', enough ? '' : 'missing', Object.entries(recipe.inputs).map(([kind, amount]) => `${itemName(kind)} ${counts[kind] || 0}/${amount}`).join(' · ')));
+      copy.append(element('span', enough ? '' : 'missing', inputs.map(([kind, amount]) => `${itemName(kind)} ${counts[kind] || 0}/${amount}`).join(' · ') || t('craft.noMaterials')));
       card.append(icon, copy, element('span', '', '＋'));
       card.onclick = () => this.action('craft', { recipe: identifier }, () => t('craft.success', { count: recipe.count, name: itemName(recipe.output) }));
       list.append(card);
@@ -776,6 +858,8 @@ export class GameUI {
     for (const item of inventory.filter(Boolean)) counts[item.kind] = (counts[item.kind] || 0) + itemCount(item);
     counts.coin = this.state.you.money ?? 0;
     body.append(element('p', 'craft-description', t('vending.balance', { wood: counts.wood || 0, coin: counts.coin || 0 })));
+    const freePurchases = this.state.you.creative?.free_purchases;
+    if (freePurchases) body.append(element('p', 'craft-description', t('vending.creative')));
     const list = element('div', 'recipe-list vending-offers');
     const offers = this.catalog.machine_offers?.[container.kind] || (container.kind === 'vending_machine' ? this.catalog.vending_offers : {}) || {};
     if (this.catalog.room_machines?.[container.kind]) body.append(element('p', 'craft-description', t(`guide.effect.${container.kind}`)));
@@ -783,17 +867,17 @@ export class GameUI {
       const card = element('button', 'recipe-card');
       card.type = 'button';
       card.dataset.offer = identifier;
-      const enough = Object.entries(offer.inputs).every(([kind, amount]) => (counts[kind] || 0) >= amount);
-      const fits = recipeFits(this.state.you, offer, this.catalog);
-      card.disabled = this.busy || !enough || !fits;
+      const inputs = Object.entries(offer.inputs).filter(([kind]) => !freePurchases || kind !== 'coin');
+      const enough = inputs.every(([kind, amount]) => (counts[kind] || 0) >= amount);
+      card.disabled = this.busy || !enough || !recipeFits(this.state.you, { ...offer, inputs: Object.fromEntries(inputs) }, this.catalog);
       const icon = element('span', 'recipe-icon');
       const image = element('img'); image.src = assetUrl(offer.output); image.alt = '';
       icon.append(image, element('small', '', `×${offer.count}`));
       const copy = element('span', 'recipe-copy');
-      const cost = Object.entries(offer.inputs).map(([kind, amount]) => `${amount} × ${itemName(kind)}`).join(' + ');
+      const cost = inputs.map(([kind, amount]) => `${amount} × ${itemName(kind)}`).join(' + ') || t('vending.free');
       copy.append(element('strong', '', `${cost} → ${offer.count} × ${itemName(offer.output)}`));
-      copy.append(element('span', enough ? '' : 'missing', Object.entries(offer.inputs).map(([kind, amount]) => `${itemName(kind)} ${counts[kind] || 0}/${amount}`).join(' · ')));
-      card.title = t(fits ? 'vending.exchange' : 'error.inventory_full');
+      if (inputs.length) copy.append(element('span', enough ? '' : 'missing', inputs.map(([kind, amount]) => `${itemName(kind)} ${counts[kind] || 0}/${amount}`).join(' · ')));
+      card.title = t(free < required ? 'error.inventory_full' : 'vending.exchange');
       card.append(icon, copy, element('span', '', '→'));
       card.onclick = () => this.action('trade', { id: container.id, offer: identifier }, () => t('vending.success', { count: offer.count, name: itemName(offer.output) }));
       list.append(card);
@@ -804,8 +888,10 @@ export class GameUI {
   renderFire(body, container) {
     const structure = this.state.structures.find((entry) => entry.id === container.id);
     const lit = Boolean(structure?.lit);
+    const fixed = container.kind === 'fixed_heater';
+    const broken = fixed && !container.repaired;
     const overview = element('div', 'fire-overview');
-    const image = element('img'); image.src = assetUrl(lit ? 'campfire_lit' : 'campfire'); image.alt = itemName('campfire');
+    const image = element('img'); image.src = assetUrl(lit ? `${container.kind}_lit` : container.kind); image.alt = itemName(container.kind);
     const copy = element('div');
     const remaining = Math.ceil(container.burn_remaining || 0);
     copy.append(element('strong', '', t(lit ? 'fire.lit' : 'fire.unlit')), element('p', '', lit ? t('fire.remaining', { time: `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` }) : t('fire.needs')));
@@ -851,9 +937,9 @@ export class GameUI {
     insert.onclick = () => container.igniter ? this.quickTake({ kind: 'igniter', id: container.id }, container.igniter) : this.transfer(igniterItem.endpoint, { kind: 'igniter', id: container.id }, igniterItem.item);
     row.append(insert); igniter.append(row); body.append(igniter);
     const light = element('button', 'primary-button fire-light', t(lit ? 'fire.burning' : 'fire.light'));
-    light.disabled = this.busy || lit || !container.fuel || !(container.igniter?.uses > 0);
+    light.disabled = this.busy || broken || lit || !container.fuel || !(container.igniter?.uses > 0);
     light.dataset.action = 'light';
     light.onclick = () => this.action('light', { id: container.id }, () => t('fire.success'));
-    body.append(light, element('p', 'bag-description', t('fire.description')));
+    body.append(light, element('p', 'bag-description', t(broken ? 'hint.repairDevice' : fixed ? 'fire.fixedDescription' : 'fire.description')));
   }
 }

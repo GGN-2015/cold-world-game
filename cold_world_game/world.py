@@ -9,32 +9,34 @@ from contextlib import contextmanager
 
 from .actions import Actions, GameError
 from .admin import Administration, admin_id
+from .biomes import Biomes
 from .combat import Combat
-from .constants import STARVATION_AMBIENT, STARVATION_HUNGER, STARVATION_TEMPERATURE, WORLD_START_HOUR
-from .constants import BACKPACK_STACK_LIMITS, NAVIGATION_ITEMS, STACK_LIMITS, THROWABLE_WEAPONS
-from .constants import GROUND_ITEM_UNSEEN_SECONDS
-from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BODY_TEMPERATURE_RATES, BULLET_BLOCKERS, BURN_SECONDS, CHAINSAW_CHANCE, CHUNK_SIZE, DAY_SECONDS, DEFAULT_VIEWPORT, DEFIBRILLATOR_CHANCE, DRINKS, DROP_DISTANCE, EQUIPPED_ITEMS, EXPLOSIVE_WEAPONS, FAST_MONSTER_SPEED, FIRST_AID_KIT_CHANCE, FLAME_STAFF_CHANCE, FOODS, GRENADE_CHANCE, GUNS, HARVEST_TOOLS, GUN_MACHINE_CHANCE, HEALING_ITEMS, HOMING_MISSILE_CHANCE, HEAT_PATCH_CHANCE, ICE_STAFF, ICE_STAFF_CHANCE, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, LANDMINE_CHANCE, MACHINE_OFFERS, MATCH_MACHINE_CHANCE, MAX_COINS, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_SPEED, NIGHT_MONSTER_HOURS, OPAQUE, PASSIVE_ITEMS, PICKUP_RADIUS, PIGGY_BANK_CHANCE, PLAYER_SPEED, READY_TO_EAT_FOODS, RECIPES, RETURN_ITEMS, RETURN_STAFF_CHANCE, REVIVAL_ITEMS, SEASONS, SEASON_DAYS, SEASON_OFFSETS, SHERIFF_BADGE_CHANCE, SMALL_MONSTER_FOOD_CHANCE, SMALL_MONSTER_FOOD_WEIGHTS, SOLID, SWIFTNESS_RING_CHANCE, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS, VODKA_CHANCE
+from .constants import AMMO_PACKS, RELOAD_RULES, CREATIVE_ITEMS, FIXED_HEATER_BURN_SECONDS, HUNGER_PER_MINUTE, MAX_HUNGER, STARVATION_COOLING_PER_MINUTE, STARVATION_HUNGER, STARVATION_TEMPERATURE, WORLD_START_HOUR
+from .constants import BIOME_ITEMS, BUILDING_WANDS
+from .constants import BACKPACK_STACK_LIMITS, GROUND_ITEM_UNSEEN_SECONDS, NAVIGATION_ITEMS, STACK_LIMITS, THROWABLE_WEAPONS
+from .constants import AXE, BACKPACK_SLOTS, BODY_RADIUS, BODY_TEMPERATURE_RATES, BULLET_BLOCKERS, BURN_SECONDS, CHAINSAW_CHANCE, CHUNK_SIZE, DAY_SECONDS, DEFAULT_VIEWPORT, DEFIBRILLATOR_CHANCE, DRINKS, DROP_DISTANCE, EQUIPPED_ITEMS, EXPLOSIVE_WEAPONS, FAST_MONSTER_SPEED, FIRST_AID_KIT_CHANCE, FLAME_STAFF_CHANCE, FOODS, GRENADE_CHANCE, GUNS, HARVEST_TOOLS, GUN_MACHINE_CHANCE, HEALING_ITEMS, HOMING_MISSILE_CHANCE, HEAT_PATCH_CHANCE, ICE_STAFF, ICE_STAFF_CHANCE, IGNITERS, INVENTORY_SLOTS, ITEM_KINDS, KNOCKBACK, LANDMINE_CHANCE, MACHINE_OFFERS, MATCH_MACHINE_CHANCE, MAX_COINS, MELEE_WEAPONS, MONSTER_BULLET_BLOCKERS, MONSTER_COIN_DROPS, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_SPEED, NIGHT_MONSTER_HOURS, OPAQUE, PASSIVE_ITEMS, PICKUP_RADIUS, PIGGY_BANK_CHANCE, PLAYER_SPEED, READY_TO_EAT_FOODS, RECIPES, RETURN_ITEMS, RETURN_STAFF_CHANCE, REVIVAL_ITEMS, SEASONS, SEASON_DAYS, SEASON_OFFSETS, SHERIFF_BADGE_CHANCE, SMALL_MONSTER_FOOD_CHANCE, SMALL_MONSTER_FOOD_WEIGHTS, SWIFTNESS_RING_CHANCE, TERRAIN_VERSION, TICK_RATE, VENDING_MACHINE_CHANCE, VENDING_OFFERS, VODKA_CHANCE
 from .expansion import DURIAN_CHANCE, EXPANSION_CATEGORIES, EXPANSION_ITEMS, carried_modifier
 from .room_machines import ROOM_MACHINES
 from .geometry import chunk, circle_square, distance, segment_box, segment_tiles, tile
+from .inventory import can_insert, insert_item, personal_storages
 from .models import Controls, GroundItem, Item, Monster, Player, Projectile, encode, item_from, player_from, projectile_from, structure_from
 from .monsters import Monsters
 from .outdoors import Outdoors
 from .wildlife import MONSTER_TYPES, OUTDOOR_FEATURES, SEATS
 from .storage import WorldDelta
-from .terrain import Terrain
-from .terrain_stream import TerrainStream
-from .procedural import plan
 from .spatial import BodyIndex
 from .publication import capture_entities, compose_snapshot
-from .inventory import can_insert, insert_item, personal_storages
+from .terrain import Terrain
+from .terrain_stream import TerrainStream
+from .procedural import appearance, plan
+from .weather import FLOOR_TIER_SIZE, Weather
 
 
 def tuples(value):
     return tuple(tuples(element) for element in value) if isinstance(value, list) else value
 
 
-class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, Terrain):
+class World(Administration, Outdoors, Actions, Combat, Biomes, Monsters, TerrainStream, Terrain, Weather):
     def __init__(self, storage, seed=None, admin=None):
         self.admin = admin_id(admin)
         self.storage = storage
@@ -49,6 +51,8 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
         self._dirty_structures = {}
         self._terrain_dirty = True
         self._campfires = {}
+        self._heat_rooms = {}
+        self._heat_room_revision = -1
         self._landmines = {}
         self._mine_triggers = set()
         self._structure_order = {}
@@ -65,6 +69,8 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
         self._save_generation = 0
         self.init_terrain_stream()
         self._seats_by_chunk = {}
+        self.biome_effects = []
+        self.biome_fires = []
         state = storage.load()
         if state:
             self.restore(state)
@@ -116,9 +122,13 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
             "ground": [encode(value) for value in self.ground.values()],
             "shot_hits": {shot: sorted(players) for shot, players in self.shot_hits.items()},
             "shot_impacts": {shot: sorted(monsters) for shot, monsters in self.shot_impacts.items()},
+            "biome_effects": self.biome_effects[:],
+            "biome_fires": self.biome_fires[:],
         }
 
     def restore(self, state):
+        self.biome_effects = state.get("biome_effects", [])
+        self.biome_fires = state.get("biome_fires", [])
         self._mine_triggers = set()
         self._path_jobs = {}
         self._path_queue = deque()
@@ -152,7 +162,8 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                 else:
                     self.structures[values["id"]] = structure_from(values)
             self.tiles = {(value.x, value.y): value.id for value in self.structures.values()}
-            self._campfires = {value.id: value for value in self.structures.values() if value.kind == "campfire"}
+            self._campfires = {value.id: value for value in self.structures.values() if value.kind in {"campfire", "fixed_heater"}}
+            self._heat_rooms.clear()
             self._landmines = {value.id: value for value in self.structures.values() if value.kind == "landmine"}
             self._seats_by_chunk = {}
             for structure in self.structures.values():
@@ -293,6 +304,7 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
             player.last_login_at = time.time()
             self.online.add(player_id)
             self.controls[player_id] = Controls(aim_x=player.x + 1, aim_y=player.y, last_input=time.monotonic(), client_movement=client_movement)
+            self.activate_creative_vitals(player)
             for monster in self.monsters.values():
                 if monster.target not in self.online or self.players[monster.target].temperature < 5:
                     self.clear_target(monster)
@@ -355,6 +367,8 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                 self.elapsed += seconds
                 self.tick_number += 1
                 self.update_fires(seconds)
+                if self.biome_effects or self.biome_fires:
+                    self.update_biome_effects()
                 for player_id in list(self.online):
                     player, controls = self.players[player_id], self.controls[player_id]
                     if self.input_expired(controls):
@@ -365,6 +379,7 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                 previous_monsters = {identifier: (monster.x, monster.y) for identifier, monster in self.monsters.items()}
                 self.update_burning()
                 self.update_impalement()
+                self.update_biome_guards()
                 self.detonate_mines()
                 self.update_monsters(seconds)
                 self.detonate_mines()
@@ -404,7 +419,7 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
         for tile_x in range(tile(x - BODY_RADIUS - 0.5), tile(x + BODY_RADIUS + 0.5) + 1):
             for tile_y in range(tile(y - BODY_RADIUS - 0.5), tile(y + BODY_RADIUS + 0.5) + 1):
                 structure = self.structure_at(tile_x, tile_y)
-                if structure and structure.id != ignore_structure and structure.kind in SOLID and circle_square(x, y, tile_x, tile_y):
+                if structure and structure.id != ignore_structure and structure.solid and circle_square(x, y, tile_x, tile_y):
                     return False
         if not ignore_monsters:
             ghost = self.controls[player_id].ghost_monsters if player_id in self.controls else set()
@@ -418,6 +433,20 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                 if player.temperature >= 5 and monster_id not in self.controls[other_id].ghost_monsters and not (moving_monster and self.allows_player_overlap(moving_monster, other_id)) and math.hypot(x - player.x, y - player.y) < BODY_RADIUS * 2 - 1e-9:
                     return False
         return True
+
+    def barrier_blocks_movement(self, start_x, start_y, end_x, end_y):
+        if (start_x, start_y) == (end_x, end_y):
+            return False
+        if math.hypot(end_x - start_x, end_y - start_y) > 24:
+            return True
+        for x in range(tile(min(start_x, end_x)) - 1, tile(max(start_x, end_x)) + 2):
+            for y in range(tile(min(start_y, end_y)) - 1, tile(max(start_y, end_y)) + 2):
+                structure = self.structure_at(x, y)
+                if not structure or structure.kind not in {"ring_wall", "ring_gate", "door"} or not structure.solid:
+                    continue
+                if segment_box(start_x, start_y, end_x, end_y, x, y) is not None or circle_square(end_x, end_y, x, y):
+                    return True
+        return False
 
     def move_body(self, body, delta_x, delta_y, player_id=None, monster_id=None):
         steps = max(1, math.ceil(math.hypot(delta_x, delta_y) / 0.15))
@@ -443,7 +472,7 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
 
     def visible(self, start_x, start_y, end_x, end_y, ignore=None):
         for structure in self.nearby_structures(start_x, start_y, end_x, end_y):
-            if structure.id != ignore and structure.kind in OPAQUE and segment_box(start_x, start_y, end_x, end_y, structure.x, structure.y) is not None:
+            if structure.id != ignore and structure.kind in OPAQUE and structure.solid and segment_box(start_x, start_y, end_x, end_y, structure.x, structure.y) is not None:
                 return False
         return True
 
@@ -497,16 +526,19 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
         spring = -20 + hour * (20 / 12) if hour <= 12 else 20 - hour * (20 / 12)
         return {"year": day // (SEASON_DAYS * len(SEASONS)) + 1, "season": SEASONS[season], "day": day % SEASON_DAYS + 1, "hour": hour, "ambient_temperature": spring + SEASON_OFFSETS[season]}
 
-    def temperature_at(self, player):
-        if player.hunger <= STARVATION_HUNGER and player.temperature > STARVATION_TEMPERATURE:
-            return STARVATION_AMBIENT
+    def temperature_at(self, player, ambient=None):
         if player.excitement_remaining > 0:
             return DRINKS["vodka"]["felt_temperature"]
-        return self.actual_temperature_at(player) + carried_modifier(player, "ambient_bonus", 0.0)
+        if ambient is None:
+            ambient = self.actual_temperature_at(player)
+        return ambient + carried_modifier(player, "ambient_bonus", 0.0)
 
     def actual_temperature_at(self, player):
-        nearest = min((abs(tile(player.x) - fire.x) + abs(tile(player.y) - fire.y) for fire in self._campfires.values() if fire.lit), default=math.inf)
-        return next((temperature for radius, temperature in ((3, 30), (6, 20), (9, 10)) if 1 <= nearest <= radius), self.environment()["ambient_temperature"])
+        return self.heating_at(player)[0]
+
+    @staticmethod
+    def fire_duration(fire):
+        return FIXED_HEATER_BURN_SECONDS if fire.kind == "fixed_heater" else BURN_SECONDS
 
     def update_fires(self, seconds):
         for fire in self._campfires.values():
@@ -518,18 +550,18 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                 self.touch()
                 while remaining <= 0 and fire.fuel > 0:
                     fire.fuel -= 1
-                    remaining += BURN_SECONDS
+                    remaining += self.fire_duration(fire)
                 fire.burn_remaining = max(0, remaining)
             else:
                 fire.burn_remaining = remaining
 
-    @staticmethod
-    def player_speed(player):
+    def player_speed(self, player):
         if player.temperature < 5:
             return 0.0
         item = player.inventory[player.selected]
-        multiplier = EQUIPPED_ITEMS.get(item.kind, {}).get("speed_multiplier", 1) if item else 1
-        return PLAYER_SPEED * (0.5 if player.temperature < 18 else 1) * (0.5 if player.hunger <= 0 else 1) * multiplier
+        equipment_speed = EQUIPPED_ITEMS.get(item.kind, {}).get("speed_multiplier", 1) if item else 1
+        multiplier = player.creative_effects().get("speed_multiplier", equipment_speed)
+        return PLAYER_SPEED * (0.5 if player.temperature < 18 else 1) * (0.5 if player.hunger <= 0 else 1) * multiplier * self.biome_speed_scale(player)
 
     @staticmethod
     def body_temperature_rate(ambient):
@@ -537,34 +569,38 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
 
     def change_body_temperature(self, player, ambient, seconds):
         starving = player.hunger <= STARVATION_HUNGER
+        rate = self.body_temperature_rate(ambient)
         if starving and player.temperature > STARVATION_TEMPERATURE:
-            rate = self.body_temperature_rate(STARVATION_AMBIENT)
-            cooling_seconds = min(seconds, (player.temperature - STARVATION_TEMPERATURE) * 60 / -rate)
-            player.temperature = max(STARVATION_TEMPERATURE, player.temperature + rate * cooling_seconds / 60)
+            starvation_rate = min(rate, -STARVATION_COOLING_PER_MINUTE)
+            cooling_seconds = min(seconds, (player.temperature - STARVATION_TEMPERATURE) * 60 / -starvation_rate)
+            player.temperature = max(STARVATION_TEMPERATURE, player.temperature + starvation_rate * cooling_seconds / 60)
             seconds -= cooling_seconds
         if seconds > 0:
             ceiling = STARVATION_TEMPERATURE if starving else 36.0
-            player.temperature = max(0.0, min(ceiling, player.temperature + self.body_temperature_rate(ambient) * seconds / 60))
+            player.temperature = max(0.0, min(ceiling, player.temperature + rate * seconds / 60))
 
     def drain_hunger(self, player, seconds):
         player.hunger = max(0.0, player.hunger - seconds / 60 * carried_modifier(player, "hunger_drain_multiplier", minimum=True))
 
     def update_player(self, player, controls, seconds):
+        if self.elapsed <= player.scorched_until and 0 < player.next_scorch <= self.elapsed:
+            self.hurt_player(player, 1, source="ember_shot")
+            player.next_scorch += 1
         previous_temperature = player.temperature
-        excited_seconds = min(seconds, player.excitement_remaining)
-        if excited_seconds > 0:
-            self.change_body_temperature(player, DRINKS["vodka"]["felt_temperature"], excited_seconds)
-            player.excitement_remaining = max(0.0, player.excitement_remaining - seconds)
-        if seconds > excited_seconds:
-            ambient = self.actual_temperature_at(player) + carried_modifier(player, "ambient_bonus", 0.0)
-            self.change_body_temperature(player, ambient, seconds - excited_seconds)
-        self.drain_hunger(player, seconds)
+        effects = player.creative_effects()
+        if "hunger" in effects:
+            player.hunger = effects["hunger"]
+        self.update_player_temperature(player, seconds)
+        if "temperature" in effects:
+            player.temperature = effects["temperature"]
+        if "hunger" not in effects:
+            player.hunger = max(0.0, player.hunger - seconds / 60 * HUNGER_PER_MINUTE * carried_modifier(player, "hunger_drain_multiplier", minimum=True))
         if (previous_temperature < 5) != (player.temperature < 5):
             controls.movement_epoch += 1
         if player.temperature < 5:
             controls.seat = None
             item = player.inventory[player.selected]
-            if item is None or item.kind not in HEALING_ITEMS and item.kind not in RETURN_ITEMS and item.kind not in DRINKS:
+            if item is None or (item.kind not in HEALING_ITEMS and item.kind not in RETURN_ITEMS and item.kind not in DRINKS and item.kind not in FOODS and item.kind not in REVIVAL_ITEMS):
                 controls.stop_attack()
             controls.ghost_monsters.update(monster.id for monster in self.monsters.values() if distance(player, monster) < BODY_RADIUS * 2)
         elif previous_temperature < 5:
@@ -581,6 +617,15 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                 self.ensure_terrain(player.x, player.y)
         else:
             controls.velocity_x = controls.velocity_y = 0.0
+
+    def activate_creative_vitals(self, player):
+        previous_temperature = player.temperature
+        player.apply_creative_vitals(player.creative_effects())
+        if previous_temperature < 5 <= player.temperature:
+            controls = self.controls[player.id]
+            controls.movement_epoch += 1
+            controls.stop_attack()
+            controls.ghost_monsters.update(monster.id for monster in self.monsters.values() if distance(player, monster) < BODY_RADIUS * 2)
 
     def update_ground_items(self):
         viewers = [(self.players[identifier], self.controls[identifier]) for identifier in sorted(self.online)]
@@ -609,6 +654,8 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                     player.money += ground.item.count
                 else:
                     insert_item(storages, ground.item)
+                    if ground.item.kind in CREATIVE_ITEMS:
+                        self.activate_creative_vitals(player)
                 del self.ground[ground_id]
 
     def snapshot(self, player_id, procedural=False):
@@ -627,7 +674,7 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                 for vertical in range(math.ceil(player.y - 13), math.floor(player.y + 13) + 1):
                     structure = self.structure_at(horizontal, vertical)
                     if structure:
-                        structures.append({"id": structure.id, "kind": structure.kind, "x": structure.x, "y": structure.y, "lit": structure.lit, "monster_demolition": structure.id in demolitions})
+                        structures.append({**appearance(structure), "lit": structure.lit, "monster_demolition": structure.id in demolitions})
             controls = self.controls[player_id]
             seat = self.seated_structure(controls)
             occupants = {control.seat: identifier for identifier, control in self.controls.items() if control.seat}
@@ -635,21 +682,34 @@ class World(Administration, Outdoors, Actions, Combat, Monsters, TerrainStream, 
                 if structure["kind"] in SEATS:
                     structure["occupant"] = occupants.get(structure["id"])
                     structure["ammo"] = self.structures[structure["id"]].ammo
+                if structure["kind"] in {"fixed_heater", "service_gun"}:
+                    structure["repaired"] = self.structures[structure["id"]].repaired
+                if structure["kind"] == "door":
+                    structure["door_open"] = self.structures[structure["id"]].door_open
             container = self.structures.get(controls.container)
+            interaction = {"target": controls.target, "progress": controls.progress, "ui_open": controls.ui}
+            if controls.reload_target:
+                remaining = max(0, controls.reload_until - self.elapsed)
+                interaction.update(target=f"reload:{controls.reload_target}", progress=max(0, controls.reload_duration - remaining), duration=controls.reload_duration)
+            ambient, sealed, coverage, heat_distance = self.heating_at(player)
             visible_chunks = [(horizontal, vertical) for horizontal in range(math.ceil((player.x - 30) / CHUNK_SIZE), math.floor((player.x + 30) / CHUNK_SIZE) + 1) for vertical in range(math.ceil((player.y - 24) / CHUNK_SIZE), math.floor((player.y + 24) / CHUNK_SIZE) + 1) if (horizontal, vertical) in self.chunks]
             return {
                 "movement": {"mode": "client" if controls.client_movement else "server", "epoch": controls.movement_epoch, "teleport_epoch": controls.teleport_epoch},
-                "you": {**encode(player), "seated": seat.kind if seat else None, "seat_id": controls.seat, "tile": [tile(player.x), tile(player.y)], "offset": [player.x - tile(player.x), player.y - tile(player.y)], "ambient_temperature": self.temperature_at(player), "downed": player.temperature < 5, "is_admin": self.admin is not None and player.id == self.admin},
+                "environment": {**self.environment(), "room_temperature": round(ambient, 1), "room_sealed": sealed, "floor_insulated": coverage >= FLOOR_TIER_SIZE, "floor_coverage": coverage, "heat_distance": heat_distance, "biomes": self.biome_view(player, controls)},
+                "you": {**encode(player), "creative": player.creative_effects(), "biome_speed_scale": self.biome_speed_scale(player), "seated": seat.kind if seat else None, "seat_id": controls.seat, "tile": [tile(player.x), tile(player.y)], "offset": [player.x - tile(player.x), player.y - tile(player.y)], "ambient_temperature": self.temperature_at(player, ambient), "downed": player.temperature < 5, "is_admin": self.admin is not None and player.id == self.admin},
+                "players": [{"id": other.id, "x": other.x, "y": other.y, "temperature": other.temperature, "hunger": other.hunger, "downed": other.temperature < 5, "move_speed": self.player_speed(other), "velocity_x": self.controls[other_id].velocity_x, "velocity_y": self.controls[other_id].velocity_y, "teleport_epoch": self.controls[other_id].teleport_epoch, "seated": self.structures[self.controls[other_id].seat].kind if self.controls[other_id].seat in self.structures else None, "seat_direction": (round(math.atan2(self.controls[other_id].aim_y - other.y, self.controls[other_id].aim_x - other.x) / (math.pi / 4)) + 8) % 8 if self.controls[other_id].seat else 0} for other_id in sorted(self.online) if (other := self.players[other_id]) and abs(other.x - player.x) <= 20 and abs(other.y - player.y) <= 13],
                 "structures": structures,
                 **({"structure_states": self.structure_states(player, demolitions)} if procedural else {}),
                 "chunks": sorted(visible_chunks),
                 "container": encode(container) if container else None,
-                "interaction": {"target": controls.target, "progress": controls.progress, "ui_open": controls.ui},
+                "interaction": interaction,
+                "event_sequence": self.event_sequence,
+                "events": [event for event in self.events if self.elapsed - event["time"] <= 1.5 and abs(event["x"] - player.x) <= 20 and abs(event["y"] - player.y) <= 13],
             }
 
     @staticmethod
     def catalog():
-        return {"stack_limits": STACK_LIMITS, "backpack_stack_limits": BACKPACK_STACK_LIMITS, "navigation_items": NAVIGATION_ITEMS, "tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "recipes": RECIPES, "vending_offers": VENDING_OFFERS, "machine_offers": MACHINE_OFFERS, "room_machines": {kind: {"chance": definition["chance"]} for kind, definition in ROOM_MACHINES.items()}, "currency": {"item": "coin", "player_field": "money", "uses_slots": False, "shared_bank": "piggy_bank", "bank_balance_field": "balance", "max_coins": MAX_COINS}, "body_temperature_rates": BODY_TEMPERATURE_RATES, "monster_coin_drops": MONSTER_COIN_DROPS, "monster_food_drops": {"small": {"chance": SMALL_MONSTER_FOOD_CHANCE, "weights": SMALL_MONSTER_FOOD_WEIGHTS}}, "monster_spawning": {"night_start": NIGHT_MONSTER_HOURS[0], "night_end": NIGHT_MONSTER_HOURS[1], **MONSTER_SPAWN_CHANCES}, "monster_activity": {"rest_start": MONSTER_REST_HOURS[0], "rest_end": MONSTER_REST_HOURS[1], "rise_seconds": MONSTER_RISE_SECONDS}, "terrain": {"version": TERRAIN_VERSION, "vending_machine_chance": VENDING_MACHINE_CHANCE, "match_machine_chance": MATCH_MACHINE_CHANCE, "chest_first_aid_kit_chance": FIRST_AID_KIT_CHANCE, "chest_return_staff_chance": RETURN_STAFF_CHANCE, "chest_ice_staff_chance": ICE_STAFF_CHANCE, "gun_machine_chance": GUN_MACHINE_CHANCE, "chest_grenade_chance": GRENADE_CHANCE, "chest_flame_staff_chance": FLAME_STAFF_CHANCE, "chest_defibrillator_chance": DEFIBRILLATOR_CHANCE, "piggy_bank_chance": PIGGY_BANK_CHANCE, "chest_heat_patch_chance": HEAT_PATCH_CHANCE, "chest_sheriff_badge_chance": SHERIFF_BADGE_CHANCE, "chest_vodka_chance": VODKA_CHANCE, "chest_swiftness_ring_chance": SWIFTNESS_RING_CHANCE, "chest_homing_missile_chance": HOMING_MISSILE_CHANCE, "chest_chainsaw_chance": CHAINSAW_CHANCE, "chest_landmine_chance": LANDMINE_CHANCE, "chest_durian_chance": DURIAN_CHANCE, "room_machine_chances": {kind: definition["chance"] for kind, definition in ROOM_MACHINES.items()}, "chest_expansion_chances": {kind: value["chance"] for kind, value in EXPANSION_ITEMS.items()}, "unexplored_uses_latest": True}, "axe": AXE, "melee_weapons": MELEE_WEAPONS, "harvest_tools": HARVEST_TOOLS, "explosive_weapons": EXPLOSIVE_WEAPONS, "throwable_weapons": THROWABLE_WEAPONS, "guns": GUNS, "projectiles": {"piercing": True, "range": "viewport_half_diagonal", "default_viewport": list(DEFAULT_VIEWPORT), "blockers": sorted(BULLET_BLOCKERS), "monster_blockers": sorted(MONSTER_BULLET_BLOCKERS)}, "drinks": DRINKS, "passive_items": PASSIVE_ITEMS, "equipped_items": EQUIPPED_ITEMS, "ready_to_eat_foods": sorted(READY_TO_EAT_FOODS), "healing_items": HEALING_ITEMS, "revival_items": REVIVAL_ITEMS, "return_items": RETURN_ITEMS, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "expansion_items": {kind: {"category": EXPANSION_CATEGORIES[value["mechanic"]], "group": value["group"], "chance": value["chance"]} for kind, value in EXPANSION_ITEMS.items()}, "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED, "fast_monster_speed": FAST_MONSTER_SPEED, "frozen_speed_scale": ICE_STAFF["speed_scale"]}, "knockback": KNOCKBACK, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "monster_types": MONSTER_TYPES, "outdoor_features": OUTDOOR_FEATURES, "protocol": 1}
+        return {"tick_rate": TICK_RATE, "chunk_size": CHUNK_SIZE, "radius": BODY_RADIUS, "creative_items": CREATIVE_ITEMS, "biome_items": sorted(BIOME_ITEMS), "recipes": RECIPES, "building_wands": BUILDING_WANDS, "throwable_weapons": THROWABLE_WEAPONS, "navigation_items": NAVIGATION_ITEMS, "stack_limits": STACK_LIMITS, "backpack_stack_limits": BACKPACK_STACK_LIMITS, "vending_offers": VENDING_OFFERS, "machine_offers": MACHINE_OFFERS, "room_machines": {kind: {"chance": definition["chance"]} for kind, definition in ROOM_MACHINES.items()}, "currency": {"item": "coin", "player_field": "money", "uses_slots": False, "shared_bank": "piggy_bank", "bank_balance_field": "balance", "max_coins": MAX_COINS}, "body_temperature_rates": BODY_TEMPERATURE_RATES, "max_hunger": MAX_HUNGER, "monster_coin_drops": MONSTER_COIN_DROPS, "monster_food_drops": {"small": {"chance": SMALL_MONSTER_FOOD_CHANCE, "weights": SMALL_MONSTER_FOOD_WEIGHTS}}, "monster_spawning": {"night_start": NIGHT_MONSTER_HOURS[0], "night_end": NIGHT_MONSTER_HOURS[1], **MONSTER_SPAWN_CHANCES}, "monster_activity": {"rest_start": MONSTER_REST_HOURS[0], "rest_end": MONSTER_REST_HOURS[1], "rise_seconds": MONSTER_RISE_SECONDS}, "terrain": {"version": TERRAIN_VERSION, "vending_machine_chance": VENDING_MACHINE_CHANCE, "match_machine_chance": MATCH_MACHINE_CHANCE, "chest_first_aid_kit_chance": FIRST_AID_KIT_CHANCE, "chest_return_staff_chance": RETURN_STAFF_CHANCE, "chest_ice_staff_chance": ICE_STAFF_CHANCE, "gun_machine_chance": GUN_MACHINE_CHANCE, "chest_grenade_chance": GRENADE_CHANCE, "chest_flame_staff_chance": FLAME_STAFF_CHANCE, "chest_defibrillator_chance": DEFIBRILLATOR_CHANCE, "piggy_bank_chance": PIGGY_BANK_CHANCE, "chest_heat_patch_chance": HEAT_PATCH_CHANCE, "chest_sheriff_badge_chance": SHERIFF_BADGE_CHANCE, "chest_vodka_chance": VODKA_CHANCE, "chest_swiftness_ring_chance": SWIFTNESS_RING_CHANCE, "chest_homing_missile_chance": HOMING_MISSILE_CHANCE, "chest_chainsaw_chance": CHAINSAW_CHANCE, "chest_landmine_chance": LANDMINE_CHANCE, "chest_durian_chance": DURIAN_CHANCE, "room_machine_chances": {kind: definition["chance"] for kind, definition in ROOM_MACHINES.items()}, "chest_expansion_chances": {kind: value["chance"] for kind, value in EXPANSION_ITEMS.items()}, "unexplored_uses_latest": True}, "axe": AXE, "melee_weapons": MELEE_WEAPONS, "harvest_tools": HARVEST_TOOLS, "explosive_weapons": EXPLOSIVE_WEAPONS, "guns": GUNS, "ammo_packs": AMMO_PACKS, "reload_rules": RELOAD_RULES, "projectiles": {"piercing": False, "mounted_piercing": True, "range": "viewport_half_diagonal", "default_viewport": list(DEFAULT_VIEWPORT), "blockers": sorted(BULLET_BLOCKERS), "monster_blockers": sorted(MONSTER_BULLET_BLOCKERS)}, "drinks": DRINKS, "passive_items": PASSIVE_ITEMS, "equipped_items": EQUIPPED_ITEMS, "ready_to_eat_foods": sorted(READY_TO_EAT_FOODS), "healing_items": HEALING_ITEMS, "revival_items": REVIVAL_ITEMS, "return_items": RETURN_ITEMS, "foods": FOODS, "igniters": IGNITERS, "items": sorted(ITEM_KINDS), "expansion_items": {kind: {"category": EXPANSION_CATEGORIES[value["mechanic"]], "group": value["group"], "chance": value["chance"]} for kind, value in EXPANSION_ITEMS.items()}, "day_seconds": DAY_SECONDS, "season_days": SEASON_DAYS, "movement": {"player_speed": PLAYER_SPEED, "monster_speed": MONSTER_SPEED, "fast_monster_speed": FAST_MONSTER_SPEED, "frozen_speed_scale": ICE_STAFF["speed_scale"]}, "knockback": KNOCKBACK, "storage": {"inventory_slots": INVENTORY_SLOTS, "backpack_slots": BACKPACK_SLOTS, "drop_distance": DROP_DISTANCE, "pickup_radius": PICKUP_RADIUS}, "monster_types": MONSTER_TYPES, "outdoor_features": OUTDOOR_FEATURES, "protocol": 1}
 
     def close(self, save=True):
         with self.lock:

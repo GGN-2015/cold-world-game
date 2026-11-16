@@ -1,4 +1,4 @@
-import { buildings, containers, itemDetail } from './catalog.js';
+import { buildings, containers, itemDetail, itemName } from './catalog.js';
 import { t as translate } from './i18n.js';
 
 export function itemGuide(item, catalog, language) {
@@ -6,7 +6,25 @@ export function itemGuide(item, catalog, language) {
   const t = (key, parameters) => translate(key, parameters, language);
   const kind = item.kind;
   let category, effect, use;
-  if (catalog.expansion_items?.[kind]) {
+  if (catalog.ammo_packs?.[kind]) {
+    category = 'ammo';
+    const guns = Object.entries(catalog.reload_rules).filter(([, [pack]]) => pack === kind).map(([gun]) => itemName(gun));
+    if (kind === 'rifle_ammo') guns.push(itemName('mounted_gun'));
+    effect = t('guide.effect.ammo', { guns: guns.join(' / ') });
+    use = t('guide.use.ammo');
+  } else if (catalog.creative_items?.[kind]) {
+    category = 'creative';
+    effect = t(`guide.effect.${kind}`, catalog.creative_items[kind]);
+    use = t('guide.use.creative');
+  } else if (catalog.biome_items?.includes(kind)) {
+    category = 'biome';
+    effect = t(`guide.effect.${kind}`);
+    use = t(`guide.use.${kind}`);
+  } else if (catalog.building_wands?.[kind]) {
+    category = 'building';
+    effect = t(`guide.effect.${kind}`);
+    use = t('guide.use.buildingWand');
+  } else if (catalog.expansion_items?.[kind]) {
     category = catalog.expansion_items[kind].category;
     effect = t(`guide.effect.${kind}`);
     use = t(`guide.use.${kind}`);
@@ -29,7 +47,7 @@ export function itemGuide(item, catalog, language) {
   } else if (catalog.drinks?.[kind]) {
     category = 'drink';
     const drink = catalog.drinks[kind];
-    const recoveryRate = (catalog.body_temperature_rates || [[30, 20], [20, 15]]).find(([minimum]) => drink.felt_temperature >= minimum)?.[1] ?? 0;
+    const recoveryRate = catalog.body_temperature_rates.find(([minimum]) => drink.felt_temperature >= minimum)?.[1] ?? 0;
     effect = t(`guide.effect.${kind}`, { ...drink, recovery_rate: recoveryRate });
     use = t('guide.use.drink', catalog.drinks[kind]);
   } else if (Object.hasOwn(catalog.foods || {}, kind)) {
@@ -63,7 +81,7 @@ export function itemGuide(item, catalog, language) {
     use = t('guide.use.return', catalog.return_items[kind]);
   } else if (catalog.igniters?.[kind]) {
     category = 'igniter';
-    effect = t('guide.effect.igniter');
+    effect = t(kind === 'gasoline' ? 'guide.effect.gasoline' : 'guide.effect.igniter');
     use = t('guide.use.igniter');
   } else if (kind === 'landmine') {
     category = 'building';
@@ -74,10 +92,10 @@ export function itemGuide(item, catalog, language) {
     effect = t(`guide.effect.${kind}`);
     use = `${t('guide.use.place')} ${t(containers.has(kind) ? 'guide.use.container' : 'guide.use.structure')}`;
     if (containers.has(kind)) use += ` ${t('guide.use.spacing')}`;
-  } else if (kind === 'wood') {
+  } else if (['wood', 'repair_wrench', 'spare_part'].includes(kind)) {
     category = 'material';
-    effect = t('guide.effect.wood');
-    use = t('guide.use.wood');
+    effect = t(`guide.effect.${kind}`);
+    use = t(`guide.use.${kind}`);
   } else if (kind === 'coin') {
     category = 'currency';
     effect = t('guide.effect.coin');

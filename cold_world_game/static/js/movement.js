@@ -1,6 +1,7 @@
 import { containers } from './catalog.js';
 
-const solid = new Set(['tree', 'wall', 'fence', ...containers]);
+const solid = new Set(['tree', 'wall', 'fence', 'ring_wall', 'ring_gate', ...containers]);
+const bulletBlockers = new Set(['tree', 'ring_wall']);
 const allowsPlayerOverlap = (monster, playerId) => playerId != null && !monster.big && monster.overlap_player === playerId;
 
 export class CollisionMap {
@@ -17,9 +18,9 @@ export class CollisionMap {
     const geometry = state.terrain_geometry ?? state.structures;
     if (this.structures !== geometry) {
       this.structures = geometry;
-      this.tiles = new Set(state.structures.filter((entity) => solid.has(entity.kind)).map((entity) => `${entity.x},${entity.y}`));
-      this.bulletTiles = new Set(state.structures.filter((entity) => entity.kind === 'tree').map((entity) => `${entity.x},${entity.y}`));
-      this.hostileBulletTiles = new Set(state.structures.filter((entity) => entity.kind === 'tree' || containers.has(entity.kind)).map((entity) => `${entity.x},${entity.y}`));
+      this.tiles = new Set(state.structures.filter((entity) => solid.has(entity.kind) || (entity.kind === 'door' && !entity.door_open)).map((entity) => `${entity.x},${entity.y}`));
+      this.bulletTiles = new Set(state.structures.filter((entity) => bulletBlockers.has(entity.kind)).map((entity) => `${entity.x},${entity.y}`));
+      this.hostileBulletTiles = new Set(state.structures.filter((entity) => bulletBlockers.has(entity.kind) || containers.has(entity.kind)).map((entity) => `${entity.x},${entity.y}`));
     }
     if (this.sourceChunks !== state.chunks) {
       this.sourceChunks = state.chunks;
@@ -89,8 +90,8 @@ export class CollisionMap {
 export function playerSpeed(player, baseSpeed = 4, equippedItems = {}, selected = player.selected) {
   if (player.downed || player.temperature < 5) return 0;
   const item = player.inventory?.[selected];
-  const multiplier = equippedItems[item?.kind]?.speed_multiplier ?? 1;
-  return baseSpeed * (player.temperature < 18 ? 0.5 : 1) * (player.hunger <= 0 ? 0.5 : 1) * multiplier;
+  const multiplier = player.creative?.speed_multiplier ?? equippedItems[item?.kind]?.speed_multiplier ?? 1;
+  return baseSpeed * (player.temperature < 18 ? 0.5 : 1) * (player.hunger <= 0 ? 0.5 : 1) * multiplier * (player.biome_speed_scale ?? 1);
 }
 
 export class ClientMovement {

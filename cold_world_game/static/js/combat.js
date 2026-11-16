@@ -1,4 +1,4 @@
-import { containers, tileAt } from './catalog.js';
+import { containers, meleeSettings, tileAt } from './catalog.js';
 
 export class LocalCombat {
   constructor(renderer, audio, catalog) {
@@ -13,7 +13,7 @@ export class LocalCombat {
 
   begin(state, selected, aim, now = performance.now() / 1000) {
     const item = state?.you.inventory[selected];
-    const settings = this.catalog.melee_weapons?.[item?.kind] || (item?.kind === 'axe' ? this.catalog.axe : null);
+    const settings = meleeSettings(this.catalog, state?.you, item?.kind);
     if (!settings || state.paused || state.fault || state.you.downed || state.you.temperature < 5 || (item.uses != null && item.uses <= 0) || now < this.cooldownUntil) return null;
     const origin = this.renderer.movement.enabled ? this.renderer.movement.sample() : state.you;
     const horizontal = aim.x - origin.x, vertical = aim.y - origin.y;

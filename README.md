@@ -48,7 +48,7 @@ uv run cold-world-game arena --host 127.0.0.1 --port 5001
 
 ## 手册树
 
-完整入口：[游戏与服务器手册](docs/README.md)。手册按玩法职责归类，同类内容统一结构，不按加入批次组织。
+[玩法 Wiki](docs/wiki/README.md)汇总当前物品、掉率、价格与怪物数值。[游戏与服务器手册](docs/README.md)收录完整操作与维护说明。
 
 | 领域 | 手册 |
 | --- | --- |

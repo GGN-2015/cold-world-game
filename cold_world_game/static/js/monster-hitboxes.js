@@ -19,11 +19,11 @@ export class MonsterHitboxes {
   }
 
   profile(entity, elapsed) {
-    return this.profiles[monsterSprite(entity, elapsed)];
+    return this.profiles[monsterSprite(entity, elapsed)] || this.profiles[`monster_${entity.species}`];
   }
 
   impaleAnchor(entity, elapsed) {
-    return this.impaleAnchors.get(monsterSprite(entity, elapsed)) || { y: entity.big ? -0.4 : -0.15, size: entity.big ? 0.96 : 0.66 };
+    return this.impaleAnchors.get(monsterSprite(entity, elapsed)) || this.impaleAnchors.get(`monster_${entity.species}`) || { y: entity.big ? -0.4 : -0.15, size: entity.big ? 0.96 : 0.66 };
   }
 
   contains(entity, point, elapsed) {
