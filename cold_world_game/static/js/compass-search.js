@@ -2,6 +2,8 @@ import { chunkSeed, RandomStream } from './procedural.js';
 
 export function buildingChunk(config, horizontal, vertical) {
   if (config.algorithm !== 1) throw new Error('unsupported_navigation_algorithm');
+  const band = config.barrier;
+  if (band && Math.abs(Math.hypot(horizontal * config.size, vertical * config.size) - band.radius) <= band.half_width) return false;
   return (horizontal === 0 && vertical === 0) || new RandomStream(chunkSeed(config.seed, horizontal, vertical)).random() >= 0.9;
 }
 

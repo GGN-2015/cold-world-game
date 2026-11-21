@@ -1,3 +1,4 @@
+import hmac
 import json
 import logging
 import secrets
@@ -167,6 +168,34 @@ class GameServer:
             raise
         finally:
             self.world.close(save=False)
+
+
+def reject_constant(value):
+    raise ValueError(f"Invalid JSON number: {value}")
+
+
+def password_matches(supplied, expected):
+    if not isinstance(supplied, str):
+        return False
+    try:
+        return hmac.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8"))
+    except UnicodeError:
+        return False
+
+
+def parse_message(raw):
+    if not isinstance(raw, str) or len(raw) > 32768:
+        raise GameError("invalid_message", "Messages must be JSON text, up to 32768 characters")
+    try:
+        message = json.loads(raw, parse_constant=reject_constant)
+    except (ValueError, RecursionError) as error:
+        raise GameError("invalid_json", "Invalid JSON message") from error
+    if not isinstance(message, dict):
+        raise GameError("invalid_message", "Messages must be JSON objects")
+    sequence = message.get("seq")
+    if sequence is not None and (isinstance(sequence, bool) or not isinstance(sequence, int) or not 0 <= sequence <= 2 ** 53 - 1):
+        raise GameError("invalid_sequence", "seq must be a nonnegative safe integer")
+    return message
 
 
 def send(websocket, message):

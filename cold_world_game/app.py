@@ -1,5 +1,3 @@
-import hmac
-import json
 import logging
 import socket
 import time
@@ -10,45 +8,20 @@ from flask_sock import Sock
 from simple_websocket import ConnectionClosed
 
 from .actions import GameError
-from .server import GameServer, send
+from .arena.server import register_arena_routes
+from .replay_routes import register_replay_routes
+from .replays import GameplayCapture, ReplayLibrary
+from .server import GameServer, parse_message, password_matches, send
 from .sync import state_delta
 from .wire import CompactSync
-
 
 LOGGER = logging.getLogger(__name__)
 
 
-def reject_constant(value):
-    raise ValueError(f"Invalid JSON number: {value}")
-
-
-def password_matches(supplied, expected):
-    if not isinstance(supplied, str):
-        return False
-    try:
-        return hmac.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8"))
-    except UnicodeError:
-        return False
-
-
-def parse_message(raw):
-    if not isinstance(raw, str) or len(raw) > 32768:
-        raise GameError("invalid_message", "Messages must be JSON text, up to 32768 characters")
-    try:
-        message = json.loads(raw, parse_constant=reject_constant)
-    except (ValueError, RecursionError) as error:
-        raise GameError("invalid_json", "Invalid JSON message") from error
-    if not isinstance(message, dict):
-        raise GameError("invalid_message", "Messages must be JSON objects")
-    sequence = message.get("seq")
-    if sequence is not None and (isinstance(sequence, bool) or not isinstance(sequence, int) or not 0 <= sequence <= 2 ** 53 - 1):
-        raise GameError("invalid_sequence", "seq must be a nonnegative safe integer")
-    return message
-
-
-def create_app(password=None, save_path=None, seed=None, start_engine=True, allowed_origins=(), admin=None):
+def create_app(password=None, save_path=None, seed=None, start_engine=True, allowed_origins=(), admin=None, replay_dir=None):
     app = Flask(__name__)
     app.config.update(MAX_CONTENT_LENGTH=32768, SOCK_SERVER_OPTIONS={"ping_interval": 25, "max_message_size": 32768})
+    library = ReplayLibrary(replay_dir)
     server = GameServer(password=password, save_path=save_path, seed=seed, start_engine=start_engine, admin=admin)
     app.extensions["cold_world_game"] = server
     sock = Sock(app)
@@ -61,9 +34,13 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
     def wiki():
         return app.send_static_file("wiki/index.html")
 
+    register_replay_routes(app, library, server.password, allowed_origins=allowed_origins)
+    register_arena_routes(app, sock, library, server.password, allowed_origins=allowed_origins, connection_owner=server)
+
     @app.get("/api/server")
     def server_info():
-        return jsonify({"name": "cold-world-game", "version": "0.1.0", "websocket": "/ws", "info": "/api/info", "client": "/"})
+        return jsonify({"name": "cold-world-game", "version": "0.1.0", "websocket": "/ws", "info": "/api/info", "client": "/",
+                        "arena": "/arena/", "arena_websocket": "/ws/arena", "replay": "/replay/"})
 
     @app.get("/health")
     def health():
@@ -79,6 +56,7 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
     @sock.route("/ws")
     def websocket_handler(websocket):
         player_id = None
+        recording = None
         if not server.register(websocket):
             websocket.close()
             return
@@ -93,6 +71,7 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
             candidate_id = message.get("player_id")
             state = server.world.join(candidate_id, client_movement=message.get("client_movement") is True)
             player_id = candidate_id
+            recording = GameplayCapture(library, server.world, player_id)
             quiet_inputs = message.get("quiet_inputs") is True
             wants_roster = message.get("player_roster") is True
             wants_deltas = message.get("state_deltas") is True
@@ -145,10 +124,16 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
                     try:
                         command = parse_message(raw)
                         sequence = command.get("seq")
-                        result = server.execute(player_id, command)
+                        if command.get("type") in ("record_start", "record_stop"):
+                            result = recording.command(command)
+                        else:
+                            result = server.execute(player_id, command)
+                            recording.operation(command, result)
                         if sequence is not None or not quiet_inputs or command.get("type") not in ("input", "stop"):
                             send(websocket, {"type": "ack", "seq": sequence, "result": result})
                     except GameError as error:
+                        if sequence is not None and command.get("type") not in ("record_start", "record_stop"):
+                            recording.operation(command, None, error.code)
                         send(websocket, {"type": "error", "seq": sequence, "code": error.code, "message": str(error)})
                     finally:
                         server.observe("received_command_ms", (time.perf_counter() - received) * 1000)
@@ -163,6 +148,7 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
                         next_state = time.monotonic() + .01
                         continue
                     last_capture = captured_at
+                    recording.capture()
                     terrain_previous = current_terrain
                     if wants_deltas:
                         update = compact.delta(state) if compact else state_delta(previous_state, state, state_revision)
@@ -205,6 +191,8 @@ def create_app(password=None, save_path=None, seed=None, start_engine=True, allo
         finally:
             try:
                 if player_id is not None:
+                    if recording is not None:
+                        recording.disconnect()
                     server.publisher.unsubscribe(player_id)
                     server.world.leave(player_id)
             except Exception:

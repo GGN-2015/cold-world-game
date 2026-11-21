@@ -13,69 +13,79 @@ from simple_websocket import ConnectionClosed
 from werkzeug.serving import make_server
 
 from ..actions import GameError
-from ..app import parse_message, password_matches
-from ..constants import DEFAULT_VIEWPORT, ITEM_KINDS, TICK_RATE
-from ..models import Item
-from ..server import send
+from ..constants import TICK_RATE
+from ..replay_routes import register_replay_routes
+from ..replays import ReplayLibrary, ReplayWriter
+from ..server import parse_message, password_matches, send
 from ..world import World
-from .ai import AI_TYPES, item_support
-from .history import HistoryStore, HistoryWriter, finish_record
-from .simulation import AMBIENT_TEMPERATURE_RANGE, DEFAULT_AMBIENT_TEMPERATURE, DEFAULT_INVENTORY, FINISHED_STATUSES, MAX_MOUNTED_AMMO, Simulation, validate_config
-
+from .simulation import (
+    FINISHED_STATUSES,
+    STRATEGIES,
+    TERRAIN,
+    WAVES,
+    WEAPONS,
+    Simulation,
+    validate_config,
+)
 
 LOGGER = logging.getLogger(__name__)
 
 
-def simulate(connection, config, max_monsters, history_directory, run_id):
+def simulate(connection, config, replay_directory, run_id):
     simulation = None
-    history = None
+    writer = None
     outcome = "stopped"
     try:
-        simulation = Simulation(config, max_monsters)
-        history = HistoryWriter(history_directory, run_id, simulation)
-        connection.send(history.append(simulation.snapshot()))
-        if simulation.status in FINISHED_STATUSES:
-            outcome = simulation.status
-            return
+        simulation = Simulation(config)
+        writer = ReplayWriter(ReplayLibrary(replay_directory), "arena", config["weapon"], config, identifier=run_id)
+
+        def publish():
+            frame = simulation.capture(writer)
+            frame["run_id"] = run_id
+            if simulation.status in FINISHED_STATUSES:
+                writer.meta["configuration"]["setup"] = simulation.opening
+                writer.finish(simulation.status, kills=simulation.kills, spawned=simulation.spawned)
+                frame["setup"] = simulation.opening
+            connection.send(frame)
+
+        publish()
+        if simulation.config["setup"]:
+            simulation.restore_opening(writer)
+            publish()
         interval = 1 / TICK_RATE
         deadline = time.monotonic() + interval
-        while True:
-            waiting = max(0, deadline - time.monotonic()) if simulation.status == "running" else None
-            if connection.poll(waiting):
+        while simulation.status not in FINISHED_STATUSES:
+            running = simulation.status == "running"
+            if connection.poll(max(0, deadline - time.monotonic()) if running else .1):
                 command = connection.recv()
-                if command == "stop":
-                    return
-                if command == "pause":
-                    simulation.pause()
-                elif command == "resume":
-                    simulation.resume()
-                deadline = time.monotonic() + interval
-                connection.send(history.append(simulation.snapshot()))
-                continue
-            simulation.step()
-            if simulation.world.tick_number % 2 == 0 or simulation.status in FINISHED_STATUSES:
-                connection.send(history.append(simulation.snapshot()))
-            if simulation.status in FINISHED_STATUSES:
-                outcome = simulation.status
-                return
-            deadline = max(deadline + interval, time.monotonic())
+                try:
+                    simulation.apply(writer, command)
+                except GameError as error:
+                    connection.send({"type": "edit_error", "code": error.code, "message": str(error)})
+                else:
+                    publish()
+                if not running:
+                    deadline = time.monotonic() + interval
+            elif running:
+                simulation.step()
+                if simulation.world.tick_number % 2 == 0 or simulation.status != "running":
+                    publish()
+                deadline = max(deadline + interval, time.monotonic())
     except (EOFError, BrokenPipeError, ConnectionResetError):
         pass
     except Exception:
         outcome = "error"
-        LOGGER.exception("Arena simulation failed")
+        LOGGER.exception("Arena run failed")
         try:
             connection.send({"type": "error", "code": "arena_failed"})
-        except (OSError, EOFError):
+        except (EOFError, OSError):
             pass
     finally:
-        if history is not None:
+        if writer is not None and simulation is not None:
             try:
-                if simulation is not None:
-                    history.append(simulation.snapshot())
-                history.close(outcome)
-            except Exception:
-                LOGGER.exception("Could not finalize arena history")
+                writer.finish(outcome, kills=simulation.kills, spawned=simulation.spawned)
+            except OSError:
+                LOGGER.exception("Could not finalize arena replay")
         if simulation is not None:
             simulation.close()
         connection.close()
@@ -87,13 +97,12 @@ class ArenaSession:
         self.connection = None
         self.status = "idle"
 
-    def start(self, config, max_monsters, history_directory):
+    def start(self, config, replay_directory):
         self.close()
-        self.history_directory = Path(history_directory)
         self.run_id = uuid.uuid4().hex
         context = multiprocessing.get_context("spawn")
         self.connection, child = context.Pipe()
-        self.process = context.Process(target=simulate, args=(child, config, max_monsters, str(history_directory), self.run_id), name="cold-world-arena", daemon=True)
+        self.process = context.Process(target=simulate, args=(child, config, str(replay_directory), self.run_id), name="cold-world-arena", daemon=True)
         try:
             self.process.start()
         except BaseException:
@@ -110,7 +119,7 @@ class ArenaSession:
         if self.process is not None:
             if self.process.is_alive():
                 try:
-                    self.connection.send("stop")
+                    self.connection.send({"action": "stop"})
                 except (OSError, EOFError):
                     pass
             deadline = time.monotonic() + 3
@@ -127,21 +136,15 @@ class ArenaSession:
                 self.process.join(timeout=2)
             self.process.close()
             self.process = None
-            unfinished = self.history_directory / f"{self.run_id}.recording.sqlite3"
-            if unfinished.exists():
-                try:
-                    finish_record(unfinished, "interrupted")
-                except Exception:
-                    LOGGER.exception("Could not recover terminated arena record")
         if self.connection is not None:
             self.connection.close()
             self.connection = None
 
 
 class ArenaServer:
-    def __init__(self, max_sessions, history):
+    def __init__(self, max_sessions, library):
         self.limit = max_sessions
-        self.history = history
+        self.library = library
         self.lock = threading.Lock()
         self.clients = set()
         self.stopping = threading.Event()
@@ -156,15 +159,11 @@ class ArenaServer:
     def unregister(self, websocket):
         with self.lock:
             self.clients.discard(websocket)
-            if self.stopping.is_set() and not self.clients:
-                self.history.close()
 
     def close(self):
         self.stopping.set()
         with self.lock:
             clients = list(self.clients)
-            if not clients:
-                self.history.close()
         for websocket in clients:
             try:
                 websocket.close()
@@ -172,80 +171,29 @@ class ArenaServer:
                 pass
 
 
-def create_arena_app(password=None, max_monsters=256, max_sessions=4, history_dir=None):
-    root = Path(__file__).resolve().parent.parent
-    app = Flask(__name__, template_folder=str(root / "templates"), static_folder=str(root / "static"), static_url_path="/static")
-    app.config.update(MAX_CONTENT_LENGTH=32768, SOCK_SERVER_OPTIONS={"ping_interval": 25, "max_message_size": 32768})
-    history = HistoryStore(history_dir)
-    runtime = ArenaServer(max_sessions, history)
+def register_arena_routes(app, sock, library, password, *, max_sessions=4, history_dir=None,
+                          allowed_origins=(), connection_owner=None):
+    for directory in (history_dir, Path("arena-history"), Path("arena-history/fights"), Path.home() / ".cold-world-arena/fights"):
+        if directory:
+            library.import_arena(directory)
+    runtime = ArenaServer(max_sessions, library)
     app.extensions["cold_world_arena"] = runtime
-    sock = Sock(app)
 
-    @app.get("/")
-    def index():
-        return render_template("arena.html")
+    def arena_index():
+        return render_template("arena.html", has_game=connection_owner is not None)
 
-    @app.get("/api/info")
-    def info():
-        return jsonify({"catalog": World.catalog(), "max_monsters": max_monsters, "max_mounted_ammo": MAX_MOUNTED_AMMO,
-                        "password_required": password is not None, "default_inventory": DEFAULT_INVENTORY,
-                        "viewport": DEFAULT_VIEWPORT, "default_ambient_temperature": DEFAULT_AMBIENT_TEMPERATURE,
-                        "ambient_temperature_range": AMBIENT_TEMPERATURE_RANGE,
-                        "ais": [{"id": name, "version": policy.version} for name, policy in AI_TYPES.items()],
-                        "items": [{"kind": kind, "ammo": Item.create(kind).ammo, "uses": Item.create(kind).uses, "support": item_support(kind)} for kind in sorted(ITEM_KINDS)]})
+    def arena_info():
+        return jsonify({"catalog": World.catalog(), "weapons": WEAPONS, "waves": WAVES, "terrain": TERRAIN,
+                        "strategies": STRATEGIES, "password_required": password is not None, "max_sessions": runtime.limit})
 
-    @app.get("/health")
-    def health():
-        return jsonify({"ok": not runtime.stopping.is_set(), "mode": "arena"})
-
-    def authorize_history():
-        if password is not None and not password_matches(request.headers.get("X-Arena-Password"), password):
-            raise GameError("unauthorized", "Invalid arena password")
-        origin = request.headers.get("Origin")
-        if origin and urlsplit(origin).netloc != request.host:
-            raise GameError("invalid_origin", "Origin is not allowed")
-
-    @app.errorhandler(GameError)
-    def history_error(error):
-        status = 403 if error.code in {"unauthorized", "invalid_origin"} else 404 if error.code == "arena_history_missing" else 409 if error.code == "arena_history_active" else 400
-        return jsonify({"error": error.code}), status
-
-    @app.get("/api/history")
-    def list_history():
-        authorize_history()
-        return jsonify({"records": history.list(), "directory": str(history.directory)})
-
-    @app.get("/api/history/<identifier>")
-    def read_history(identifier):
-        authorize_history()
-        return jsonify(history.read(identifier))
-
-    @app.delete("/api/history")
-    def delete_all_history():
-        authorize_history()
-        return jsonify({"deleted": history.delete_all()})
-
-    @app.get("/api/history/<identifier>/frames")
-    def history_frames(identifier):
-        authorize_history()
-        start, limit = request.args.get("start", 0, type=int), request.args.get("limit", 64, type=int)
-        if start is None or limit is None or start < 0 or not 1 <= limit <= 100:
-            raise GameError("arena_history_range", "Invalid frame range")
-        return jsonify(history.read(identifier, start, limit))
-
-    @app.delete("/api/history/<identifier>")
-    def delete_history(identifier):
-        authorize_history()
-        history.delete(identifier)
-        return jsonify({"deleted": identifier})
-
-    @sock.route("/ws")
-    def websocket_handler(websocket):
+    def arena_websocket(websocket):
         session = ArenaSession()
         registered = False
+        if connection_owner is not None and not connection_owner.register(websocket):
+            return
         try:
             origin = request.headers.get("Origin")
-            if origin and urlsplit(origin).netloc != request.host:
+            if origin and urlsplit(origin).netloc != request.host and origin not in allowed_origins:
                 raise GameError("invalid_origin", "Origin is not allowed")
             message = parse_message(websocket.receive(timeout=10))
             if message.get("type") != "join" or password is not None and not password_matches(message.get("password"), password):
@@ -261,7 +209,7 @@ def create_arena_app(password=None, max_monsters=256, max_sessions=4, history_di
                             update = session.connection.recv()
                             if update["type"] == "state":
                                 session.status = update["status"]
-                            else:
+                            elif update["type"] == "error":
                                 session.status = "error"
                             if session.status in FINISHED_STATUSES or session.status == "error":
                                 session.close()
@@ -277,13 +225,11 @@ def create_arena_app(password=None, max_monsters=256, max_sessions=4, history_di
                     message = parse_message(raw)
                     kind = message.get("type")
                     if kind == "start":
-                        config = validate_config(message.get("config"), max_monsters)
-                        session.start(config, max_monsters, history.directory)
+                        config = validate_config(message.get("config"))
+                        session.start(config, library.directory)
                         send(websocket, {"type": "started", "config": config, "run_id": session.run_id})
-                    elif kind in {"pause", "resume"}:
-                        if session.connection is None or session.status not in {"running", "paused", "starting"}:
-                            raise GameError("arena_finished", "This simulation cannot be resumed")
-                        session.connection.send(kind)
+                    elif kind == "control" and session.connection is not None:
+                        session.connection.send(message)
                     else:
                         raise GameError("unknown_command", "Unknown arena command")
                 except GameError as error:
@@ -295,9 +241,35 @@ def create_arena_app(password=None, max_monsters=256, max_sessions=4, history_di
         except Exception:
             LOGGER.exception("Arena connection failed")
         finally:
-            session.close()
-            if registered:
-                runtime.unregister(websocket)
+            try:
+                session.close()
+            finally:
+                if registered:
+                    runtime.unregister(websocket)
+                if connection_owner is not None:
+                    connection_owner.unregister(websocket)
+
+    app.add_url_rule("/arena/", view_func=arena_index)
+    app.add_url_rule("/api/arena/info", view_func=arena_info)
+    sock.route("/ws/arena")(arena_websocket)
+    if connection_owner is None:
+        app.add_url_rule("/", view_func=arena_index)
+        app.add_url_rule("/api/info", view_func=arena_info)
+        sock.route("/ws", endpoint="arena_websocket_legacy")(arena_websocket)
+
+
+def create_arena_app(password=None, max_sessions=4, history_dir=None, replay_dir=None):
+    root = Path(__file__).resolve().parent.parent
+    app = Flask(__name__, template_folder=str(root / "templates"), static_folder=str(root / "static"), static_url_path="/static")
+    app.config.update(MAX_CONTENT_LENGTH=32768, SOCK_SERVER_OPTIONS={"ping_interval": 25, "max_message_size": 32768})
+    library = ReplayLibrary(replay_dir)
+    register_arena_routes(app, Sock(app), library, password, max_sessions=max_sessions, history_dir=history_dir)
+    register_replay_routes(app, library, password, arena=True)
+
+    @app.get("/health")
+    def health():
+        runtime = app.extensions["cold_world_arena"]
+        return jsonify({"ok": not runtime.stopping.is_set(), "mode": "arena"})
 
     return app
 
@@ -305,12 +277,14 @@ def create_arena_app(password=None, max_monsters=256, max_sessions=4, history_di
 def serve(options, arguments):
     if not 0 <= options.port <= 65535:
         arguments.error("--port must be in [0, 65535]")
-    if not 1 <= options.max_monsters <= 1000 or not 1 <= options.max_sessions <= 32:
-        arguments.error("--max-monsters must be in [1, 1000]; --max-sessions in [1, 32]")
+    if not 1 <= options.max_sessions <= 32:
+        arguments.error("--max-sessions must be in [1, 32]")
     if options.password == "":
         arguments.error("--password must not be empty")
+    if options.host not in {"127.0.0.1", "localhost", "::1"} and options.password is None:
+        arguments.error("--password is required when sharing the arena and its replay library over the network")
     logging.basicConfig(level=options.log_level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    app = create_arena_app(options.password, options.max_monsters, options.max_sessions, options.history_dir)
+    app = create_arena_app(options.password, options.max_sessions, options.history_dir, options.replay_dir)
     runtime = app.extensions["cold_world_arena"]
     http = None
     serving = False
@@ -322,9 +296,7 @@ def serve(options, arguments):
             previous[signal_number] = signal.signal(signal_number, lambda signum, frame: stop.set())
         host = "127.0.0.1" if options.host in {"0.0.0.0", "::"} else options.host
         print(f"Cold World Arena: http://{host}:{http.server_port}", flush=True)
-        print(f"Isolated simulations; game saves are never opened. Replay history: {runtime.history.directory}", flush=True)
-        if options.host not in {"127.0.0.1", "localhost", "::1"} and options.password is None:
-            print("WARNING: arena is reachable without a password. Set --password for shared networks.", flush=True)
+        print(f"Isolated simulations; game saves are never opened. Replay history: {runtime.library.directory}", flush=True)
         thread = threading.Thread(target=http.serve_forever, name="cold-world-arena-http", daemon=True)
         thread.start()
         serving = True

@@ -24,6 +24,8 @@ let playerRoster;
 let localCombat;
 let adminConsole;
 let state = null;
+let recording = null;
+let recordingRequest = false;
 let selected = 0;
 let pendingSelected = false;
 let attackHeld = false;
@@ -135,6 +137,7 @@ function input(force = false) {
 }
 
 function leave() {
+  finishRecording();
   stop();
   compass.reset();
   music.leave();
@@ -210,6 +213,7 @@ connection.addEventListener('welcome', (event) => {
 
 connection.addEventListener('state', (event) => {
   state = event.detail;
+  updateRecordButton();
   if (!pendingSelected || state.you.selected === selected) {
     selected = state.you.selected;
     pendingSelected = false;
@@ -246,6 +250,7 @@ connection.addEventListener('status', (event) => {
   playerRoster?.setConnected(connected);
   renderConnectionStatus();
   if (!connected) {
+    finishRecording();
     localCombat?.reset();
     audio.stopAll();
     if (music.active) music.suspend();
@@ -261,6 +266,45 @@ connection.addEventListener('status', (event) => {
     setServerStatus('server.retrying', {}, true);
   }
 });
+
+function updateRecordButton() {
+  const button = byId('record-button');
+  button.removeAttribute('data-i18n');
+  button.textContent = t(recording ? 'replay.stop' : 'replay.start');
+  button.setAttribute('aria-pressed', String(Boolean(recording)));
+  button.disabled = recordingRequest || !(state && connection.ready);
+}
+
+function finishRecording() {
+  if (recording) {
+    const link = byId('recorded-replay');
+    link.href = `/replay/?run=${encodeURIComponent(recording)}`;
+    link.hidden = false;
+    recording = null;
+  }
+  updateRecordButton();
+}
+
+byId('record-button').onclick = async () => {
+  if (!connection.ready || recordingRequest) return;
+  recordingRequest = true;
+  updateRecordButton();
+  try {
+    const result = await connection.command(recording ? 'record_stop' : 'record_start');
+    if (recording) {
+      finishRecording();
+    } else {
+      recording = result.id;
+      byId('recorded-replay').hidden = true;
+    }
+  } catch (error) {
+    if (error.code === 'replay_not_recording') recording = null;
+    ui.toast(() => t(`error.${error.code ?? 'replay_file'}`));
+  } finally {
+    recordingRequest = false;
+    updateRecordButton();
+  }
+};
 
 function attack(pressed, shift = false, cancelled = false) {
   const fresh = pressed && !attackHeld;
@@ -565,6 +609,7 @@ function refreshLanguage() {
   renderConnectionStatus();
   updateSoundButton();
   updateMusicButton();
+  updateRecordButton();
   ui?.updateHint(renderer?.target);
   adminConsole?.refreshLanguage();
 }

@@ -2,9 +2,9 @@ from .actions import GameError
 from .biomes import BIOME_DEVICES
 from .constants import BODY_RADIUS, EXPLOSIVE_WEAPONS, MAX_COINS
 from .geometry import distance, tile
-from .inventory import take_item
-from .models import Item, Projectile
-from .wildlife import SEATS
+from .inventory import consume_kind, count_kind, personal_storages
+from .models import Item, Projectile, Structure
+from .wildlife import CABLE_REPAIR_PARTS, DEVICE_REPAIR_SECONDS, SEATS, SERVICE_GUN_REPAIR_PARTS
 
 
 class Outdoors:
@@ -88,28 +88,42 @@ class Outdoors:
             raise GameError("device_working", "This device is still working")
         if not wrench.uses:
             raise GameError("wrench_spent", "A usable wrench is required")
-        part = next(((items, slot) for items in (player.backpack, player.inventory)
-                     for slot, item in enumerate(items) if item and item.kind == "spare_part"), None)
-        if not part:
-            raise GameError("missing_spare_part", "Repair requires one spare part")
-        persistent = device.kind in BIOME_DEVICES
-        other = None
-        if persistent:
+        hold = device.kind in BIOME_DEVICES
+        if hold and seconds:
             controls.held = True
             self.progress(controls, "repair:" + device.id, seconds)
-            if controls.progress + 1e-9 < 1.5:
+            if controls.progress + 1e-9 < DEVICE_REPAIR_SECONDS:
                 return {"accepted": True}
-            other = self.crossing_endpoint(device)
+        storages = personal_storages(player, ("backpack", "inventory"))
+        parts = SERVICE_GUN_REPAIR_PARTS if device.kind == "service_gun" else 1
+        if count_kind(storages, "spare_part") < parts:
+            raise GameError("missing_spare_part", f"Repair requires {parts} spare part(s)")
+        deck = self.bridge_deck_tiles(device) if device.kind == "bridge_pier" else []
+        if count_kind(storages, "wood") < len(deck):
+            raise GameError("missing_bridge_wood", f"This section requires {len(deck)} wood")
+        if hold and not seconds:
+            controls.held = True
+            self.progress(controls, "repair:" + device.id, 0)
+            return {"accepted": True, "parts": parts, "wood": len(deck)}
+        other = self.crossing_endpoint(device) if device.kind == "cable_station" else None
         self.record_structure(device.id, checkpoint=True)
-        take_item(*part)
+        consume_kind(storages, "spare_part", parts)
+        consume_kind(storages, "wood", len(deck))
         wrench.uses -= 1
         if not wrench.uses:
             player.inventory[player.selected] = None
-        device.repaired = True
-        if persistent:
-            self.finish_crossing_repair(device, other)
+        if other is not None:
+            self.record_structure(other.id)
+            device.repair_parts = other.repair_parts = max(device.repair_parts, other.repair_parts) + 1
+            device.repaired = other.repaired = device.repair_parts >= CABLE_REPAIR_PARTS
+            self.invalidate_chunk(other)
+        else:
+            device.repaired = True
+        for x, y in deck:
+            self.add_structure(Structure("bridge_deck", x, y))
+        self.invalidate_chunk(device)
         controls.stop_attack()
-        return {"repaired": True, "id": device.id}
+        return {"repaired": device.repaired, "id": device.id, "repair_parts": device.repair_parts}
 
     def collect_mine(self, monster):
         if not self._landmines:

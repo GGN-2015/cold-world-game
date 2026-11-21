@@ -1,4 +1,4 @@
-from .expansion import DURIAN_CHANCE, EXPANSION_ITEMS
+from .expansion import EXPANSION_ITEMS
 from .room_machines import ROOM_MACHINES
 
 TICK_RATE = 20
@@ -24,26 +24,16 @@ BACKPACK_SLOTS = 30
 DROP_DISTANCE = 2.0
 PICKUP_RADIUS = 0.75
 WORLD_RADIUS = 120
-TERRAIN_VERSION = 34
-CHEST_GUN_CHANCE = 0.2
-LANDMINE_CHANCE = 0.02
-CHAINSAW_CHANCE = 0.02
-HOMING_MISSILE_CHANCE = 0.02
-SWIFTNESS_RING_CHANCE = 0.02
-SHERIFF_BADGE_CHANCE = 0.02
-VODKA_CHANCE = 0.02
+TERRAIN_VERSION = 38
+ROOM_MONSTER_CHANCE = 0.20
+ROOM_MONSTER_NOTICE_DISTANCE = 8
+BIOME_SPAWN_MULTIPLIER = 3
+ITEM_CATALOG_VERSION = 1
 PIGGY_BANK_CHANCE = 0.05
-HEAT_PATCH_CHANCE = 0.02
 MAX_COINS = 2 ** 53 - 1
 VENDING_MACHINE_CHANCE = 0.04
 MATCH_MACHINE_CHANCE = 0.02
-FIRST_AID_KIT_CHANCE = 0.02
-RETURN_STAFF_CHANCE = 0.02
-ICE_STAFF_CHANCE = 0.02
 GUN_MACHINE_CHANCE = 0.02
-GRENADE_CHANCE = 0.02
-FLAME_STAFF_CHANCE = 0.02
-DEFIBRILLATOR_CHANCE = 0.02
 MONSTER_LIMIT = 70
 MONSTER_XRAY_CHANCE = 0.05
 STARVATION_HUNGER = 1.0
@@ -64,25 +54,13 @@ HUNGER_PER_MINUTE = .60
 HUNGER_PER_DAMAGE = .25
 MAX_HUNGER_LOSS_PER_HIT = 1.0
 DOWNED_BUILDINGS = frozenset({"campfire", "wall", "floor", "door"})
-QUALITY_LOOT_CHANCE = .35
-QUALITY_LOOT = (
-    "chainsaw", "crowbar", "machete", "frost_spear", "ice_carbine", "ember_pistol", "hunting_rifle",
-    "nail_gun", "flame_staff", "ice_staff", "pocket_stove", "warming_flask", "first_aid_kit",
-    "wool_scarf", "down_coat", "snow_boots", "armor_plate", "insulated_lunchbox",
-)
 SEASONS = ("spring", "summer", "autumn", "winter")
 SEASON_OFFSETS = (0, 10, -5, -20)
 FOODS = {
     "instant_noodles": 2.5,
     "dumplings": 4,
-    "wontons": 3,
-    "pork_trotters": 4,
     "beef": 5,
-    "lamb": 5,
     "sardines": 3,
-    "tuna": 3,
-    "beef_balls": 5,
-    "hotpot_vegetables": 2,
     "oreos": 1.5,
     "compressed_biscuits": 4,
     "cola": 2,
@@ -90,27 +68,25 @@ FOODS = {
 READY_TO_EAT_FOODS = frozenset({"cola", "oreos", "compressed_biscuits"})
 DRINKS = {"vodka": {"duration": 0.5, "effect_duration": 30.0, "felt_temperature": 30.0}}
 PASSIVE_ITEMS = {
-    "sheriff_badge": {"damage_multiplier": 1.5, "monster_kinds": ["small", "fast"], "stackable": False},
     "axe_handle": {"axe_range_bonus": .75},
 }
-EQUIPPED_ITEMS = {"swiftness_ring": {"speed_multiplier": 3}}
+EQUIPPED_ITEMS = {}
 NAVIGATION_ITEMS = {"compass": {"chance": 0.02}}
 HEALING_ITEMS = {"first_aid_kit": {"duration": 0.5, "temperature": 36.0, "hunger": 10.0}, "heat_patch": {"duration": 0.5, "temperature": 36.0}}
 REVIVAL_ITEMS = {"defibrillator": {"duration": 1.5, "range": 2.0, "temperature": 36.0, "hunger": 10.0}}
-RETURN_ITEMS = {"return_staff": {"duration": 1.5, "uses": 20}}
-IGNITERS = {"lighter": 20, "gasoline": 8, "diesel": 5, "kerosene": 5, "matches": 1}
+RETURN_ITEMS = {}
+IGNITERS = {"lighter": 20, "gasoline": 8, "matches": 1}
 AXE = {"range": 1.5, "interval": 0.7, "damage": 3, "arc_degrees": 180}
-CHAINSAW = {"range": 2.5, "interval": 0.5, "damage": 6, "arc_degrees": 180, "uses": 55, "consume_on_hit": True}
+CHAIN_CHAINSAW = {"range": 2.5, "interval": 0.5, "damage": 6, "arc_degrees": 180, "uses": 45}
 STAFF_SWING = {"range": 3, "interval": 0.65, "damage": 4, "arc_degrees": 180}
 ICE_STAFF = {**STAFF_SWING, "damage": 5, "uses": 50, "freeze_duration": 2.0, "speed_scale": 0.5}
 FLAME_STAFF = {**STAFF_SWING, "uses": 50, "burn_duration": 2.0, "burn_interval": 0.5, "burn_damage": 1}
 DURIAN_PEEL = {**AXE, "damage": 4, "throw_duration": 0.5, "throw_interval": 1.0, "speed": 20.0,
                "impale_duration": 6.0, "impale_interval": 0.5, "impale_damage": 1}
-MELEE_WEAPONS = {"axe": AXE, "chainsaw": CHAINSAW, "ice_staff": ICE_STAFF, "flame_staff": FLAME_STAFF, "durian_peel": DURIAN_PEEL}
+MELEE_WEAPONS = {"axe": AXE, "chain_chainsaw": CHAIN_CHAINSAW, "ice_staff": ICE_STAFF, "flame_staff": FLAME_STAFF, "durian_peel": DURIAN_PEEL}
 THROWABLE_WEAPONS = {"durian_peel": DURIAN_PEEL}
 EXPLOSIVE_WEAPONS = {
     "grenade": {"duration": 0.5, "interval": 1.0, "flight_duration": 0.45, "radius": 3.0, "damage": 20, "coin_cost": 0},
-    "coin_launcher": {"duration": 0.5, "interval": 1.0, "flight_duration": 0.45, "radius": 3.0, "damage": 20, "coin_cost": 1},
 }
 KNOCKBACK = {"axe": 0.7, "bullet": 0.4, "monster_melee": 0.65, "monster_big_melee": 1.0, "monster_bullet": 0.9, "player_bullet": 0.3, "big_monster_scale": 0.6, "fast_monster_scale": 2.5}
 GUNS = {
@@ -122,10 +98,9 @@ AMMO_PACKS = {"light_ammo": 12, "rifle_ammo": 8, "shotgun_ammo": 4}
 RELOAD_RULES = {
     "handgun": ("light_ammo", 1), "rust_revolver": ("light_ammo", 1.5),
     "rifle": ("rifle_ammo", 1), "hunting_rifle": ("rifle_ammo", 1),
-    "shotgun": ("shotgun_ammo", 1.5), "double_barrel": ("shotgun_ammo", 1.5),
+    "shotgun": ("shotgun_ammo", 1.5),
     "flamethrower": ("gasoline", 1.5),
 }
-GUNS["homing_missile"] = {"ammo": 20, "interval": GUNS["shotgun"]["interval"], "speed": 18, "damage": GUNS["handgun"]["damage"] * 3, "launch_duration": 0.12, "launch_distance": 1.2, "impact_radius": 0.9}
 TRADING_MACHINES = frozenset({"vending_machine", "match_machine", "gun_machine"}) | ROOM_MACHINES.keys()
 PANEL_DEMOLITION = TRADING_MACHINES | {"chest", "campfire", "piggy_bank"}
 BUILDINGS = frozenset({"landmine", "fence", "wall", "floor", "door", "chest", "campfire", "piggy_bank"}) | TRADING_MACHINES
@@ -139,7 +114,7 @@ DEMOLITION = {"tree": 0.5, "fence": 0.5, "wall": 1.5, "floor": 0.5, "chest": 1.5
 DEMOLITION.update({kind: 1.5 for kind in ROOM_MACHINES})
 DEMOLITION["ring_gate"] = 1.5
 DEMOLITION["door"] = 1.5
-HARVEST_TOOLS = {"axe": DEMOLITION, "chainsaw": {**DEMOLITION, "tree": 0.25}}
+HARVEST_TOOLS = {"axe": DEMOLITION, "chain_chainsaw": {**DEMOLITION, "tree": 0.25}}
 MONSTER_DEMOLITION = {"fence": 3.0, "wall": 10.0, "door": 10.0}
 RECIPES = {
     "fence": {"inputs": {"wood": 1}, "output": "fence", "count": 2},
@@ -169,11 +144,8 @@ GUN_OFFERS = {
 }
 MACHINE_OFFERS = {"vending_machine": VENDING_OFFERS, "match_machine": MATCH_OFFERS, "gun_machine": GUN_OFFERS}
 MACHINE_OFFERS.update({kind: definition["offers"] for kind, definition in ROOM_MACHINES.items()})
-COMMON_CHEST_FOODS = tuple(FOODS)
-COMMON_CHEST_IGNITERS = tuple(IGNITERS)
 FOODS["durian"] = 3
 READY_TO_EAT_FOODS = READY_TO_EAT_FOODS | {"durian"}
-RARE_CHEST_ITEMS = {"durian": DURIAN_CHANCE, "chainsaw": CHAINSAW_CHANCE, "landmine": LANDMINE_CHANCE, **{kind: definition["chance"] for kind, definition in EXPANSION_ITEMS.items()}}
 for item_kind, definition in EXPANSION_ITEMS.items():
     mechanic, settings = definition["mechanic"], definition["settings"]
     if mechanic == "food":
@@ -185,7 +157,7 @@ for item_kind, definition in EXPANSION_ITEMS.items():
     else:
         {"gun": GUNS, "melee": MELEE_WEAPONS, "explosive": EXPLOSIVE_WEAPONS, "healing": HEALING_ITEMS, "revival": REVIVAL_ITEMS, "return": RETURN_ITEMS, "passive": PASSIVE_ITEMS, "equipment": EQUIPPED_ITEMS}[mechanic][item_kind] = settings
 
-for kind, rounds in {"rust_revolver": 6, "hunting_rifle": 5, "double_barrel": 2}.items():
+for kind, rounds in {"rust_revolver": 6, "hunting_rifle": 5}.items():
     GUNS[kind] = {**GUNS[kind], "ammo": rounds}
 for kind, stats in {
     "crowbar": {"uses": 50, "damage": 6}, "machete": {"uses": 50},
@@ -211,20 +183,13 @@ CREATIVE_ITEMS = {
 
 BIOME_ITEMS = {"chain_chainsaw": {}, "chain_charm": {}, "flamethrower": {"uses": 8}, "fireball_scroll": {},
                "freeze_scroll": {}, "quill": {"uses": 6}, "papyrus": {}, "lantern": {}}
-BIOME_LOOT_CHANCE = .60
-EXTRA_CHEST_LOOT = {
-    "papyrus": {"chance": .25, "count": [2, 3]},
-    "spare_part": {"chance": .35, "count": [1, 3]},
-}
 CHAIN_CHARM_CHANCE = .35
-HARVEST_CHAIN_RADIUS = 5
 HARVEST_CHAIN_LIMIT = 5
+HARVEST_CHAIN_COSTS = (1, 1, 3)
 FOG_VIEW_RADIUS = 3
 FOG_LANTERN_RADIUS = 6
 FOG_CAMPFIRE_RADIUS = 3.5
 FOG_STREET_LAMP_RADIUS = 10
-MELEE_WEAPONS["chain_chainsaw"] = {**CHAINSAW, "uses": 45}
-HARVEST_TOOLS["chain_chainsaw"] = dict(HARVEST_TOOLS["chainsaw"])
 EXPLOSIVE_WEAPONS.update({
     "flamethrower": {"duration": .25, "interval": .5, "flight_duration": .18, "radius": 2, "damage": 3, "coin_cost": 0, "cast_range": 5, "burn_duration": 2, "burn_interval": .5},
     "fireball_scroll": {"duration": .5, "interval": 1, "flight_duration": .4, "radius": 2, "damage": 5, "coin_cost": 0, "cast_range": 11, "burn_duration": 1.5, "burn_interval": .5},
@@ -237,7 +202,5 @@ BUILDING_WANDS = {
         (0, 0), (-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, -1), (-1, 1), (1, 1),
     )},
 }
-RARE_CHEST_ITEMS.update({kind: .02 for kind in BUILDING_WANDS})
-RARE_CHEST_ITEMS["axe_handle"] = .02
 
 ITEM_KINDS = frozenset({"wood", "coin", "repair_wrench", "spare_part"}) | BUILDINGS | FOODS.keys() | DRINKS.keys() | PASSIVE_ITEMS.keys() | EQUIPPED_ITEMS.keys() | HEALING_ITEMS.keys() | REVIVAL_ITEMS.keys() | RETURN_ITEMS.keys() | IGNITERS.keys() | GUNS.keys() | MELEE_WEAPONS.keys() | EXPLOSIVE_WEAPONS.keys() | CREATIVE_ITEMS.keys() | BIOME_ITEMS.keys() | BUILDING_WANDS.keys() | AMMO_PACKS.keys() | NAVIGATION_ITEMS.keys()

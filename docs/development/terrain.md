@@ -78,7 +78,7 @@ event_seed = MD5([world_seed, "simulation", tick_number, system, entity_id])
 | --- | --- |
 | `cold_world_game/procedural.py` | 种子编码、固定随机流、生成配置、确定性对象及物品ID |
 | `cold_world_game/terrain_stream.py` | 基底缓存、持久覆盖、区块修订、订阅与静态外观差分 |
-| `cold_world_game/storage.py` | 稀疏记录与事务提交、旧存档读取、完整快照规范化 |
+| `cold_world_game/storage.py` | 稀疏记录与事务提交、完整快照规范化 |
 | `cold_world_game/static/js/procedural.js` | 与Python一致的静态地形算法 |
 | `cold_world_game/static/js/terrain-worker.js` | 后台生成、IndexedDB与校验 |
 | `cold_world_game/static/js/terrain-cache.js` | 订阅基底、覆盖合并与异步结果隔离 |

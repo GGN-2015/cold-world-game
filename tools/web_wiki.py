@@ -13,7 +13,7 @@ else:
 
 
 PLAYER_PAGES = {
-    "wiki/README.md", "wiki/items.md", "wiki/monsters.md", "wiki/ordinary-chest-draft.md", "wiki/roles.md",
+    "wiki/README.md", "wiki/items.md", "wiki/monsters.md", "wiki/ordinary-chest.md", "wiki/roles.md",
     "items/foods.md", "items/tools.md", "items/weapons.md",
     "world/survival.md", "world/combat.md", "world/world.md",
     "building/building.md", "building/machines.md", "building/outdoor-facilities.md",
@@ -192,7 +192,7 @@ def generate(root, manual, generated):
     item_stats = quick_stats(generated["wiki/items.md"])
     monster_stats = quick_stats(generated["wiki/monsters.md"])
     rules = manual.rules
-    gun_like = rules.GUNS.keys() | {"coin_launcher", "flamethrower"}
+    gun_like = rules.GUNS.keys() | {"flamethrower"}
     hand_tools = rules.EQUIPPED_ITEMS.keys() | rules.BUILDING_WANDS.keys() | {"repair_wrench", "lantern"}
     materials = {"papyrus", "spare_part", "quill"}
     entries = []

@@ -14,9 +14,14 @@ BIOME_GUARDS = {"tree_spirit": "tree_shot", "frost_guard": "ice_beam", "ember_gu
 
 OUTDOOR_FEATURES = {
     "park_bench": {"chance": 0.02, "stream": "open_park_bench:v1"},
-    "mounted_gun": {"chance": 0.01, "stream": "open_mounted_gun:v1", "ammo": 80},
+    "mounted_gun": {"chance": 0.005, "stream": "open_mounted_gun:v1", "ammo": 80},
 }
 SEATS = frozenset(OUTDOOR_FEATURES) | {"service_gun"}
 REPAIRABLE = frozenset({"service_gun", "fixed_heater", "cable_station", "street_lamp", "bridge_pier"})
 MOUNTED_RESUPPLY = 24
-WRENCH_USES = 12
+# The widened crossing averages about 139 tiles between the two approach points.
+BRIDGE_REPAIRS_PER_CROSSING = 10
+CABLE_REPAIR_PARTS = BRIDGE_REPAIRS_PER_CROSSING * 2
+SERVICE_GUN_REPAIR_PARTS = (BRIDGE_REPAIRS_PER_CROSSING + 1) // 2
+DEVICE_REPAIR_SECONDS = 1.5
+WRENCH_USES = CABLE_REPAIR_PARTS * 2

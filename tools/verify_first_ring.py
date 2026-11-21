@@ -1,17 +1,21 @@
 """Exercise local heating, downed building, loot, and fixed equipment against SQLite."""
 
 from collections import Counter
-from math import isclose
+from math import hypot, isclose
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from cold_world_game.actions import GameError
-from cold_world_game.constants import AMMO_PACKS, BURN_SECONDS, CREATIVE_ITEMS, FIXED_HEATER_BURN_SECONDS, PLAYER_SPEED, TERRAIN_VERSION
-from cold_world_game.models import Item, Structure, encode
-from cold_world_game.procedural import chest_items, plan, profile, ring_boundary
+from cold_world_game.biome_layout import bridge_layout, bridge_repair_count, chunk_biomes, ring_parameters
+from cold_world_game.constants import AMMO_PACKS, BURN_SECONDS, CREATIVE_ITEMS, FIXED_HEATER_BURN_SECONDS, PLAYER_SPEED, STACK_LIMITS, TERRAIN_VERSION
+from cold_world_game.geometry import chunk
+from cold_world_game.inventory import count_kind, personal_storages
+from cold_world_game.models import Item, Monster, Structure, encode
+from cold_world_game.procedural import RandomStream, chest_items, chunk_seed, plan, profile, ring_boundary
 from cold_world_game.storage import Storage
 from cold_world_game.world import World
+from cold_world_game.wildlife import BRIDGE_REPAIRS_PER_CROSSING, CABLE_REPAIR_PARTS, DEVICE_REPAIR_SECONDS, SERVICE_GUN_REPAIR_PARTS, WRENCH_USES
 
 
 def command(world, action, **fields):
@@ -147,11 +151,11 @@ def warm_and_fire(world):
     player.selected = 0
     wrench = Item.create("repair_wrench")
     player.inventory[0] = wrench
-    player.backpack[:4] = [Item.create("spare_part", 3), None, Item.create("wood"), Item.create("lighter")]
+    player.backpack[:4] = [Item.create("spare_part", SERVICE_GUN_REPAIR_PARTS + 2), None, Item.create("wood"), Item.create("lighter")]
     for device in (heater, gun):
         command(world, "input", aim=[device.x, device.y])
         assert command(world, "attack", pressed=True)["repaired"]
-    assert wrench.uses == 10 and player.backpack[0].count == 1
+    assert wrench.uses == WRENCH_USES - 2 and player.backpack[0].count == 1
     assert gun.ammo == 0
     command(world, "open", id=heater.id)
     for slot, target in enumerate(("fuel", "igniter"), 2):
@@ -237,7 +241,7 @@ def verify_runtime(path):
         assert world.structures[door_id].door_open
         assert world.structures[heater_id].repaired
         assert world.structures[gun_id].repaired and world.structures[gun_id].ammo == 0
-        assert world.players["p"].inventory[0].uses == 10
+        assert world.players["p"].inventory[0].uses == WRENCH_USES - 2
         world.join("p")
         player = world.players["p"]
         player.x, player.y = 66, 0
@@ -245,7 +249,7 @@ def verify_runtime(path):
         with world.transaction():
             world.record_structure(gun_id, checkpoint=True)
             gun.repaired = False
-        player.inventory[1] = Item.create("spare_part", 3)
+        player.inventory[1] = Item.create("spare_part", SERVICE_GUN_REPAIR_PARTS)
         item_id = player.inventory[1].id
         command(world, "input", aim=[gun.x, gun.y])
         with patch.object(world.storage, "save", side_effect=OSError("forced save failure")):
@@ -257,8 +261,8 @@ def verify_runtime(path):
                 raise AssertionError("Repair succeeded despite a save failure")
         player = world.players["p"]
         assert not world.structures[gun_id].repaired and world.structures[gun_id].ammo == 0
-        assert player.inventory[0].uses == 10 and player.inventory[1].id == item_id
-        assert player.inventory[1].count == 3
+        assert player.inventory[0].uses == WRENCH_USES - 2 and player.inventory[1].id == item_id
+        assert player.inventory[1].count == SERVICE_GUN_REPAIR_PARTS
     finally:
         world.close()
 
@@ -266,7 +270,7 @@ def verify_runtime(path):
 def verify_generation(path):
     seed = 42
     settings = profile()
-    old_settings = {key: value for key, value in settings.items() if key not in {"loot", "quality_loot", "biome_ring", "biome_loot", "extra_chest_loot"}}
+    old_settings = {key: value for key, value in settings.items() if key not in {"biome_ring"}}
     old_settings["version"] = 21
     old_settings["ring"] = {"radius": 667, "gates": 24}
     world = World(Storage(path), seed)
@@ -468,10 +472,307 @@ def verify_creative(path):
         world.close()
 
 
+def verify_catalog_save_boundary(path):
+    world = World(Storage(path), 42)
+    try:
+        save = world.export()
+        assert save.pop("item_catalog_version") == world.catalog()["item_catalog_version"]
+        world.storage.save(save)
+    finally:
+        world.storage.close()
+    storage = Storage(path)
+    try:
+        try:
+            World(storage)
+        except ValueError as error:
+            assert "Use a new save path" in str(error)
+        else:
+            raise AssertionError("Opened a save from before the item catalog reset")
+        assert "item_catalog_version" not in storage.load()
+    finally:
+        storage.close()
+
+
+def verify_fuel_and_reload(path):
+    world = World(Storage(path), 45)
+    try:
+        world.join("p")
+        player = world.players["p"]
+        controls = world.controls["p"]
+        player.x, player.y = 66, 0
+        for x in range(65, 68):
+            if existing := world.structure_at(x, 0):
+                world.remove_structure(existing)
+        fire = Structure("campfire", 67, 0, fuel=14)
+        world.add_structure(fire)
+        player.inventory[1] = Item.create("wood", 8)
+        command(world, "open", id=fire.id)
+        endpoints = {"from": {"kind": "inventory", "slot": 1}, "to": {"kind": "fuel", "id": fire.id}}
+        assert command(world, "transfer", **endpoints)["count"] == 1
+        assert player.inventory[1].count == 7 and fire.fuel == 15
+        command(world, "transfer", **endpoints)
+        expect_rejection(world, "invalid_fuel", "transfer", **endpoints)
+        assert player.inventory[1].count == 6 and fire.fuel == 16
+
+        command(world, "close")
+        player.inventory[0] = Item.create("flamethrower")
+        player.inventory[0].uses = 1
+        player.backpack[0] = Item.create("gasoline")
+        player.backpack[0].uses = 3
+        player.inventory[2] = Item.create("gasoline")
+        can_id = player.inventory[2].id
+        assert command(world, "reload")["duration"] == 1.5
+        world.elapsed += 1.5
+        with world.transaction():
+            world.update_reload(player, controls)
+        assert player.inventory[0].uses == 8 and player.backpack[0] is None
+        assert player.inventory[2].id == can_id and player.inventory[2].uses == 4
+        player.inventory[0].uses = 7
+        command(world, "reload")
+        world.elapsed += 1.5
+        before = encode(player)
+        with patch.object(world.storage, "save", side_effect=OSError("forced reload save failure")):
+            try:
+                with world.transaction():
+                    world.update_reload(player, controls)
+            except OSError:
+                pass
+            else:
+                raise AssertionError("Fuel transfer must roll back if saving fails")
+        assert encode(world.players["p"]) == before
+    finally:
+        world.close()
+
+
+def verify_biome_pressure_and_room_spawns(path):
+    world = World(Storage(path), 45)
+    try:
+        rooms = [monster for monster in world.monsters.values() if monster.id.startswith("room:")]
+        assert rooms and all(monster.kind == "small" and monster.id != "room:0:0" for monster in rooms)
+        removed = rooms[0].id
+        with world.transaction():
+            world.touch()
+            del world.monsters[removed]
+    finally:
+        world.close()
+
+    world = World(Storage(path))
+    try:
+        assert removed not in world.monsters and all(monster.id in world.monsters for monster in rooms[1:])
+        point = (19, 17)
+        assert point not in world.chunks
+        with world.transaction():
+            world.generate_chunk(*point)
+        assert world.chunk_versions[point] == TERRAIN_VERSION
+        point_monster = world.monsters["room:19:17"]
+        assert point_monster.kind == "small" and world.structure_at(point_monster.x, point_monster.y) is None
+        world.join("p")
+        player, controls = world.players["p"], world.controls["p"]
+        world.monsters.clear()
+        player.x, player.y = 65, 0
+        player.temperature = 36
+        with patch.object(world, "monster_activity", return_value=(True, None)):
+            for zones, factor in (((), 1), (("lake",), 3), (("fog",), 3), (("fog", "lake"), 3)):
+                with patch.object(world, "biomes_at", return_value=zones):
+                    controls.next_paced_spawn = None
+                    world.spawn_monster()
+                    assert 35 / factor <= controls.next_paced_spawn - world.elapsed <= 55 / factor
+            world.monsters = {f"test:{index}": Monster(player.x + 20, index, id=f"test:{index}") for index in range(2)}
+            controls.next_paced_spawn = world.elapsed
+            with patch.object(world, "biomes_at", return_value=("lake",)), patch.object(world, "spawn_near_player", return_value=True) as spawn:
+                controls.paced_spawn_biomes = ("lake",)
+                world.spawn_monster()
+                assert spawn.call_args.args[2] == ("lake",)
+                assert 65 / 3 <= controls.next_paced_spawn - world.elapsed <= 90 / 3
+    finally:
+        world.close()
+
+
+def verify_barrier_layout(path):
+    seed = 45
+    settings = profile()
+    size, radius, width, *_ = parameters = ring_parameters(settings)
+    assert (radius, width) == (667, 48)
+    assert (BRIDGE_REPAIRS_PER_CROSSING, CABLE_REPAIR_PARTS, WRENCH_USES, SERVICE_GUN_REPAIR_PARTS) == (10, 20, 40, 5)
+    piers, corridor = bridge_layout(seed, *parameters, bridge_repair_count(settings))
+    successors = {next_pier for _, next_pier in piers.values()}
+    main = branches = 0
+    for root in piers.keys() - successors:
+        point, repairs = root, 0
+        while point in piers:
+            successor = piers[point][1]
+            assert point != successor and (point[0] == successor[0] or point[1] == successor[1])
+            repairs += 1
+            assert repairs <= BRIDGE_REPAIRS_PER_CROSSING
+            point = successor
+        if hypot(*root) < radius - width:
+            assert repairs == BRIDGE_REPAIRS_PER_CROSSING and hypot(*point) > radius + width
+            main += 1
+        else:
+            assert repairs == 2 and radius - width - size <= hypot(*point) <= radius + width + size
+            branches += 1
+    assert main and branches
+
+    center = round(radius / size)
+    candidates = ((x, y) for x in range(center - 4, center + 5) for y in range(-9, 10))
+    forbidden = next(point for point in candidates if chunk_biomes(seed, *point, *parameters)
+                     and RandomStream(chunk_seed(seed, *point)).random() >= .9)
+    assert not plan(seed, *forbidden, settings)[1]
+    for point in list(corridor)[:8]:
+        objects, interior = plan(seed, *point, settings)
+        assert not interior
+        for item in objects:
+            if (item.x, item.y) in corridor[point]:
+                assert item.kind == "bridge_pier" and not item.solid and item.biome_link == list(piers[item.x, item.y][1])
+
+    legacy = {**settings, "version": 37, "biome_ring": {
+        key: value for key, value in settings["biome_ring"].items() if key != "bridge_repairs"
+    }}
+    legacy["biome_ring"].update(radius=1334, half_width=24)
+    old_piers, _ = bridge_layout(seed, *ring_parameters(legacy))
+    old_successors = {next_pier for _, next_pier in old_piers.values()}
+    old_root = next(point for point in sorted(old_piers.keys() - old_successors) if hypot(*point) < 1310)
+    old_point = tuple(map(chunk, old_root))
+    old_objects, _ = plan(seed, *old_point, legacy)
+    assert any(entry.kind == "bridge_pier" and (entry.x, entry.y) == old_root
+               and entry.biome_link == list(old_piers[old_root][1]) for entry in old_objects)
+    world = World(Storage(path), seed)
+    try:
+        with world.transaction():
+            world.touch_terrain()
+            world.generation_profiles["37"] = legacy
+            world.chunks.add(old_point)
+            world.chunk_versions[old_point] = 37
+            world.remember_baseline(old_point, old_objects)
+            for entry in old_objects:
+                world.add_structure(entry)
+    finally:
+        world.close()
+    world = World(Storage(path))
+    try:
+        assert world.chunk_versions[old_point] == 37 and world.structure_at(*old_root).biome_link == list(old_piers[old_root][1])
+        assert world.chunk_view(old_point)["hash"] is None
+        current_root = next(iter(piers))
+        current_point = tuple(map(chunk, current_root))
+        assert current_point not in world.chunks
+        with world.transaction():
+            world.generate_chunk(*current_point)
+        assert world.chunk_versions[current_point] == TERRAIN_VERSION
+        assert world.structure_at(*current_root).biome_link == list(piers[current_root][1])
+    finally:
+        world.close()
+
+
+def verify_chain_and_crossing_repairs(path):
+    world = World(Storage(path), 45)
+    try:
+        world.join("p")
+        player = world.players["p"]
+        player.x, player.y = 66, 0
+        with world.transaction():
+            world.touch()
+            for x in range(65, 78):
+                for y in range(-4, 8):
+                    if entry := world.structure_at(x, y):
+                        world.remove_structure(entry)
+        root, nearby, one_gap, two_gaps = [Structure("tree", x, y) for x, y in ((70, 1), (71, 1), (70, 3), (73, 1))]
+        for tree in (root, nearby, one_gap, two_gaps):
+            world.add_structure(tree)
+        assert world.harvest_tree(root, player, "chain_chainsaw")[1] == nearby
+        world.remove_structure(nearby)
+        extra = Structure("tree", 74, 1)
+        world.add_structure(extra)
+        assert world.harvest_tree(root, player, "chain_chainsaw") == [root, one_gap, two_gaps]
+        world.remove_structure(one_gap)
+        walls = [Structure("wall", 71, y) for y in range(3)]
+        for wall in walls:
+            world.add_structure(wall)
+        assert world.harvest_tree(root, player, "chain_chainsaw") == [root]
+        for entry in (root, two_gaps, extra, *walls):
+            world.remove_structure(entry)
+
+        pier = Structure("bridge_pier", 67, 0, biome_link=[72, 0])
+        far_pier = Structure("bridge_pier", 72, 0, biome_anchor=[72, 0], biome_link=[76, 0])
+        first = Structure("cable_station", 67, 1, biome_anchor=[67, 1], biome_link=[75, 1])
+        second = Structure("cable_station", 75, 1, biome_anchor=[75, 1], biome_link=[67, 1])
+        for entry in (pier, far_pier, first, second, Structure("floor", 68, 0)):
+            world.add_structure(entry)
+        assert world.can_stand(pier.x, pier.y, player_id=player.id)
+        player.selected = 0
+        player.inventory[0] = Item.create("repair_wrench")
+        stack_limit = STACK_LIMITS["spare_part"]
+        player.backpack[0] = Item.create("spare_part", stack_limit)
+        player.backpack[1] = Item.create("wood", 2)
+        player.backpack[2] = Item.create("spare_part", CABLE_REPAIR_PARTS + 2 - stack_limit)
+        storages = personal_storages(player)
+        command(world, "input", aim=[pier.x, pier.y])
+        expect_rejection(world, "missing_bridge_wood", "attack", pressed=True)
+        assert count_kind(storages, "spare_part") == CABLE_REPAIR_PARTS + 2 and player.inventory[0].uses == WRENCH_USES
+        player.backpack[1].count = 5
+        blocker = Structure("wall", 69, 0)
+        world.add_structure(blocker)
+        expect_rejection(world, "bridge_blocked", "attack", pressed=True)
+        world.remove_structure(blocker)
+        assert command(world, "attack", pressed=True)["wood"] == 3
+        with world.transaction():
+            world.update_player_attack(player, world.controls["p"], DEVICE_REPAIR_SECONDS)
+        assert pier.repaired and all(world.structure_at(x, 0).kind == "bridge_deck" for x in range(69, 72))
+        assert player.backpack[1].count == 2 and count_kind(storages, "spare_part") == CABLE_REPAIR_PARTS + 1
+        command(world, "input", aim=[first.x, first.y])
+        command(world, "attack", pressed=True)
+        with world.transaction():
+            world.update_player_attack(player, world.controls["p"], DEVICE_REPAIR_SECONDS)
+        assert (first.repair_parts, second.repair_parts) == (1, 1) and not first.repaired
+        assert count_kind(storages, "spare_part") == CABLE_REPAIR_PARTS
+        ids = first.id, second.id
+    finally:
+        world.close()
+
+    world = World(Storage(path))
+    try:
+        world.join("p")
+        player = world.players["p"]
+        first, second = (world.structures[identifier] for identifier in ids)
+        assert (first.repair_parts, second.repair_parts) == (1, 1)
+        assert world.structure_at(70, 0).kind == "bridge_deck"
+        player.x, player.y = second.x - 1, second.y
+        command(world, "input", aim=[second.x, second.y])
+        for _ in range(CABLE_REPAIR_PARTS - 1):
+            command(world, "attack", pressed=True)
+            with world.transaction():
+                world.update_player_attack(player, world.controls["p"], DEVICE_REPAIR_SECONDS)
+        assert first.repaired and second.repaired and first.repair_parts == second.repair_parts == CABLE_REPAIR_PARTS
+        assert player.inventory[0].uses == WRENCH_USES - CABLE_REPAIR_PARTS - 1
+        assert count_kind(personal_storages(player), "spare_part") == 1
+        assert command(world, "attack", pressed=True)["crossed"]
+        player.x, player.y = 71, 0
+        player.backpack[1].count = 4
+        command(world, "input", aim=[72, 0])
+        assert command(world, "attack", pressed=True)["wood"] == 4
+        before = encode(player)
+        with patch.object(world.storage, "save", side_effect=OSError("forced bridge save failure")):
+            try:
+                with world.transaction():
+                    world.update_player_attack(player, world.controls["p"], DEVICE_REPAIR_SECONDS)
+            except OSError:
+                pass
+            else:
+                raise AssertionError("Bridge construction must roll back if saving fails")
+        assert encode(world.players["p"]) == before and not world.structure_at(72, 0).repaired
+        assert all(world.structure_at(x, 0) is None for x in range(73, 77))
+    finally:
+        world.close()
+
+
 if __name__ == "__main__":
     with TemporaryDirectory() as directory:
         verify_runtime(Path(directory) / "weather.sqlite")
         verify_generation(Path(directory) / "terrain.sqlite")
         verify_material_stacks(Path(directory) / "materials.sqlite")
         verify_creative(Path(directory) / "creative.sqlite")
-    print("Passed heating, downed construction, hotbar priority, purchases, material stacks, rollback, versioned terrain and creative items.")
+        verify_catalog_save_boundary(Path(directory) / "before-catalog.sqlite")
+        verify_fuel_and_reload(Path(directory) / "fuel.sqlite")
+        verify_biome_pressure_and_room_spawns(Path(directory) / "room-monsters.sqlite")
+        verify_barrier_layout(Path(directory) / "barrier.sqlite")
+        verify_chain_and_crossing_repairs(Path(directory) / "crossings.sqlite")
+    print("Passed survival and inventory, versioned terrain and spawns, chain harvest, straight bridges, and saved cable repairs.")

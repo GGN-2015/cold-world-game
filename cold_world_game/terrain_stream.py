@@ -5,10 +5,10 @@ import random
 import secrets
 
 from .constants import CHUNK_SIZE, TERRAIN_VERSION
-from .biome_layout import chunk_biomes, ring_parameters, stations
+from .biome_layout import bridge_layout, bridge_repair_count, chunk_biomes, ring_parameters, stations
 from .geometry import chunk
 from .models import encode
-from .procedural import appearance, derive, plan, profile, RandomStream
+from .procedural import appearance, derive, plan, profile, RandomStream, room_excluded
 
 
 class TerrainStream:
@@ -97,7 +97,13 @@ class TerrainStream:
                     records.append(appearance(structure))
         version = self.chunk_versions.get(point, 1)
         parameters = self.biome_parameters(point)
-        biome_geometry = parameters and (self.chunk_biomes(point) or point in stations(self.seed, *parameters))
+        biome_geometry = False
+        if parameters:
+            settings = self.terrain_profile(version)
+            axis_bridges = settings["biome_ring"].get("axis_bridges", False)
+            repairs = bridge_repair_count(settings)
+            biome_geometry = (self.chunk_biomes(point) or point in stations(self.seed, *parameters, axis_bridges, repairs)
+                              or axis_bridges and point in bridge_layout(self.seed, *parameters, repairs)[1])
         if version >= 18 and not biome_geometry:
             fingerprint, baseline = self._natural_geometry[point]
             current = {record["id"]: record for record in records}
@@ -119,11 +125,22 @@ class TerrainStream:
     def navigation_bootstrap(self):
         if not hasattr(self, "_navigation_config"):
             legacy = []
-            for horizontal, vertical in sorted(point for point, version in self.chunk_versions.items() if version < 18):
-                digest = hashlib.blake2b(f"{self.seed}:{horizontal}:{vertical}".encode(), digest_size=16).digest()
-                building = (horizontal, vertical) == (0, 0) or random.Random(int.from_bytes(digest, "big")).random() >= 0.9
-                legacy.append([horizontal, vertical, building])
-            self._navigation_config = {"seed": str(self.seed), "size": CHUNK_SIZE, "algorithm": 1, "legacy": legacy}
+            current = self.terrain_profile()
+            for (horizontal, vertical), version in sorted(self.chunk_versions.items()):
+                if version < 18:
+                    digest = hashlib.blake2b(f"{self.seed}:{horizontal}:{vertical}".encode(), digest_size=16).digest()
+                    building = (horizontal, vertical) == (0, 0) or random.Random(int.from_bytes(digest, "big")).random() >= 0.9
+                    legacy.append([horizontal, vertical, building])
+                elif version != TERRAIN_VERSION and room_excluded(self.seed, horizontal, vertical, current):
+                    _, interior = plan(self.seed, horizontal, vertical, self.terrain_profile(version))
+                    legacy.append([horizontal, vertical, bool(interior)])
+            ring = current["biome_ring"]
+            protected = bridge_layout(self.seed, *ring_parameters(current), bridge_repair_count(current))[1]
+            self._navigation_config = {
+                "seed": str(self.seed), "size": CHUNK_SIZE, "algorithm": 1, "legacy": legacy,
+                "barrier": {"radius": ring["radius"], "half_width": ring["half_width"],
+                            "bridge_chunks": sorted(protected)},
+            }
         return self._navigation_config
 
     def terrain_points(self, player_id):

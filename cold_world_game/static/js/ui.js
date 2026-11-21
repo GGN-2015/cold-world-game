@@ -292,12 +292,16 @@ export class GameUI {
     } else if (target?.kind === 'ring_wall') {
       text = t('hint.ringWall');
     } else if (biomeDevices.has(target?.kind)) {
-      const action = target.repaired ? target.kind === 'cable_station' ? 'hint.cableCross' : 'hint.biomeRepaired' : 'hint.biomeRepair';
-      text = `${itemName(target.kind)} · ${t(action)}`;
+      const action = target.repaired
+        ? target.kind === 'cable_station' ? 'hint.cableCross' : 'hint.biomeRepaired'
+        : target.kind === 'cable_station' ? 'hint.cableRepair' : target.kind === 'bridge_pier' ? 'hint.bridgeRepair' : 'hint.biomeRepair';
+      text = `${itemName(target.kind)} · ${t(action, { progress: target.repair_parts ?? 0, total: this.catalog.crossing_repairs.cable_parts })}`;
     } else if (target?.kind === 'fixed_heater' || target?.kind === 'service_gun') {
       text = target.repaired && target.kind === 'service_gun'
         ? t(isMobileDevice ? 'hint.seatTouch' : 'hint.seat', { name: itemName('mounted_gun') })
-        : `${itemName(target.kind)} · ${t(target.repaired ? 'hint.open' : 'hint.repairDevice')}`;
+        : `${itemName(target.kind)} · ${t(target.repaired ? 'hint.open' : 'hint.repairDevice', {
+          parts: target.kind === 'service_gun' ? this.catalog.crossing_repairs.service_gun_parts : 1,
+        })}`;
     } else if (target?.category === 'structure' && seats.has(target.kind)) {
       text = target.occupant && target.occupant !== this.state.you.id ? t('hint.seatOccupied', { name: itemName(target.kind), player: target.occupant }) : t(isMobileDevice ? 'hint.seatTouch' : 'hint.seat', { name: itemName(target.kind) });
     } else if (target?.kind === 'landmine') {
@@ -309,7 +313,7 @@ export class GameUI {
     } else if (equipped?.kind === 'durian_peel') {
       text = t('hint.durianPeel', this.catalog.throwable_weapons?.durian_peel);
     } else if (!fuelWeapon && this.catalog.explosive_weapons?.[equipped?.kind]) {
-      text = t(equipped.kind === 'coin_launcher' ? 'hint.coinLauncher' : 'hint.grenade', { ...this.catalog.explosive_weapons[equipped.kind], money: this.state.you.money ?? 0 });
+      text = t('hint.grenade', this.catalog.explosive_weapons[equipped.kind]);
     } else if (this.catalog.drinks?.[equipped?.kind] && !(target?.category === 'structure' && containers.has(target.kind) && distance(this.state.you, target) <= 2)) {
       text = t('hint.drink', this.catalog.drinks[equipped.kind]);
     } else if (this.catalog.healing_items?.[equipped?.kind] && !(target?.category === 'structure' && containers.has(target.kind) && distance(this.state.you, target) <= 2)) {
@@ -384,6 +388,7 @@ export class GameUI {
       }
       if (this.panel === 'container' && container.kind !== 'fixed_heater') this.renderContainerDemolition(detail, container);
       this.storageView.warning = element('p', 'panel-warning', t('panel.monsterWarning'));
+      this.storageView.warning.hidden = true;
       detail.append(this.storageView.warning);
     }
     const view = this.storageView;
@@ -774,11 +779,28 @@ export class GameUI {
       }
     } else needle?.remove();
     let count = node.querySelector('.item-count');
-    const value = item?.ammo ?? item?.uses ?? (this.catalog.stack_limits?.[item?.kind] ? itemCount(item) : null);
-    if (value != null) {
+    if (this.catalog.stack_limits?.[item?.kind]) {
       if (!count) { count = element('span', 'item-count'); node.append(count); }
-      count.textContent = String(value);
+      count.textContent = `×${itemCount(item)}`;
     } else count?.remove();
+    let charges = node.querySelector('.item-charges');
+    const remaining = item?.ammo ?? item?.uses;
+    if (remaining != null) {
+      if (!charges) { charges = element('span', 'item-charges'); node.append(charges); }
+      charges.textContent = String(remaining);
+      charges.classList.toggle('ammo', item.ammo != null);
+      charges.setAttribute('aria-hidden', 'true');
+    } else charges?.remove();
+    let meter = node.querySelector('.item-durability');
+    const maximum = this.catalog.item_uses?.[item?.kind];
+    if (item?.uses != null && maximum > 0) {
+      if (!meter) {
+        meter = element('span', 'item-durability');
+        meter.setAttribute('aria-hidden', 'true');
+        node.append(meter);
+      }
+      meter.style.setProperty('--remaining', `${Math.min(100, 100 * item.uses / maximum)}%`);
+    } else meter?.remove();
     return node;
   }
 
@@ -869,7 +891,8 @@ export class GameUI {
       card.dataset.offer = identifier;
       const inputs = Object.entries(offer.inputs).filter(([kind]) => !freePurchases || kind !== 'coin');
       const enough = inputs.every(([kind, amount]) => (counts[kind] || 0) >= amount);
-      card.disabled = this.busy || !enough || !recipeFits(this.state.you, { ...offer, inputs: Object.fromEntries(inputs) }, this.catalog);
+      const fits = recipeFits(this.state.you, { ...offer, inputs: Object.fromEntries(inputs) }, this.catalog);
+      card.disabled = this.busy || !enough || !fits;
       const icon = element('span', 'recipe-icon');
       const image = element('img'); image.src = assetUrl(offer.output); image.alt = '';
       icon.append(image, element('small', '', `×${offer.count}`));
@@ -877,7 +900,7 @@ export class GameUI {
       const cost = inputs.map(([kind, amount]) => `${amount} × ${itemName(kind)}`).join(' + ') || t('vending.free');
       copy.append(element('strong', '', `${cost} → ${offer.count} × ${itemName(offer.output)}`));
       if (inputs.length) copy.append(element('span', enough ? '' : 'missing', inputs.map(([kind, amount]) => `${itemName(kind)} ${counts[kind] || 0}/${amount}`).join(' · ')));
-      card.title = t(free < required ? 'error.inventory_full' : 'vending.exchange');
+      card.title = t(enough && !fits ? 'error.inventory_full' : 'vending.exchange');
       card.append(icon, copy, element('span', '', '→'));
       card.onclick = () => this.action('trade', { id: container.id, offer: identifier }, () => t('vending.success', { count: offer.count, name: itemName(offer.output) }));
       list.append(card);
@@ -940,6 +963,6 @@ export class GameUI {
     light.disabled = this.busy || broken || lit || !container.fuel || !(container.igniter?.uses > 0);
     light.dataset.action = 'light';
     light.onclick = () => this.action('light', { id: container.id }, () => t('fire.success'));
-    body.append(light, element('p', 'bag-description', t(broken ? 'hint.repairDevice' : fixed ? 'fire.fixedDescription' : 'fire.description')));
+    body.append(light, element('p', 'bag-description', t(broken ? 'hint.repairDevice' : fixed ? 'fire.fixedDescription' : 'fire.description', { parts: 1 })));
   }
 }

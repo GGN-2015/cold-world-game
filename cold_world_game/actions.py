@@ -129,7 +129,7 @@ class Actions:
                 return self.repair_device(player, controls, target, item)
             if target and target.kind in SEATS:
                 return self.sit(player, controls, target.id)
-            if target and target.kind in CONTAINERS and (item is None or item.kind not in EXPLOSIVE_WEAPONS and item.kind not in THROWABLE_WEAPONS and item.kind not in REVIVAL_ITEMS and item.kind != "homing_missile") and (not shift or target.kind in PANEL_DEMOLITION) and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
+            if target and target.kind in CONTAINERS and (item is None or item.kind not in EXPLOSIVE_WEAPONS and item.kind not in THROWABLE_WEAPONS and item.kind not in REVIVAL_ITEMS) and (not shift or target.kind in PANEL_DEMOLITION) and distance(player, target) <= 2 and self.visible(player.x, player.y, target.x, target.y, ignore=target.id):
                 self.open_container(player, controls, target.id)
                 return {"opened": target.id}
             if player.temperature < 5 and item and item.kind not in FOODS and item.kind not in HEALING_ITEMS and item.kind not in RETURN_ITEMS and item.kind not in REVIVAL_ITEMS and item.kind not in DRINKS:
@@ -562,7 +562,7 @@ class Actions:
         elif target_kind == "fuel":
             if item.kind != "wood" or target.fuel >= 16:
                 raise GameError("invalid_fuel", "Fuel accepts wood only, with a capacity of 16")
-            amount = min(amount, 16 - target.fuel)
+            amount = 1
         elif target_kind == "igniter":
             if item.kind not in IGNITERS or not item.uses or target.igniter is not None:
                 raise GameError("invalid_igniter", "The igniter slot must be empty and the item usable")

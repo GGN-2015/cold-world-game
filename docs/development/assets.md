@@ -77,7 +77,7 @@ uv run --with pillow python tools/generate_assets.py --hitboxes-only
 
 手册直接用相对路径引用游戏独立PNG，不复制另一套插画。替换图片后，相应图鉴同步显示。食品、工具、武器、设施图鉴由 `tools/generate_manuals.py` 读取当前定义生成，条目字段一致；材料与怪物图鉴在各自手册维护。生成与一致性检查见[开发维护](development.md#手册维护)。
 
-`arsenal_equipment` 绘制枪械机、手榴弹、金币榴弹炮和烈焰法杖；`flame_tint` 离线产生暖色刃光，`directional_weapon_sweeps` 同样导出八方向六帧 1152 × 192 图集。`arsenal_effects` 生成共享火苗（0.5 秒循环）和爆炸（0.65 秒、显示宽 6 格对应半径 3）。火苗只在怪物现有位置上叠加一次贴图，不新增怪物立绘；无需旋转的 PNG 直接 `drawImage`，不执行 Canvas 保存/旋转矩阵或实时粒子计算。投出手榴弹按固定起落点和时间做线性插值叠加抛物线高度，不发送逐帧坐标。
+`arsenal_equipment` 绘制弹夹机、手榴弹和烈焰法杖；`flame_tint` 离线产生暖色刃光，`directional_weapon_sweeps` 同样导出八方向六帧 1152 × 192 图集。`arsenal_effects` 生成共享火苗（0.5 秒循环）和爆炸（0.65 秒、显示宽 6 格对应半径 3）。火苗只在怪物现有位置上叠加一次贴图，不新增怪物立绘；无需旋转的 PNG 直接 `drawImage`，不执行 Canvas 保存/旋转矩阵或实时粒子计算。投出手榴弹按固定起落点和时间做线性插值叠加抛物线高度，不发送逐帧坐标。
 
 `sleeping_monster_frame` 和 `monster_resting` 生成积雪覆盖的休眠立绘与拍雪起立图集，快速怪休眠图继续由小怪图样调成紫色；`combat_effects` 中的 `fx_axe_sweep` 和 `fx_ice_sweep` 生成相同范围、轨迹的半圆刃光，`directional_weapon_sweeps` 离线合成斧头/寒冰法杖并分别导出八方向六帧 PNG。`ice_staff` 绘制冰晶法杖，`ice_tint`、`frozen_monster_image` 与 `frozen_monsters` 离线生成偏蓝色、带冰晶裂纹的三类怪物静态和四向差分；运行时只选择已有 PNG，休眠或起立时不使用冰冻图。各PNG的布局以资源清单为准。
 
@@ -85,7 +85,7 @@ uv run --with pillow python tools/generate_assets.py --hitboxes-only
 
 急救包由 `first_aid_kit()` 生成；医疗图集在 `combat_effects()` 中以 `fx_heal` 独立导出，清单 `effects.fx_heal` 指定六帧、每帧 96 × 96、总时长 0.9 秒。`heal` 事件在内存事务成功后触发，使用角色当前画面位置绘制；替换 PNG 不改变治疗判定。重连、重复快照、切后台和操作拒绝都不会误播。
 
-回城法杖由 `return_staff()` 生成；`combat_effects()` 中的 `fx_teleport` 生成传送法阵图集，清单 `effects.fx_teleport` 指定六帧与 1 秒时长。施法中的循环预览及成功后的离开/到达动画共享此 PNG，事件动画固定在各自世界坐标，不跟随传送后的玩家。修改法杖或传送视觉只需替换这两个 PNG，不需要改变游戏规则。
+救援信标与裂纹回城石的贴图由 `tools/expansion_assets.py` 生成。`combat_effects()` 中的 `fx_teleport` 生成传送法阵图集，清单 `effects.fx_teleport` 指定六帧与 1 秒时长。施法中的循环预览及成功后的离开/到达动画共享此 PNG，事件动画固定在各自世界坐标，不跟随传送后的玩家。修改传送视觉只需替换对应 PNG，不需要改变游戏规则。
 
 户外方块、坐姿及雪地爬行者、冰甲怪、雪狐怪的独立像素图样由`tools/outdoor_assets.py`生成，包含正常/冰冻四向图集和独立死亡图集，不在实时渲染中给原怪物染色。机枪瞄准仅选择八张预绘PNG。
 

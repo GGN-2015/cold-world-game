@@ -4,7 +4,7 @@ from functools import lru_cache
 from math import atan2, cos, floor, sin, tau
 
 from . import constants as rules
-from .biome_layout import BIOME_RING, add_biome_terrain
+from .biome_layout import BIOME_RING, add_biome_terrain, bridge_layout, bridge_repair_count, chunk_biomes, ring_parameters
 from .loot import CHEST_LOOT
 from .models import Item, Structure
 from .room_machines import ROOM_MACHINES
@@ -70,9 +70,6 @@ class RandomStream:
 
 
 def profile():
-    rare = dict(rules.RARE_CHEST_ITEMS)
-    for kind in ("first_aid_kit", "return_staff", "ice_staff", "grenade", "flame_staff", "defibrillator", "heat_patch", "sheriff_badge", "vodka", "swiftness_ring", "homing_missile"):
-        rare[kind] = getattr(rules, kind.upper() + "_CHANCE")
     machines = [[kind, stream, chance] for kind, stream, chance in (
         ("vending_machine", "vending_machine:v1", rules.VENDING_MACHINE_CHANCE),
         ("match_machine", "match_machine:v1", rules.MATCH_MACHINE_CHANCE),
@@ -80,12 +77,8 @@ def profile():
         ("piggy_bank", "piggy_bank:v1", rules.PIGGY_BANK_CHANCE),
     )]
     machines.extend([kind, "room_machine:" + kind + ":v1", definition["chance"]] for kind, definition in ROOM_MACHINES.items())
-    result = {"algorithm": 1, "version": rules.TERRAIN_VERSION, "size": rules.CHUNK_SIZE, "machines": machines, "outdoors": {kind: dict(definition) for kind, definition in OUTDOOR_FEATURES.items()}, "rare": [[kind, chance] for kind, chance in sorted(rare.items())], "foods": list(rules.COMMON_CHEST_FOODS), "igniters": list(rules.COMMON_CHEST_IGNITERS), "items": {kind: {"ammo": item.ammo, "uses": item.uses} for kind in sorted(rules.ITEM_KINDS - rules.CREATIVE_ITEMS.keys()) if (item := Item.create(kind))}}
-    result["chest_gun_chance"] = rules.CHEST_GUN_CHANCE
+    result = {"algorithm": 1, "version": rules.TERRAIN_VERSION, "size": rules.CHUNK_SIZE, "machines": machines, "outdoors": {kind: dict(definition) for kind, definition in OUTDOOR_FEATURES.items()}, "items": {kind: {"ammo": item.ammo, "uses": item.uses} for kind in sorted(rules.ITEM_KINDS - rules.CREATIVE_ITEMS.keys()) if (item := Item.create(kind))}}
     result["biome_ring"] = dict(BIOME_RING)
-    result["biome_loot"] = {"chance": rules.BIOME_LOOT_CHANCE, "items": sorted(rules.BIOME_ITEMS)}
-    result["extra_chest_loot"] = [[kind, settings] for kind, settings in rules.EXTRA_CHEST_LOOT.items()]
-    result["quality_loot"] = {"chance": rules.QUALITY_LOOT_CHANCE, "items": list(rules.QUALITY_LOOT)}
     result["loot"] = CHEST_LOOT
     result["stack_limits"] = dict(rules.STACK_LIMITS)
     result["digest"] = hashlib.sha256(json.dumps(result, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
@@ -102,55 +95,17 @@ def cell_seed(seed, horizontal, vertical, tile_x, tile_y):
 
 def chest_items(seed, horizontal, vertical, tile_x, tile_y, settings):
     base = cell_seed(seed, horizontal, vertical, tile_x, tile_y)
-    if "loot" in settings:
-        items = []
-        limits = settings.get("stack_limits", {})
-        for category in ("weapon", "consumable", "equipment"):
-            for kind, chance, quantities in settings["loot"][category]:
-                stream = RandomStream(derive(base, "loot", "ordinary:v1", kind))
-                if stream.random() < chance:
-                    count = stream.choice(quantities)
-                    limit = limits.get(kind, 1)
-                    items.extend((kind, min(limit, count - start)) for start in range(0, count, limit))
-        slots = items + [None] * max(0, 30 - len(items))
-        RandomStream(derive(base, "loot", "shuffle")).shuffle(slots)
-        return chest_slots(horizontal, vertical, tile_x, tile_y, settings, slots)
     items = []
-    for name, chance in (("wood", .5), ("gun", settings.get("chest_gun_chance", .1)), ("food", .3), ("igniter", .2)):
-        stream = RandomStream(derive(base, "loot", name))
-        if stream.random() >= chance:
-            continue
-        if name == "wood":
-            items.extend(["wood"] * stream.randint(1, 5))
-        elif name == "gun":
-            roll = stream.random()
-            items.append("handgun" if roll < .7 else "shotgun" if roll < .9 else "rifle")
-        elif name == "food":
-            items.extend(stream.choice(settings["foods"]) for count in range(stream.randint(1, 5)))
-        else:
-            items.append(stream.choice(settings["igniters"]))
-    for kind, chance in settings["rare"]:
-        if RandomStream(derive(base, "loot", kind)).random() < chance:
-            items.append(kind)
-    if quality := settings.get("quality_loot"):
-        stream = RandomStream(derive(base, "loot", "quality:v1"))
-        candidates = [kind for kind in quality["items"] if kind not in items]
-        if candidates and stream.random() < quality["chance"]:
-            items.append(stream.choice(candidates))
+    limits = settings.get("stack_limits", {})
+    for category in ("weapon", "consumable", "equipment"):
+        for kind, chance, quantities in settings["loot"][category]:
+            stream = RandomStream(derive(base, "loot", "ordinary:v1", kind))
+            if stream.random() < chance:
+                count = stream.choice(quantities)
+                limit = limits.get(kind, 1)
+                items.extend((kind, min(limit, count - start)) for start in range(0, count, limit))
     slots = items + [None] * max(0, 30 - len(items))
     RandomStream(derive(base, "loot", "shuffle")).shuffle(slots)
-    if loot := settings.get("biome_loot"):
-        stream = RandomStream(derive(base, "loot", "biome-kit:v1"))
-        empty = [index for index, kind in enumerate(slots) if kind is None]
-        if empty and stream.random() < loot["chance"]:
-            slots[stream.choice(empty)] = stream.choice(loot["items"])
-    for kind, loot in settings.get("extra_chest_loot", ()):
-        stream = RandomStream(derive(base, "loot", f"extra:{kind}:v1"))
-        if stream.random() >= loot["chance"] or (loot.get("unique") and kind in slots):
-            continue
-        empty = [index for index, entry in enumerate(slots) if entry is None]
-        for index in stream.sample(empty, min(len(empty), stream.randint(*loot["count"]))):
-            slots[index] = kind
     return chest_slots(horizontal, vertical, tile_x, tile_y, settings, slots)
 
 
@@ -160,7 +115,7 @@ def chest_slots(horizontal, vertical, tile_x, tile_y, settings, slots):
         if entry is None:
             items.append(None)
             continue
-        kind, count = entry if isinstance(entry, tuple) else (entry, 1)
+        kind, count = entry
         items.append(Item(kind, id=f"ni:{horizontal}:{vertical}:{tile_x}:{tile_y}:{index}", count=count, **settings["items"][kind]))
     return items
 
@@ -345,6 +300,14 @@ def add_devices(horizontal, vertical, builder, center_x, center_y, objects, inte
             objects.append(Structure(kind, *stream.choice(candidates), ammo=0 if kind == "service_gun" else None))
 
 
+def room_excluded(seed, horizontal, vertical, settings):
+    if not settings.get("biome_ring", {}).get("axis_bridges"):
+        return False
+    parameters = ring_parameters(settings)
+    return bool(chunk_biomes(seed, horizontal, vertical, *parameters)
+                or (horizontal, vertical) in bridge_layout(seed, *parameters, bridge_repair_count(settings))[1])
+
+
 def plan(seed, horizontal, vertical, settings):
     if settings["algorithm"] != 1:
         raise ValueError("Unsupported procedural terrain algorithm")
@@ -353,7 +316,7 @@ def plan(seed, horizontal, vertical, settings):
     center_x, center_y = horizontal * settings["size"], vertical * settings["size"]
     roll = stream.random()
     interior = []
-    if (horizontal, vertical) == (0, 0) or roll >= .9:
+    if (horizontal, vertical) == (0, 0) or roll >= .9 and not room_excluded(seed, horizontal, vertical, settings):
         objects, interior = builder.building(stream, center_x, center_y)
         for kind, feature, chance in settings["machines"]:
             builder.populate_machine(objects, interior, horizontal, vertical, kind, feature, chance, preserve_paths=True)
@@ -389,6 +352,8 @@ def appearance(structure):
         state["door_open"] = structure.door_open
     if structure.kind in {"cable_station", "street_lamp", "bridge_pier"}:
         state["repaired"] = structure.repaired
+    if structure.kind == "cable_station":
+        state["repair_parts"] = structure.repair_parts
     if structure.on_floor:
         state["on_floor"] = True
     return state

@@ -2,7 +2,7 @@ import { expansionSweeps, expansionBlasts } from './expansion-data.js';
 
 const lifetimes = { shot: 0.15, melee: 0.28, chop: 0.28, break: 0.5, hit: 0.3, hurt: 0.3, death: 0.65, heal: 0.9, eat: 0.6, unpack: 0.6, teleport_out: 1, teleport_in: 1, explosion: 0.65, fire_spray: 0.35 };
 const neutralPose = Object.freeze({ x: 0, y: 0, reacting: false, direction: null });
-const sweepEffects = { ...expansionSweeps, axe: 'fx_axe_sweep', chainsaw: 'fx_chainsaw_sweep', ice_staff: 'fx_ice_sweep', flame_staff: 'fx_flame_sweep', durian_peel: 'fx_durian_sweep' };
+const sweepEffects = { ...expansionSweeps, axe: 'fx_axe_sweep', chain_chainsaw: 'fx_chainsaw_sweep', ice_staff: 'fx_ice_sweep', flame_staff: 'fx_flame_sweep', durian_peel: 'fx_durian_sweep' };
 
 function poseFor(poses, identifier) {
   if (!poses.has(identifier)) poses.set(identifier, { ...neutralPose });
@@ -165,7 +165,7 @@ export class CombatEffects {
       } else if (event.type === 'heal') {
         this.frame(renderer, 'fx_heal', actor.x, actor.y - 0.45, event.kind === 'heat_patch' ? 1.4 : 2.4, phase);
       } else if (event.type === 'explosion') {
-        this.frame(renderer, event.kind === 'homing_missile' ? 'fx_missile_explosion' : expansionBlasts[event.kind] || 'fx_explosion', event.x, event.y, (event.radius ?? 3) * 2, phase);
+        this.frame(renderer, expansionBlasts[event.kind] || 'fx_explosion', event.x, event.y, (event.radius ?? 3) * 2, phase);
       } else if (event.type === 'fire_spray') {
         const [dx, dy] = event.direction;
         for (let offset = 0.25; offset < event.range * Math.min(1, 0.4 + 2 * phase); offset += 0.6) {

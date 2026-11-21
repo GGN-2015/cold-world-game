@@ -20,6 +20,10 @@ def parser():
     arena_command = commands.add_parser("arena", help="Start the isolated weapon arena server", description="Live, deterministic weapon trials without opening a game save")
     arena.configure_parser(arena_command)
     arena_command.set_defaults(handler=arena.run, command_parser=arena_command)
+    from . import replay_batch
+    batch = commands.add_parser("replay-batch", help="Run authored scenarios and save their replays")
+    replay_batch.configure_parser(batch)
+    batch.set_defaults(handler=replay_batch.run, command_parser=batch)
     tests = commands.add_parser("test", help="Run isolated performance tests", description="Performance tests use disposable worlds and never open the game save")
     tests.set_defaults(handler=None, command_parser=tests)
     checks = tests.add_subparsers(title="tests")
@@ -41,6 +45,7 @@ def game_arguments(arguments):
     arguments.add_argument("--password", help="Shared server password; generated randomly when omitted")
     arguments.add_argument("--admin", help="Exact player ID allowed to use the administrator console; disabled when omitted")
     arguments.add_argument("--save-path", help="Save directory or .sqlite3/.sqlite/.db file; default: ~/.cold-world-game")
+    arguments.add_argument("--replay-dir", help="Shared replay library (default: replays/library)")
     arguments.add_argument("--seed", type=int, help="World seed for a new save only")
     arguments.add_argument("--allowed-origin", action="append", default=[], help="Additional browser Origin allowed to connect; repeatable")
     arguments.add_argument("--log-level", choices=("DEBUG", "INFO", "WARNING", "ERROR"), default="INFO")
@@ -64,7 +69,7 @@ def run_game(options, arguments):
         arguments.error("--password must not be empty")
     logging.basicConfig(level=options.log_level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     try:
-        app = create_app(password=options.password, save_path=options.save_path, seed=options.seed, allowed_origins=options.allowed_origin, admin=options.admin)
+        app = create_app(password=options.password, save_path=options.save_path, seed=options.seed, allowed_origins=options.allowed_origin, admin=options.admin, replay_dir=options.replay_dir)
     except Timeout:
         arguments.exit(1, "This save is already open in another server process.\n")
     except (OSError, ValueError) as error:

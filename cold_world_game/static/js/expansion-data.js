@@ -11,42 +11,6 @@ export const expansionMessages = {
     "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
     "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
   ],
-  "item.energy_bar": [
-    "能量棒",
-    "Energy bar"
-  ],
-  "guide.effect.energy_bar": [
-    "恢复3点饥饿，可超过10。",
-    "Restores 3 hunger, including above 10."
-  ],
-  "guide.use.energy_bar": [
-    "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
-    "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
-  ],
-  "item.peanut_pack": [
-    "花生米",
-    "Roasted peanuts"
-  ],
-  "guide.effect.peanut_pack": [
-    "恢复2.5点饥饿，可超过10。",
-    "Restores 2.5 hunger, including above 10."
-  ],
-  "guide.use.peanut_pack": [
-    "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
-    "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
-  ],
-  "item.dried_mango": [
-    "芒果干",
-    "Dried mango"
-  ],
-  "guide.effect.dried_mango": [
-    "恢复1.5点饥饿，可超过10。",
-    "Restores 1.5 hunger, including above 10."
-  ],
-  "guide.use.dried_mango": [
-    "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
-    "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
-  ],
   "item.beef_jerky": [
     "牛肉干",
     "Beef jerky"
@@ -56,90 +20,6 @@ export const expansionMessages = {
     "Restores 3.5 hunger, including above 10."
   ],
   "guide.use.beef_jerky": [
-    "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
-    "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
-  ],
-  "item.canned_peaches": [
-    "黄桃罐头",
-    "Canned peaches"
-  ],
-  "guide.effect.canned_peaches": [
-    "恢复2点饥饿，可超过10。",
-    "Restores 2 hunger, including above 10."
-  ],
-  "guide.use.canned_peaches": [
-    "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
-    "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
-  ],
-  "item.canned_beans": [
-    "焗豆罐头",
-    "Canned beans"
-  ],
-  "guide.effect.canned_beans": [
-    "恢复3.5点饥饿，可超过10。",
-    "Restores 3.5 hunger, including above 10."
-  ],
-  "guide.use.canned_beans": [
-    "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
-    "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
-  ],
-  "item.canned_corn": [
-    "玉米罐头",
-    "Canned corn"
-  ],
-  "guide.effect.canned_corn": [
-    "恢复2.5点饥饿，可超过10。",
-    "Restores 2.5 hunger, including above 10."
-  ],
-  "guide.use.canned_corn": [
-    "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
-    "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
-  ],
-  "item.canned_pineapple": [
-    "菠萝罐头",
-    "Canned pineapple"
-  ],
-  "guide.effect.canned_pineapple": [
-    "恢复2点饥饿，可超过10。",
-    "Restores 2 hunger, including above 10."
-  ],
-  "guide.use.canned_pineapple": [
-    "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
-    "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
-  ],
-  "item.sesame_biscuit": [
-    "芝麻饼",
-    "Sesame biscuit"
-  ],
-  "guide.effect.sesame_biscuit": [
-    "恢复2点饥饿，可超过10。",
-    "Restores 2 hunger, including above 10."
-  ],
-  "guide.use.sesame_biscuit": [
-    "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
-    "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
-  ],
-  "item.rice_cracker": [
-    "米饼",
-    "Rice cracker"
-  ],
-  "guide.effect.rice_cracker": [
-    "恢复1点饥饿，可超过10。",
-    "Restores 1 hunger, including above 10."
-  ],
-  "guide.use.rice_cracker": [
-    "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
-    "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
-  ],
-  "item.honey_sachet": [
-    "蜂蜜包",
-    "Honey sachet"
-  ],
-  "guide.effect.honey_sachet": [
-    "恢复1.5点饥饿，可超过10。",
-    "Restores 1.5 hunger, including above 10."
-  ],
-  "guide.use.honey_sachet": [
     "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
     "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
   ],
@@ -155,18 +35,6 @@ export const expansionMessages = {
     "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
     "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
   ],
-  "item.seaweed_roll": [
-    "海苔卷",
-    "Seaweed roll"
-  ],
-  "guide.effect.seaweed_roll": [
-    "恢复1.5点饥饿，可超过10。",
-    "Restores 1.5 hunger, including above 10."
-  ],
-  "guide.use.seaweed_roll": [
-    "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
-    "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
-  ],
   "item.dried_fish": [
     "小鱼干",
     "Dried fish"
@@ -179,30 +47,6 @@ export const expansionMessages = {
     "选中后长按0.5秒吃掉；不需要篝火。饥饿大于10时不能吃，手机按住使用。",
     "Equip and hold Use or left click for 0.5 s. No fire needed. Cannot eat while hunger exceeds 10."
   ],
-  "item.frozen_pizza": [
-    "冷冻披萨",
-    "Frozen pizza"
-  ],
-  "guide.effect.frozen_pizza": [
-    "恢复5点饥饿，可超过10。",
-    "Restores 5 hunger, including above 10."
-  ],
-  "guide.use.frozen_pizza": [
-    "选中后长按0.5秒吃掉；需要燃烧篝火曼哈顿距离1至3格。饥饿大于10时不能吃，手机按住使用。",
-    "Equip and hold Use or left click for 0.5 s. Requires a lit campfire 1–3 Manhattan tiles away. Cannot eat while hunger exceeds 10."
-  ],
-  "item.curry_rice": [
-    "咖喱饭",
-    "Curry rice"
-  ],
-  "guide.effect.curry_rice": [
-    "恢复5.5点饥饿，可超过10。",
-    "Restores 5.5 hunger, including above 10."
-  ],
-  "guide.use.curry_rice": [
-    "选中后长按0.5秒吃掉；需要燃烧篝火曼哈顿距离1至3格。饥饿大于10时不能吃，手机按住使用。",
-    "Equip and hold Use or left click for 0.5 s. Requires a lit campfire 1–3 Manhattan tiles away. Cannot eat while hunger exceeds 10."
-  ],
   "item.oatmeal": [
     "燕麦粥",
     "Oatmeal"
@@ -212,18 +56,6 @@ export const expansionMessages = {
     "Restores 4.5 hunger, including above 10."
   ],
   "guide.use.oatmeal": [
-    "选中后长按0.5秒吃掉；需要燃烧篝火曼哈顿距离1至3格。饥饿大于10时不能吃，手机按住使用。",
-    "Equip and hold Use or left click for 0.5 s. Requires a lit campfire 1–3 Manhattan tiles away. Cannot eat while hunger exceeds 10."
-  ],
-  "item.mushroom_soup": [
-    "蘑菇汤",
-    "Mushroom soup"
-  ],
-  "guide.effect.mushroom_soup": [
-    "恢复4点饥饿，可超过10。",
-    "Restores 4 hunger, including above 10."
-  ],
-  "guide.use.mushroom_soup": [
     "选中后长按0.5秒吃掉；需要燃烧篝火曼哈顿距离1至3格。饥饿大于10时不能吃，手机按住使用。",
     "Equip and hold Use or left click for 0.5 s. Requires a lit campfire 1–3 Manhattan tiles away. Cannot eat while hunger exceeds 10."
   ],
@@ -251,18 +83,6 @@ export const expansionMessages = {
     "选中后单击发射一枪，长按不连发；手机使用按钮同理。耗尽消失，不能装填。普通子弹穿透规则及误伤规则不变。",
     "Equip and click once per shot; no hold-to-repeat; use the mobile Use button likewise. Disappears when empty; no reload. Normal bullet piercing and friendly-fire rules apply."
   ],
-  "item.compact_pistol": [
-    "袖珍手枪",
-    "Pocket pistol"
-  ],
-  "guide.effect.compact_pistol": [
-    "初始60发，每弹丸伤害5，每枪1弹丸，间隔0.2秒。",
-    "60 rounds; 5 damage per pellet, 1 pellet(s) per shot, 0.2 s interval."
-  ],
-  "guide.use.compact_pistol": [
-    "选中后单击发射一枪，长按不连发；手机使用按钮同理。耗尽消失，不能装填。普通子弹穿透规则及误伤规则不变。",
-    "Equip and click once per shot; no hold-to-repeat; use the mobile Use button likewise. Disappears when empty; no reload. Normal bullet piercing and friendly-fire rules apply."
-  ],
   "item.hunting_rifle": [
     "猎人步枪",
     "Hunting rifle"
@@ -274,66 +94,6 @@ export const expansionMessages = {
   "guide.use.hunting_rifle": [
     "选中后单击发射一枪，长按不连发；手机使用按钮同理。耗尽消失，不能装填。普通子弹穿透规则及误伤规则不变。",
     "Equip and click once per shot; no hold-to-repeat; use the mobile Use button likewise. Disappears when empty; no reload. Normal bullet piercing and friendly-fire rules apply."
-  ],
-  "item.double_barrel": [
-    "双管猎枪",
-    "Double-barrel shotgun"
-  ],
-  "guide.effect.double_barrel": [
-    "初始24发，每弹丸伤害3，每枪4弹丸，间隔1.1秒。",
-    "24 rounds; 3 damage per pellet, 4 pellet(s) per shot, 1.1 s interval."
-  ],
-  "guide.use.double_barrel": [
-    "选中后单击发射一枪，长按不连发；手机使用按钮同理。耗尽消失，不能装填。普通子弹穿透规则及误伤规则不变。",
-    "Equip and click once per shot; no hold-to-repeat; use the mobile Use button likewise. Disappears when empty; no reload. Normal bullet piercing and friendly-fire rules apply."
-  ],
-  "item.nail_gun": [
-    "射钉枪",
-    "Nail gun"
-  ],
-  "guide.effect.nail_gun": [
-    "初始90发，每弹丸伤害2，每枪3弹丸，间隔0.18秒。",
-    "90 rounds; 2 damage per pellet, 3 pellet(s) per shot, 0.18 s interval."
-  ],
-  "guide.use.nail_gun": [
-    "选中后按住连续射击；手机使用按钮同理。耗尽消失，不能装填。普通子弹穿透规则及误伤规则不变。",
-    "Equip and hold for automatic fire; use the mobile Use button likewise. Disappears when empty; no reload. Normal bullet piercing and friendly-fire rules apply."
-  ],
-  "item.ice_carbine": [
-    "冰晶卡宾枪",
-    "Ice carbine"
-  ],
-  "guide.effect.ice_carbine": [
-    "初始24发，每弹丸伤害4，每枪1弹丸，间隔0.65秒。 活动怪物冰冻2秒、速度减半，大怪不能射击；休眠怪物只受伤。",
-    "24 rounds; 4 damage per pellet, 1 pellet(s) per shot, 0.65 s interval. Freezes active monsters for 2 s at half speed; frozen big monsters cannot shoot. Resting monsters only take damage."
-  ],
-  "guide.use.ice_carbine": [
-    "选中后单击发射一枪，长按不连发；手机使用按钮同理。耗尽消失，不能装填。普通子弹穿透规则及误伤规则不变。",
-    "Equip and click once per shot; no hold-to-repeat; use the mobile Use button likewise. Disappears when empty; no reload. Normal bullet piercing and friendly-fire rules apply."
-  ],
-  "item.ember_pistol": [
-    "余烬手枪",
-    "Ember pistol"
-  ],
-  "guide.effect.ember_pistol": [
-    "初始16发，每弹丸伤害3，每枪1弹丸，间隔0.8秒。 灼烧1.5秒，每0.5秒伤害4，无持续击退；同类状态不叠加，只延长。",
-    "16 rounds; 3 damage per pellet, 1 pellet(s) per shot, 0.8 s interval. Burns for 1.5 s, dealing 4 every 0.5 s without ongoing knockback. Same status does not stack; it only extends."
-  ],
-  "guide.use.ember_pistol": [
-    "选中后单击发射一枪，长按不连发；手机使用按钮同理。耗尽消失，不能装填。普通子弹穿透规则及误伤规则不变。",
-    "Equip and click once per shot; no hold-to-repeat; use the mobile Use button likewise. Disappears when empty; no reload. Normal bullet piercing and friendly-fire rules apply."
-  ],
-  "item.storm_smg": [
-    "暴风冲锋枪",
-    "Storm SMG"
-  ],
-  "guide.effect.storm_smg": [
-    "初始160发，每弹丸伤害4，每枪1弹丸，间隔0.1秒。",
-    "160 rounds; 4 damage per pellet, 1 pellet(s) per shot, 0.1 s interval."
-  ],
-  "guide.use.storm_smg": [
-    "选中后按住连续射击；手机使用按钮同理。耗尽消失，不能装填。普通子弹穿透规则及误伤规则不变。",
-    "Equip and hold for automatic fire; use the mobile Use button likewise. Disappears when empty; no reload. Normal bullet piercing and friendly-fire rules apply."
   ],
   "item.crowbar": [
     "撬棍",
@@ -371,18 +131,6 @@ export const expansionMessages = {
     "单击空地或怪物挥动，手机瞄准后点使用；每次有效挥动含空挥消耗一次，耗尽消失。不能拆建筑，不可长按连攻。",
     "Click ground or a monster to swing; aim then tap Use on mobile. Each valid swing, even a miss, costs a charge. Disappears when spent. Cannot dismantle or hold for repeated swings."
   ],
-  "item.shock_baton": [
-    "电击棍",
-    "Shock baton"
-  ],
-  "guide.effect.shock_baton": [
-    "初始40次，伤害6，半径2格，正前方120度扇形，间隔0.7秒。 活动怪物冰冻1.5秒、速度减半，大怪不能射击；休眠怪物只受伤。",
-    "40 charges; 6 damage, radius 2, forward 120° sweep, 0.7 s interval. Freezes active monsters for 1.5 s at half speed; frozen big monsters cannot shoot. Resting monsters only take damage."
-  ],
-  "guide.use.shock_baton": [
-    "单击空地或怪物挥动，手机瞄准后点使用；每次有效挥动含空挥消耗一次，耗尽消失。不能拆建筑，不可长按连攻。",
-    "Click ground or a monster to swing; aim then tap Use on mobile. Each valid swing, even a miss, costs a charge. Disappears when spent. Cannot dismantle or hold for repeated swings."
-  ],
   "item.frost_spear": [
     "寒霜长矛",
     "Frost spear"
@@ -394,30 +142,6 @@ export const expansionMessages = {
   "guide.use.frost_spear": [
     "单击空地或怪物挥动，手机瞄准后点使用；每次有效挥动含空挥消耗一次，耗尽消失。不能拆建筑，不可长按连攻。",
     "Click ground or a monster to swing; aim then tap Use on mobile. Each valid swing, even a miss, costs a charge. Disappears when spent. Cannot dismantle or hold for repeated swings."
-  ],
-  "item.fire_whip": [
-    "火焰鞭",
-    "Fire whip"
-  ],
-  "guide.effect.fire_whip": [
-    "初始35次，伤害3，半径3.6格，正前方140度扇形，间隔0.8秒。 灼烧2秒，每0.5秒伤害4，无持续击退；同类状态不叠加，只延长。",
-    "35 charges; 3 damage, radius 3.6, forward 140° sweep, 0.8 s interval. Burns for 2 s, dealing 4 every 0.5 s without ongoing knockback. Same status does not stack; it only extends."
-  ],
-  "guide.use.fire_whip": [
-    "单击空地或怪物挥动，手机瞄准后点使用；每次有效挥动含空挥消耗一次，耗尽消失。不能拆建筑，不可长按连攻。",
-    "Click ground or a monster to swing; aim then tap Use on mobile. Each valid swing, even a miss, costs a charge. Disappears when spent. Cannot dismantle or hold for repeated swings."
-  ],
-  "item.tin_bomb": [
-    "铁罐炸弹",
-    "Tin bomb"
-  ],
-  "guide.effect.tin_bomb": [
-    "一次性；爆炸半径2.2格，伤害12，只伤怪物，不伤玩家或建筑。",
-    "Single-use; blast radius 2.2 tiles, 12 damage to monsters only, never players or buildings."
-  ],
-  "guide.use.tin_bomb": [
-    "选中后朝落点长按0.6秒投掷；手机可长按场景，或瞄准后按住使用。落点须已探索且在视野半对角线内，用后消失。",
-    "Equip and hold 0.6 s toward a landing point; hold the scene on mobile, or aim then hold Use. Landing must be explored and within half the viewport diagonal. Consumed on use."
   ],
   "item.frost_bomb": [
     "冰霜弹",
@@ -454,18 +178,6 @@ export const expansionMessages = {
   "guide.use.cluster_charge": [
     "选中后朝落点长按1秒投掷；手机可长按场景，或瞄准后按住使用。落点须已探索且在视野半对角线内，用后消失。",
     "Equip and hold 1 s toward a landing point; hold the scene on mobile, or aim then hold Use. Landing must be explored and within half the viewport diagonal. Consumed on use."
-  ],
-  "item.pulse_grenade": [
-    "脉冲手雷",
-    "Pulse grenade"
-  ],
-  "guide.effect.pulse_grenade": [
-    "一次性；爆炸半径3.5格，伤害10，只伤怪物，不伤玩家或建筑。 活动怪物冰冻1.5秒、速度减半，大怪不能射击；休眠怪物只受伤。",
-    "Single-use; blast radius 3.5 tiles, 10 damage to monsters only, never players or buildings. Freezes active monsters for 1.5 s at half speed; frozen big monsters cannot shoot. Resting monsters only take damage."
-  ],
-  "guide.use.pulse_grenade": [
-    "选中后朝落点长按0.5秒投掷；手机可长按场景，或瞄准后按住使用。落点须已探索且在视野半对角线内，用后消失。",
-    "Equip and hold 0.5 s toward a landing point; hold the scene on mobile, or aim then hold Use. Landing must be explored and within half the viewport diagonal. Consumed on use."
   ],
   "item.flare_bomb": [
     "信号爆弹",
@@ -515,18 +227,6 @@ export const expansionMessages = {
     "必须放在物品栏并选中；切换即失效，不消耗，不与其他手持加速叠加。",
     "Select in the hotbar; switching removes the bonus. Not consumed. Cannot stack with other selected speed equipment."
   ],
-  "item.hiking_cane": [
-    "登山手杖",
-    "Hiking cane"
-  ],
-  "guide.effect.hiking_cane": [
-    "选中时当前移速乘1.8，不会取消饥饿与失温惩罚；不能攻击。",
-    "While selected, multiplies current speed by 1.8 without removing hunger or cold penalties. Cannot attack."
-  ],
-  "guide.use.hiking_cane": [
-    "放物品栏并选中；未选中无效，倒地无效，不消耗、不叠加。",
-    "Select in the hotbar. No benefit while unselected or downed; not consumed or stacked."
-  ],
   "item.pocket_stove": [
     "口袋暖炉",
     "Pocket warmer"
@@ -538,30 +238,6 @@ export const expansionMessages = {
   "guide.use.pocket_stove": [
     "选中后长按0.5秒；手机按住使用，无需篝火，倒地也能用。耗尽消失。",
     "Equip and hold left click or Use for 0.5 s. No fire needed; usable while downed. Disappears when spent."
-  ],
-  "item.warming_flask": [
-    "保温壶",
-    "Warming flask"
-  ],
-  "guide.effect.warming_flask": [
-    "每次恢复18°C体温，上限36°C；饥饿不变，初始2次。",
-    "Restores 18°C body temperature per use, capped at 36°C. No hunger change. Starts with 2 charges."
-  ],
-  "guide.use.warming_flask": [
-    "选中后长按0.7秒，无需火，倒地可用；手机按住使用，耗尽消失。",
-    "Equip and hold for 0.7 s, without fire, even while downed. Hold Use on mobile. Disappears after 2 uses."
-  ],
-  "item.thermal_blanket": [
-    "保温毯",
-    "Thermal blanket"
-  ],
-  "guide.effect.thermal_blanket": [
-    "一次性恢复36°C满体温，不改变饥饿。",
-    "Single-use; restores full 36°C body temperature without changing hunger."
-  ],
-  "guide.use.thermal_blanket": [
-    "选中后长按1秒，无需火，倒地也能用；手机按住使用。",
-    "Equip and hold for 1 s; no fire needed, even while downed. Hold Use on mobile."
   ],
   "item.glucose_vial": [
     "葡萄糖补给",
@@ -623,18 +299,6 @@ export const expansionMessages = {
     "选中长按2秒；无需火，倒地可用，手机按住使用；耗尽消失。",
     "Equip and hold 2 s; no fire needed, usable while downed. Hold Use on mobile. Disappears when spent."
   ],
-  "item.storm_lighter": [
-    "防风火种",
-    "Storm lighter"
-  ],
-  "guide.effect.storm_lighter": [
-    "可点燃篝火10次，每次仍需1木材，不延长燃烧时间。",
-    "Lights a campfire 10 times; each ignition still needs 1 wood and does not extend burn duration."
-  ],
-  "guide.use.storm_lighter": [
-    "打开篝火，放入火种格与木材后点燃；不能手持直接点火，耗尽消失。",
-    "Open a campfire, place in its igniter slot and add wood, then Ignite. Cannot ignite directly in hand; disappears when spent."
-  ],
   "item.firestarter": [
     "引火棒",
     "Firestarter rod"
@@ -682,18 +346,6 @@ export const expansionMessages = {
   "guide.use.safety_helmet": [
     "放背包或物品栏即生效，不用选中、不消耗、多件不叠加。",
     "Keep in bag or hotbar; no selection required. Not consumed or stacked."
-  ],
-  "item.collector_glove": [
-    "拾荒手套",
-    "Scavenger glove"
-  ],
-  "guide.effect.collector_glove": [
-    "携带时自动拾取半径从0.75米增至1.1米；仍要求视线畅通，物品优先填入物品栏，满后放背包，两者都满则不拾取。",
-    "While carried, increases auto-pickup radius from 0.75 m to 1.1 m. Clear sight is still required. Items fill the hotbar first, then the backpack; no pickup when both are full."
-  ],
-  "guide.use.collector_glove": [
-    "放背包或物品栏即生效，不消耗、多件不叠加；硬币仍直接计入金钱。",
-    "Carry in bag or hotbar. Not consumed or stacked; coins still go directly to money."
   ],
   "item.insulated_lunchbox": [
     "保鲜饭盒",
@@ -749,14 +401,11 @@ export const expansionSweeps = {
   "crowbar": "fx_crowbar_sweep",
   "machete": "fx_machete_sweep",
   "snow_shovel": "fx_snow_shovel_sweep",
-  "shock_baton": "fx_shock_baton_sweep",
-  "frost_spear": "fx_frost_spear_sweep",
-  "fire_whip": "fx_fire_whip_sweep"
+  "frost_spear": "fx_frost_spear_sweep"
 };
 
 export const expansionBlasts = {
   "frost_bomb": "fx_frost_blast",
   "fire_bottle": "fx_fire_blast",
-  "pulse_grenade": "fx_pulse_blast",
   "flare_bomb": "fx_fire_blast"
 };

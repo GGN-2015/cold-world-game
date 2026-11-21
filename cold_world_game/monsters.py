@@ -5,6 +5,7 @@ from collections import deque
 from functools import lru_cache
 
 from .constants import BODY_RADIUS, CHUNK_SIZE, DAY_SECONDS, ICE_STAFF, KNOCKBACK, MONSTER_DEMOLITION, MONSTER_LIMIT, MONSTER_PROJECTILE_SPEED, MONSTER_REST_HOURS, MONSTER_RISE_SECONDS, MONSTER_SPAWN_CHANCES, MONSTER_XRAY_CHANCE, NIGHT_MONSTER_HOURS
+from .constants import BIOME_SPAWN_MULTIPLIER, ROOM_MONSTER_NOTICE_DISTANCE
 from .geometry import DIRECTIONS, distance, normalized, tile
 from .models import Monster, Projectile
 from .wildlife import BIOME_GUARDS, MONSTER_TYPES
@@ -21,6 +22,7 @@ ZONE_ONE_SPAWN_PACING = {
 }
 PACED_SPAWN_RETRY = 15
 PACED_SPAWN_RADIUS = 32
+PACED_SPAWN_BIOMES = ("lake", "fog")
 
 
 class Monsters:
@@ -72,14 +74,18 @@ class Monsters:
         return MONSTER_SPAWN_CHANCES["night" if hour >= start or hour < end else "day"]
 
     def monster_spawn_available(self):
-        count = sum(not identifier.startswith(("biome:", "fog:")) for identifier in self.monsters)
+        count = sum(not identifier.startswith(("biome:", "fog:", "room:")) for identifier in self.monsters)
         return count < MONSTER_LIMIT
 
     def monster_spawn_radius(self, stream):
         return math.sqrt(stream.uniform(20 ** 2, PACED_SPAWN_RADIUS ** 2))
 
     def monster_perceives(self, monster, player):
-        return True
+        return not monster.id.startswith("room:") or distance(monster, player) <= ROOM_MONSTER_NOTICE_DISTANCE
+
+    def paced_spawn_biomes(self, player):
+        kinds = self.biomes_at(player.x, player.y)
+        return tuple(kind for kind in PACED_SPAWN_BIOMES if kind in kinds)
 
     def spawn_monster(self):
         if not self.online:
@@ -93,34 +99,46 @@ class Monsters:
         first_delay, interval, nearby_limit = ZONE_ONE_SPAWN_PACING[phase]
         players = [self.players[player_id] for player_id in sorted(self.online)
                    if self.players[player_id].temperature >= 5]
+        zones = {player.id: self.paced_spawn_biomes(player) for player in players}
         for player in players:
             controls = self.controls[player.id]
+            biomes = zones[player.id]
+            if controls.paced_spawn_biomes != biomes:
+                controls.paced_spawn_biomes = biomes
+                controls.next_paced_spawn = None
+            multiplier = BIOME_SPAWN_MULTIPLIER if biomes else 1
             if controls.next_paced_spawn is None:
                 delay = self.event_random(f"{phase}-spawn-delay", player.id).uniform(*first_delay)
-                controls.next_paced_spawn = self.elapsed + delay
+                controls.next_paced_spawn = self.elapsed + delay / multiplier
             if self.elapsed < controls.next_paced_spawn:
                 continue
             nearby = sum(distance(monster, player) <= PACED_SPAWN_RADIUS and not self.monster_inactive(monster)
                          for monster in self.monsters.values())
             stream = self.event_random(f"{phase}-spawn", player.id)
-            if nearby >= nearby_limit or not self.monster_spawn_available() or not self.spawn_near_player(player, stream):
-                controls.next_paced_spawn = self.elapsed + PACED_SPAWN_RETRY
+            if nearby >= nearby_limit * multiplier or not self.monster_spawn_available() or not self.spawn_near_player(player, stream, biomes):
+                controls.next_paced_spawn = self.elapsed + PACED_SPAWN_RETRY / multiplier
                 continue
 
-            next_spawn = self.elapsed + stream.uniform(*interval)
+            next_spawn = self.elapsed + stream.uniform(*interval) / multiplier
             for teammate in players:
-                if distance(player, teammate) <= PACED_SPAWN_RADIUS:
+                teammate_biomes = zones[teammate.id]
+                if distance(player, teammate) <= PACED_SPAWN_RADIUS and (
+                    not biomes and not teammate_biomes or any(kind in teammate_biomes for kind in biomes)
+                ):
                     teammate_controls = self.controls[teammate.id]
+                    teammate_controls.paced_spawn_biomes = teammate_biomes
                     teammate_controls.next_paced_spawn = max(teammate_controls.next_paced_spawn or 0, next_spawn)
             return
 
-    def spawn_near_player(self, player, stream):
+    def spawn_near_player(self, player, stream, biomes=()):
         for _ in range(8):
             angle = stream.uniform(0, math.tau)
             radius = self.monster_spawn_radius(stream)
             position_x = player.x + math.cos(angle) * radius
             position_y = player.y + math.sin(angle) * radius
             if not self.generated(position_x, position_y) or self.structure_at(tile(position_x), tile(position_y)):
+                continue
+            if biomes and not any(kind in self.biomes_at(position_x, position_y) for kind in biomes):
                 continue
             if any(math.hypot(position_x - self.players[player_id].x, position_y - self.players[player_id].y) < 20 for player_id in self.online):
                 continue
@@ -204,13 +222,14 @@ class Monsters:
                     self.set_monster_target(monster, target)
                     can_see = True
             if target is None:
-                self.wander(monster, seconds)
+                if not monster.id.startswith("room:"):
+                    self.wander(monster, seconds)
                 continue
             if monster.big or monster.overlap_player != target.id or distance(monster, target) > 1 + KNOCKBACK["monster_melee"] + 1e-9:
                 monster.overlap_player = None
             if monster.demolition:
                 structure = self.structures.get(monster.demolition)
-                if structure and structure.solid and distance(monster, structure) <= 1 + 1e-9:
+                if structure and structure.kind in MONSTER_DEMOLITION and structure.solid and distance(monster, structure) <= 1 + 1e-9:
                     self.demolish(monster, structure, seconds)
                     continue
                 monster.demolition = None

@@ -18,7 +18,7 @@ def illustrate(root, assets):
         names.update({kind: definition["name"][0] for kind, definition in definitions(root, filename, attribute).items()})
     names = {kind: name for kind, name in names.items() if kind in assets}
     aliases = {name: kind for kind, name in names.items()}
-    aliases.update({"饺子": "dumplings", "馄饨": "wontons", "猪蹄": "pork_trotters", "牛肉": "beef", "羊肉": "lamb", "沙丁鱼": "sardines", "金枪鱼": "tuna", "牛肉丸": "beef_balls", "火锅蔬菜": "hotpot_vegetables", "地板": "floor", "栅栏": "fence", "火堆": "campfire"})
+    aliases.update({"饺子": "dumplings", "牛肉": "beef", "沙丁鱼": "sardines", "地板": "floor", "栅栏": "fence", "火堆": "campfire"})
     image_pattern = re.compile(r"!\[[^\]]*\]\((?:\.\./)+cold_world_game/static/assets/[a-z0-9_]+\.png\)")
 
     def matching(text, explicit=False):

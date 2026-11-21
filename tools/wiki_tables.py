@@ -13,6 +13,12 @@ def percent(rate):
     return f"{rate * 100:.2f}".rstrip("0").rstrip(".") + "%"
 
 
+def harvest_chain(rules):
+    adjacent, one_gap, two_gaps = rules.HARVEST_CHAIN_COSTS
+    return (f"首棵之后有 {rules.HARVEST_CHAIN_LIMIT - 1} 次机会。优先直接相邻，再找隔 1 格、隔 2 格的树，"
+            f"分别花 {adjacent}、{one_gap}、{two_gaps} 次机会。")
+
+
 def render_chest(manual):
     lines = [
         "# 一区普通箱掉率", "",
@@ -53,7 +59,7 @@ def weapon_status(settings):
 def tool_effect(manual, kind):
     rules = manual.rules
     if kind == "gasoline":
-        return f"{rules.IGNITERS[kind]} 次，可分次点火；装填消耗整件，按剩余耐久补充喷射次数"
+        return f"{rules.IGNITERS[kind]} 次，可分次点火或补充喷射次数。装填后保留未转移的余量"
     if kind in rules.IGNITERS:
         return f"点火 {rules.IGNITERS[kind]} 次，每次另耗木材"
     if kind in rules.EQUIPPED_ITEMS:
@@ -91,10 +97,10 @@ def tool_effect(manual, kind):
                         for key, label in fields.items() if key in rules.PASSIVE_ITEMS[kind])
     return {
         "compass": "随身携带时，红针指向最近的合格屏外建筑区块",
-        "repair_wrench": "12 次，每修一次自然设备另耗 1 零件",
-        "spare_part": f"每次维修消耗 1 件，可堆 {rules.STACK_LIMITS['spare_part']} 件／格",
+        "repair_wrench": f"{manual.wildlife.WRENCH_USES} 次，每完成一个维修步骤扣 1 次",
+        "spare_part": f"按设备扣除所需数量，可堆 {rules.STACK_LIMITS['spare_part']} 件／格",
         "lantern": f"选中后照亮 {rules.FOG_LANTERN_RADIUS} 格内迷雾，附近玩家共享光照",
-        "chain_charm": f"斧头砍树有 {percent(rules.CHAIN_CHARM_CHANCE)} 概率触发半径 {rules.HARVEST_CHAIN_RADIUS:g} 格连锁，含首棵最多 {rules.HARVEST_CHAIN_LIMIT} 棵",
+        "chain_charm": f"斧头砍树有 {percent(rules.CHAIN_CHARM_CHANCE)} 概率触发连锁。{harvest_chain(rules)}",
         "quill": f"{rules.BIOME_ITEMS['quill']['uses']} 次，消耗莎草纸复制随身卷轴",
         "papyrus": f"复制卷轴每次消耗 1 张，可堆 {rules.STACK_LIMITS['papyrus']} 张／格",
         "building_wand": "铺 1×3 木墙，滚轮或触屏按钮切换横竖，每成功一格耗 1 木材",
@@ -183,7 +189,7 @@ def render_items(manual):
     for kind, settings in rules.GUNS.items():
         pellets = settings.get("pellets", 5 if kind == "shotgun" else 1)
         spread = settings.get("spread", 12 if kind == "shotgun" else 0)
-        mode = "追踪最近怪物" if kind == "homing_missile" else "可按住连发" if kind == "rifle" or settings.get("automatic") else "单击发射"
+        mode = "可按住连发" if kind == "rifle" or settings.get("automatic") else "单击发射"
         status = weapon_status(settings)
         mechanics = "，".join([mode] + ([f"±{spread}°"] if spread else []) + ([status] if status != "—" else []))
         hits = f"{ceil(small_hp / (settings['damage'] * pellets))} 发"
@@ -197,7 +203,7 @@ def render_items(manual):
         if kind in rules.HARVEST_TOOLS:
             status = f"砍树 {rules.HARVEST_TOOLS[kind]['tree']:g} 秒"
         if kind == "chain_chainsaw":
-            status += "，半径 5 格内连锁，含首棵最多 5 棵"
+            status += f"，邻树优先连锁，含首棵最多 {rules.HARVEST_CHAIN_LIMIT} 棵"
         if "knockback" in settings:
             status = f"基础击退 {settings['knockback']:g} 格"
         row(kind, settings.get("uses", "无限"), f"{settings['damage']:g}", f"{settings['interval']:g} 秒",
@@ -254,9 +260,9 @@ def render_items(manual):
         f"| [固定机枪](outdoor-facilities.md#固定机枪) | 每个自然空地区块 {percent(profile['outdoors']['mounted_gun']['chance'])} | {profile['outdoors']['mounted_gun']['ammo']} 发，5 伤、0.15 秒，穿透怪物 |",
         "| [待维修机枪](outdoor-facilities.md#待维修机枪) | 区块独立 1.8% 且有空位；另有区块 (-2, 0) | 修理后可装整包步枪弹，5 伤、0.15 秒，穿透怪物 |",
         f"| [固定供暖机](machines.md#固定供暖机) | 区块独立 1.8% 且有空位；另有区块 (2, 0) | 维修后每份木材 {rules.FIXED_HEATER_BURN_SECONDS:g} 秒 |",
-        "| [林间索道](biome-devices.md#林间索道) | 密林固定成对点位 | 维修任一端后双向通行 |",
+        f"| [林间索道](biome-devices.md#林间索道) | 密林固定成对点位 | 每次 1 零件，共 {manual.wildlife.CABLE_REPAIR_PARTS} 次，两端共享进度 |",
         f"| [路灯](biome-devices.md#路灯) | 迷雾固定点位 | 维修后照亮半径 {rules.FOG_STREET_LAMP_RADIUS} 格 |",
-        "| [桥墩](biome-devices.md#桥墩) / [桥面](biome-devices.md#桥面) | 冰湖预设桥墩，维修后生成一段桥面 | 逐段恢复通行，桥面可承托篝火 |",
+        f"| [桥墩](biome-devices.md#桥墩) / [桥面](biome-devices.md#桥面) | 冰湖主桥 {manual.wildlife.BRIDGE_REPAIRS_PER_CROSSING} 处需修桥墩 | 每段 1 零件，每格新桥面 1 木材，可承托篝火 |",
         "", "数据以[物品与交易常量](../../cold_world_game/constants.py)、[扩展物品](../../cold_world_game/expansion.py)、"
         "[交易机器](../../cold_world_game/room_machines.py)和[自然掉落实现](../../cold_world_game/procedural.py)为准。", "",
     ])
@@ -277,7 +283,7 @@ def render_monsters(manual):
         "| --- | --- | --- | --- | --- | --- |",
     ]
     features = {"small": "全天近战", "big": "白天休眠，能拆栅栏、墙和闭门", "fast": "白天休眠，受击退量较大",
-                "crawler": "慢速近战", "armored": "较高 HP，无专属减伤", "stalker": "敏捷近战；迷雾另外生成此种",
+                "crawler": "慢速近战", "armored": "较高 HP，无专属减伤", "stalker": "敏捷近战",
                 "tree_spirit": "伪装成树，靠近后现身", "frost_guard": "驻点，弱火，遇光眩晕，命中减速",
                 "ember_guard": "驻点，弱冰，命中附加灼烧"}
     for kind, settings in wildlife.MONSTER_TYPES.items():
@@ -310,10 +316,11 @@ def render_monsters(manual):
         "详见[完整生成与清除规则](combat.md#怪物生成)。",
         "",
         f"全世界同时存在的普通怪上限固定为 **{rules.MONSTER_LIMIT} 只**。超过上限的存档暂停补刷，已有怪物继续按正常规则活动与清除。", "",
-              "### 群系额外生成", "",
+              "### 群系和房屋", "",
               "- 密林树精由预设的伪装树现身。",
-              "- 站立玩家在迷雾中每 3 秒尝试额外生成一只雪狐。该玩家周围 20 格内已有 4 只迷雾额外雪狐时暂缓，落点在 8–15 格内且仍位于迷雾中。",
-              "", "群系额外怪不占普通怪世界上限。详见[群系怪物的生成](combat.md#群系怪物的生成)。", "",
+              f"- 冰湖和迷雾使用 {rules.BIOME_SPAWN_MULTIPLIER} 倍普通刷怪节奏。等待时间除以该倍率，附近活动怪上限乘以该倍率。落点留在对应群系内，两种群系重叠时倍率不叠加。",
+              f"- 非出生房屋首次生成时有 {percent(rules.ROOM_MONSTER_CHANCE)} 概率尝试放入 1 只初始小怪。",
+              "", "详见[群系怪物的生成](combat.md#群系怪物的生成)。", "",
               "## 普通怪物类型概率", "",
               "| 普通刷怪池 | " + " | ".join(names[kind] for kind in rules.MONSTER_SPAWN_CHANCES["day"]) + " |",
               "| --- | " + " | ".join(["---"] * len(rules.MONSTER_SPAWN_CHANCES["day"])) + " |"]
@@ -330,7 +337,7 @@ def render_monsters(manual):
         distribution = dict(rules.MONSTER_COIN_DROPS.get(kind, ((0, 1),)))
         coins = " | ".join(percent(distribution.get(number, 0)) for number in range(3))
         lines.append(f"| {names[kind]} | {coins} | {extra.get(kind, '—')} |")
-    lines += ["", "金币结果互斥。迷雾额外出现的雪狐沿用雪狐掉落。", "",
+    lines += ["", "金币结果互斥。", "",
               "代码来源见[怪物属性](../../cold_world_game/wildlife.py)、[普通生成与索敌](../../cold_world_game/monsters.py)、"
               "[群系怪物](../../cold_world_game/biomes.py)和[战斗结算](../../cold_world_game/combat.py)。", ""]
     return lines

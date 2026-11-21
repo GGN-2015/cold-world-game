@@ -11,6 +11,10 @@
 
 木材、零件、莎草纸、木墙、木地板、木栅栏、木门和燃料补给包可在物品栏、背包和箱子中堆叠，同类每格最多 16 件。其他普通物品每格 1 件。篝火燃料槽、火种槽和机器专用槽按各自规则处理。武器弹药、火种及法杖次数随物品保存。金币直接计入钱包，见[金币规则](../building/economy.md)。
 
+格子右下角的 `×数量` 表示堆叠件数。右上角的金色数字表示剩余弹药，蓝色数字表示剩余使用次数。底部蓝条表示剩余使用次数占初始容量的比例。
+
+The bottom-right `×number` is the stack count. Top-right gold numbers show ammo and blue numbers show uses left. The blue bar along the bottom shows uses left as a fraction of full capacity.
+
 ## 选择与说明卡
 
 打开背包或容器时，点击非空随身格会在侧边显示物品PNG、名称、类别、效果、用法和剩余弹药/次数；默认介绍已选中的物品栏物品。空格、已消耗或移出的物品不显示说明。单击用于阅读，不会直接移动物品。
@@ -38,7 +42,7 @@
 
 普通物品在玩家中心 0.75 格内、交互路径畅通且有空格时自动拾取。优先填快捷栏，再填背包。两者都满时物品留在地面。硬币直接计入金钱。自己的手动丢弃物有 1 秒拾取冷却，其他玩家可立即拾取。
 
-地面掉落物连续离开所有在线玩家画面180秒后清理。站立和倒地玩家均计入观看者，按各自实际视口及掉落物贴图边缘判定；只要有人能看见就不计时，再次被看见立即重置，下一次无人观看重新计满180秒。计时使用世界模拟秒，世界暂停或服务器关闭期间不推进；剩余计时随存档保存，旧存档缺少计时字段时从未开始计时读取。
+地面掉落物连续离开所有在线玩家画面180秒后清理。站立和倒地玩家均计入观看者，按各自实际视口及掉落物贴图边缘判定；只要有人能看见就不计时，再次被看见立即重置，下一次无人观看重新计满180秒。计时使用世界模拟秒，世界暂停或服务器关闭期间不推进；剩余计时随存档保存。
 
 Ground drops expire after 180 continuous simulation seconds outside every online player's viewport, including downed players. Visibility resets the timer; a later unseen period starts a fresh three minutes. The timer persists across saves and does not advance while the world is paused or the server is stopped. Older saves default to an unstarted timer.
 

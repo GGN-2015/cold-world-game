@@ -55,6 +55,10 @@ class Manual:
             | {recipe["output"] for recipe in self.rules.RECIPES.values()}
             | {"wood", "coin", "axe", "handgun", "lighter", "durian_peel"}
         )
+        extra = self.rules.ITEM_KINDS - self.available
+        missing = self.available - self.rules.ITEM_KINDS
+        if extra or missing:
+            raise ValueError(f"Item catalog differs from Wiki sources: undocumented={sorted(extra)}, unregistered={sorted(missing)}")
         self.categories = {
             "food": set(self.rules.FOODS) | self.rules.DRINKS.keys(),
             "weapon": set(self.rules.GUNS) | self.rules.MELEE_WEAPONS.keys() | self.rules.EXPLOSIVE_WEAPONS.keys() | self.rules.AMMO_PACKS.keys(),
@@ -124,10 +128,7 @@ class Manual:
             "first_aid_kit": ("体温恢复至36°C，饱食度恢复到 10；医疗光圈与红色十字绽放。", "选中后长按0.5秒，无需篝火；手机长按“使用”。", "一次性；恢复与消耗原子提交。"),
             "heat_patch": ("体温直接恢复至36°C，饥饿保持不变；播放小型医疗光圈。", "选中后长按0.5秒，无需篝火；手机长按“使用”。", "一次性；饱食度为 0 或 10 时也可用。"),
             "defibrillator": ("使目标倒地玩家恢复到 36°C、饱食度 10 并站立，播放医疗光效。", "对准2格内其他在线倒地玩家，长按1.5秒；手机长按目标或瞄准后按住“使用”。", "一次性，不能自救；施救者倒地仍可施救。目标变更需重新蓄力，目标失效、超距或遮挡不消耗。"),
-            "return_staff": ("按通用回城落点规则返回原点附近；施法、离开与抵达均播放符文传送光效。", "选中后朝空地长按1.5秒；手机长按“使用”。", "初始20次，每次成功扣1次；完成后须松开再用，不自动连发。传送、扣次和必要区块生成一起保存。"),
-            "sheriff_badge": (f"任何武器对小怪、快速怪的伤害×{rules.PASSIVE_ITEMS['sheriff_badge']['damage_multiplier']:g}，包括命中时的子弹、爆炸与每次灼烧；不增加击退，不增强对大怪或玩家的伤害。", "放在背包或物品栏即生效，无需选中。伤害发生时检查持有状态。", "不消耗，多枚不叠加；开火后丢弃徽章会影响尚未结算的伤害。"),
             "axe_handle": (f"为普通斧头增加 {rules.PASSIVE_ITEMS['axe_handle']['axe_range_bonus']:g} 格近战半径。", "放在背包或快捷栏即生效。", "可重复使用，多个长柄套不叠加。"),
-            "swiftness_ring": ("当前体温和饥饿下移速×3；正常/一种减速/两种减速时分别12/6/3格每秒，倒地仍为0。", "移到物品栏并选中即可，手机点该格后用移动摇杆。", "不消耗、不叠加；切换选中格、移走或丢弃立即失效。只携带但未选中无效。"),
             "compass": ("红色针尖指向距自己欧氏距离最近的合格建筑区块中心，而不是固定指北；蓝色针尖指向相反方向。寻找目标时应跟随红色针尖，不要跟随蓝色针尖。整个区块须与当前游戏画面无交集（边界接触也排除）；从玩家指向目标的方向与从原点指向玩家的方向点积≥0，垂直方向也合格。在原点时不限制方向，同距目标按区块横坐标、纵坐标稳定选择。", "放在背包或物品栏即可自动指向，不用选中、点击或长按；桌面与手机均适用。红色针尖朝向与游戏画面的上下左右一致，不是现实手机朝向。", "不是建筑，不能放置；不消耗。区块按自然类型识别，拆过房屋仍算建筑区块，玩家在森林盖房不会改变类型。浏览器独立Worker只查询区块类型，不探索服务器地图，不生成箱子内容；所有随身指南针共用结果。搜索或连接不可用时指针变暗，不把尚未完成的搜索当成有效目标。"),
         }
         groups = (("自身恢复与补给", rules.HEALING_ITEMS), ("队友救援", rules.REVIVAL_ITEMS), ("回城用品", rules.RETURN_ITEMS), ("点火工具", rules.IGNITERS), ("导航工具", rules.NAVIGATION_ITEMS), ("随身被动装备", rules.PASSIVE_ITEMS), ("手持移动装备", rules.EQUIPPED_ITEMS))
@@ -154,12 +155,12 @@ class Manual:
                 if kind == "gasoline":
                     effect += "也能为火焰喷射器补燃料，每剩余 1 次耐久可补 1 次喷射。"
                     usage += "随身携带汽油，选中火焰喷射器后按 R 或手机“装填”。"
-                    limits += "每次成功装填消耗整件汽油，超过喷射器容量的部分作废。"
+                    limits += "给喷射器装填时只扣实际灌入的量，余量可继续点火或供下次装填。汽油耗尽后消失。"
                 lines += self.entry(kind, effect, usage, limits)
         lines += ["## 维修用品", ""]
         wrench_price = rules.VENDING_OFFERS["buy_wrench"]["inputs"]["coin"]
-        lines += self.entry("repair_wrench", "12 次耐久。每次维修消耗 1 次及 1 个零件。", "放到物品栏后选中。点击 2 格内的供暖机或待维修机枪，维修索道、桥墩和路灯时长按。", "用尽消失；修好后无需重复维修；机枪弹药另行装填。", f"{self.acquisition('repair_wrench')}售货机售价 {wrench_price} 金币。")
-        lines += self.entry("spare_part", f"固定设备的维修耗材，每格最多 {rules.STACK_LIMITS['spare_part']} 件。", "维修时从背包或物品栏扣除 1 件。", "每次维修保留堆里的其余零件。")
+        lines += self.entry("repair_wrench", f"{self.wildlife.WRENCH_USES} 次耐久。每完成一个维修步骤扣 1 次，零件和木材按设备结算。", "放到物品栏后选中。点击 2 格内的供暖机或待维修机枪，维修索道、桥墩和路灯时长按。", "用尽消失。索道的每个维修步骤分别计次，机枪弹药另行装填。", f"{self.acquisition('repair_wrench')}售货机售价 {wrench_price} 金币。")
+        lines += self.entry("spare_part", f"固定设备的维修耗材，每格最多 {rules.STACK_LIMITS['spare_part']} 件。", f"维修时从背包和物品栏扣除设备所需的数量。索道每步 1 件，待维修机枪一次消耗 {self.wildlife.SERVICE_GUN_REPAIR_PARTS} 件。", "每次维修保留堆里的其余零件。")
         lines += ["## 创造测试道具", ""]
         creative_effects = {
             "creative_warm_suit": "体温锁定在 36°C，拿到时立即解除倒地。受击仍会产生击退。",
@@ -172,7 +173,7 @@ class Manual:
             lines += self.entry(kind, effect, "放进背包或快捷栏即可生效。", "占 1 格，可随时存入箱子或丢弃来关闭效果。", "通过管理员控制台的 `creative` 或 `give` 命令领取。")
         lines += ["## 群系工具", ""]
         lines += self.entry("lantern", f"照亮 {rules.FOG_LANTERN_RADIUS} 格内的迷雾，范围内的光照由附近玩家共享。", "放在快捷栏并选中。换到另一格时熄灭。", "无耐久消耗。")
-        lines += self.entry("chain_charm", f"普通斧头砍倒树时有 {wiki_tables.percent(rules.CHAIN_CHARM_CHANCE)} 概率触发。以首棵树为中心，随机选半径 {rules.HARVEST_CHAIN_RADIUS:g} 格内的树一起砍，含首棵最多 {rules.HARVEST_CHAIN_LIMIT} 棵，可以隔着空格。", "随身携带，手持斧头长按采伐。", "同类饰品不叠加。")
+        lines += self.entry("chain_charm", f"普通斧头砍倒树时有 {wiki_tables.percent(rules.CHAIN_CHARM_CHANCE)} 概率触发。{wiki_tables.harvest_chain(rules)}", "随身携带，手持斧头长按采伐。", "同类饰品不叠加。")
         lines += self.entry("quill", "复制卷轴需要原件、1份莎草纸与1次羽毛笔耐久，保留原卷轴。", "在背包中查看火球术或冰冻术卷轴，点击“复制卷轴”。", "初始6次，耗尽后消失。")
         lines += self.entry("papyrus", f"用于复制卷轴，每格最多 {rules.STACK_LIMITS['papyrus']} 张。", "随身携带，与羽毛笔、原卷轴一起使用。", "成功复制消耗 1 张纸和 1 次羽毛笔耐久。放不下副本时保留材料。")
         lines += ["## 建造法杖", ""]
@@ -229,7 +230,7 @@ class Manual:
             elif kind == "axe":
                 effect += "携带" + self.link("axe_handle") + f"时攻击半径增加 {rules.PASSIVE_ITEMS['axe_handle']['axe_range_bonus']:g} 格。"
             elif kind == "chain_chainsaw":
-                effect += "以首棵树为中心，随机连砍半径 5 格内的树，含首棵最多 5 棵，可以隔着空格。"
+                effect += wiki_tables.harvest_chain(rules)
                 limits += "完成一次采伐消耗 1 次，包含连锁砍倒的树。"
             lines += self.entry(kind, effect, use, limits)
 
@@ -260,7 +261,7 @@ class Manual:
                 pack, duration = rules.RELOAD_RULES[kind]
                 use += f"随身带{self.link(pack)}时按 R 或点“装填”，耗时 {duration:g} 秒。"
                 limits = (f"容量 {rules.BIOME_ITEMS[kind]['uses']} 次，取得时装满。喷射耗尽仍保留武器。"
-                          "每次装填消耗一整件汽油，按其剩余耐久补充喷射次数，超出容量的部分作废。")
+                          "装填从背包、快捷栏的汽油依次补入空余容量。每消耗 1 单位汽油补 1 次喷射，未用完的汽油留在原格。")
             else:
                 effect = (f"落点半径 {settings['radius']:g} 格内的怪物受 {settings['damage']:g} 点直接伤害。"
                           + status + effects[kind])
@@ -286,8 +287,8 @@ class Manual:
         lines = ["# 容器、篝火与功能机器", "", NAVIGATION, "", "## 共用交互规则", "", "本册统一收录箱子、篝火、存钱罐与全部交易机器，按用途分类。同类条目均提供名称与标识、获取方式、效果与数值、操作方式、消耗与限制；交易设施另列完整兑换表。这里是设施功能和价格的唯一图鉴，地图只说明生成规则，建造手册只说明共用放置与回收流程。", "", "点击欧氏距离2格内、交互视线畅通的设施可打开窗口，同时显示背包。电脑使用鼠标，手机直接点设施或瞄准后点“使用”。武器瞄准操作优先时，请先换成斧头等非投射用品。搬运须取空内容物（篝火含燃料和火种、存钱罐含余额），选中斧头或电锯，在窗口内长按拆除1.5秒；成功掉落同一方块而非木材。机器无商品库存可取，但实际容器内容仍须为空。", "", "所有设施均占一格、阻挡移动和怪物子弹，不挡玩家子弹，怪物不能拆除。玩家放置时要求3格内合法空地，所有设施互相在八邻域不能相邻；没有放置视线限制。自然生成同样尊重间距、出生位置、入口和已有通路。拆除取消条件与完整放置规则见[采集、制作与建造](building.md)。", "", "## 交易与空间规则", "", "交易从30格背包与10格物品栏共同取料，金币直接扣金钱属性。产物先放物品栏，再放背包；输入消耗腾出的格可容纳产物，但必须一次装下全部结果，空间不足不扣款、不吞料、不丢一部分到地上。交易、状态变化与保存整次提交或回滚。每件产物保留自身的篝火、饥饿、选中和次数限制，出售火种不代替燃料。", "", "机器可以重复交易，但每次都支付完整输入；没有初始免费库存、定时生产、利息或免费弹药重置。搬走、放置、重连或重启不产生赠品或退款。自然生成概率是每房（弹夹机为每建筑区块）的独立判定，成功但没有合规空位会跳过，不强行改造房间。", "", "## 储物、取暖与共享资金", ""]
         standard = {
             "chest": ("通常 30 格，材料的堆叠上限与背包相同。自然战利品放不下时保留额外格位。详见[背包规则](inventory.md#两个独立存储区)。", "打开窗口后拖放、单件点击或点“一键搜刮”。一键搜刮时，零件、莎草纸、木材、弹药和火种直接进背包，其他普通物品先填快捷栏再填背包。装不下的留在箱内。Shift点击随身物品存入。", "必须取空后才能拆除，回收箱子再次放置为空，不会重刷战利品。", "自然房屋有1～2个箱子；2木材制作1个，也可在营地建材售货机兑换。"),
-            "campfire": (f"热量沿通路最多传9格，按距离、围墙和地板计算，多个热源不叠加。最多储备16木材，每份燃烧{rules.BURN_SECONDS}现实秒。详见[环境温度与室内供暖](survival.md#环境温度与室内供暖)。", "打开窗口，放入木材及火种后点“点燃”；每次点燃消耗火种1次并开始燃烧1份木材，储备耗尽后熄灭。未耗尽的火种在30格背包有空位时自动收回，背包满则留在火种格，不转入物品栏；用尽则消失。自动续燃不再消耗火种。需要火的食品仍仅在1～3格内吃。", "储备木材和火种均取空可拆除，即使仍在燃烧也可拆；剩余燃烧时间作废，不退当前燃料。掉落并再次放置的是熄灭、无燃料无火种的篝火。", "1木材制作1个，也可在营地建材售货机兑换。"),
-            "fixed_heater": (f"修好后与篝火使用同样的取暖和做饭规则；每份木材燃烧{rules.FIXED_HEATER_BURN_SECONDS}现实秒。", "用扳手消耗1个零件维修，再通过窗口加入木材和火种点燃。", "固定在原地。修复状态、燃料和剩余燃烧时间会保存。", "区块有 1.8% 概率生成在可通行的屋外空位。区块 (2, 0) 也会尝试放置。"),
+            "campfire": (f"热量沿通路最多传9格，按距离、围墙和地板计算，多个热源不叠加。最多储备16木材，每份燃烧{rules.BURN_SECONDS}现实秒。详见[环境温度与室内供暖](survival.md#环境温度与室内供暖)。", "按钮、拖放或触屏每次存入 1 份木材，余下的留在原堆。放入火种后点“点燃”，消耗火种 1 次并开始燃烧 1 份木材。未耗尽的火种在背包有空位时自动收回，否则留在火种格。自动续燃不扣火种，木材耗尽后熄灭。需要火的食品仍仅在 1～3 格内吃。", "储备木材和火种均取空可拆除，即使仍在燃烧也可拆；剩余燃烧时间作废，不退当前燃料。掉落并再次放置的是熄灭、无燃料无火种的篝火。", "1木材制作1个，也可在营地建材售货机兑换。"),
+            "fixed_heater": (f"修好后与篝火使用同样的取暖和做饭规则；每份木材燃烧{rules.FIXED_HEATER_BURN_SECONDS}现实秒。", "用扳手消耗 1 个零件维修，再通过窗口逐份加入木材和火种点燃。", "固定在原地。修复状态、燃料和剩余燃烧时间会保存。", "区块有 1.8% 概率生成在可通行的屋外空位。区块 (2, 0) 也会尝试放置。"),
             "piggy_bank": ("共享非负整数金币余额，所有玩家看到同一数值，任何玩家均可取走；初始余额0，不出售商品。", "窗口中输入正整数数量，点存入或取出，在玩家金钱和共享存款间转移；背包全满也能操作。", "余额和内容物都为0才能拆除；余额不足整次失败，不会透支。数额及结果余额不超过9,007,199,254,740,991，多人操作按序原子保存。", f"每间自然房屋独立{rules.PIGGY_BANK_CHANCE * 100:g}%概率生成1个，无制作配方。"),
         }
         for kind, (effect, usage, limits, acquisition) in standard.items():
@@ -333,7 +334,7 @@ class Manual:
             CATALOGS["weapon"]: self.weapons(),
             CATALOGS["facility"]: self.facilities(),
             "wiki/items.md": wiki_tables.render_items(self),
-            "wiki/ordinary-chest-draft.md": wiki_tables.render_chest(self),
+            "wiki/ordinary-chest.md": wiki_tables.render_chest(self),
             "wiki/monsters.md": wiki_tables.render_monsters(self),
             "wiki/roles.md": web_wiki.render_roles(self),
         }

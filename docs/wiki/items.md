@@ -33,6 +33,7 @@
 | 物品及 ID | 耐久 | 单次伤害 | 间隔 | 半径 / 扇形 | 击倒小怪 | 机制 | 每箱出现 | 其他获取 / 价格 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | [斧头](../items/weapons.md#斧头) · `axe` | 无限 | 3 | 0.7 秒 | 1.5 格 / 180° | 4 挥 | 砍树 0.5 秒 | — | 新玩家自带 |
+| [连锁电锯](../items/weapons.md#连锁电锯) · `chain_chainsaw` | 45 | 6 | 0.5 秒 | 2.5 格 / 180° | 2 挥 | 砍树 0.25 秒，邻树优先连锁，含首棵最多 5 棵 | 7.5%（1 件） | — |
 | [寒冰法杖](../items/weapons.md#寒冰法杖) · `ice_staff` | 50 | 5 | 0.65 秒 | 3 格 / 180° | 2 挥 | 冰冻 2 秒 | 3.9%（1 件） | — |
 | [烈焰法杖](../items/weapons.md#烈焰法杖) · `flame_staff` | 50 | 4 | 0.65 秒 | 3 格 / 180° | 3 挥 | 灼烧 2 秒 | 3.9%（1 件） | — |
 | [榴莲皮](../items/weapons.md#榴莲皮) · `durian_peel` | 无限 | 4 | 0.7 秒 | 1.5 格 / 180° | 3 挥 | — | — | 食用榴莲后留下 |
@@ -40,7 +41,6 @@
 | [开山刀](../items/weapons.md#开山刀) · `machete` | 50 | 5 | 0.55 秒 | 2.7 格 / 180° | 2 挥 | — | 3.1%（1 件） | — |
 | [工兵铲](../items/weapons.md#工兵铲) · `snow_shovel` | 50 | 4 | 0.75 秒 | 3.4 格 / 180° | 3 挥 | 基础击退 1.2 格 | 1.5%（1 件） | — |
 | [寒霜长矛](../items/weapons.md#寒霜长矛) · `frost_spear` | 45 | 7 | 0.9 秒 | 4 格 / 70° | 2 挥 | 冰冻 2 秒 | 2.4%（1 件） | — |
-| [连锁电锯](../items/weapons.md#连锁电锯) · `chain_chainsaw` | 45 | 6 | 0.5 秒 | 2.5 格 / 180° | 2 挥 | 砍树 0.25 秒，半径 5 格内连锁，含首棵最多 5 棵 | 7.5%（1 件） | — |
 
 ## 投掷、喷射与卷轴
 
@@ -90,7 +90,7 @@
 | [护甲片](../items/tools.md#护甲片) · `armor_plate` | 受到的怪物伤害 ×0.8 | 2.4%（1 件） | — |
 | [长柄套](../items/tools.md#长柄套) · `axe_handle` | 斧头近战半径 +0.75 格 | 2%（1 件） | — |
 | [建筑法杖](../items/tools.md#建筑法杖) · `building_wand` | 铺 1×3 木墙，滚轮或触屏按钮切换横竖，每成功一格耗 1 木材 | 2%（1 件） | — |
-| [伐木护符](../items/tools.md#伐木护符) · `chain_charm` | 斧头砍树有 35% 概率触发半径 5 格连锁，含首棵最多 5 棵 | 3%（1 件） | — |
+| [伐木护符](../items/tools.md#伐木护符) · `chain_charm` | 斧头砍树有 35% 概率触发连锁。首棵之后有 4 次机会。优先直接相邻，再找隔 1 格、隔 2 格的树，分别花 1、1、3 次机会。 | 3%（1 件） | — |
 | [指南针](../items/tools.md#指南针) · `compass` | 随身携带时，红针指向最近的合格屏外建筑区块 | 2%（1 件） | — |
 | [除颤器](../items/tools.md#除颤器) · `defibrillator` | 长按 1.5 秒，救起 2 格内的队友至 36°C、至少 10 饥饿 | 2%（1 件） | [队友救援补给机](../building/machines.md#队友救援补给机) 12 金币 → 1 件 |
 | [羽绒服](../items/tools.md#羽绒服) · `down_coat` | 体感温度 +6°C | — | [防寒装备裁缝机](../building/machines.md#防寒装备裁缝机) 8 金币＋4 木材 → 1 件 |
@@ -99,7 +99,7 @@
 | [急救包](../items/tools.md#急救包) · `first_aid_kit` | 长按 0.5 秒，1 次，体温回到 36°C，补到至少 10 饥饿 | 3.9%（1 件） | [自动医疗柜](../building/machines.md#自动医疗柜) 8 金币 → 1 件 |
 | [地板法杖](../items/tools.md#地板法杖) · `floor_wand` | 铺 3×3 木地板，每成功一格耗 1 木材 | 2%（1 件） | — |
 | [燃料补给包](../items/tools.md#燃料补给包) · `fuel_pack` | 长按 1 秒，1 次，产出 5 木材 | 1.2%（1 件） | [木材压缩打包机](../building/machines.md#木材压缩打包机) 5 木材＋1 金币 → 1 件；[木材压缩打包机](../building/machines.md#木材压缩打包机) 10 木材＋1 金币 → 2 件 |
-| [汽油](../items/tools.md#汽油) · `gasoline` | 8 次，可分次点火；装填消耗整件，按剩余耐久补充喷射次数 | 12%（1 件） | — |
+| [汽油](../items/tools.md#汽油) · `gasoline` | 8 次，可分次点火或补充喷射次数。装填后保留未转移的余量 | 12%（1 件） | — |
 | [葡萄糖补给](../items/tools.md#葡萄糖补给) · `glucose_vial` | 长按 0.5 秒，1 次，饥饿 +3 | — | [自动医疗柜](../building/machines.md#自动医疗柜) 2 金币 → 1 件 |
 | [暖宝宝贴](../items/tools.md#暖宝宝贴) · `heat_patch` | 长按 0.5 秒，1 次，体温回到 36°C | 2.9%（1 件） | [自动医疗柜](../building/machines.md#自动医疗柜) 4 金币 → 1 件 |
 | [保鲜饭盒](../items/tools.md#保鲜饭盒) · `insulated_lunchbox` | 自然饥饿消耗 ×0.8 | 2.6%（1 件） | — |
@@ -109,13 +109,13 @@
 | [莎草纸](../items/tools.md#莎草纸) · `papyrus` | 复制卷轴每次消耗 1 张，可堆 16 张／格 | 30.63%（1–4 件） | — |
 | [口袋暖炉](../items/tools.md#口袋暖炉) · `pocket_stove` | 长按 0.5 秒，3 次，体温 +12°C | 4.5%（1 件） | — |
 | [羽毛笔](../items/tools.md#羽毛笔) · `quill` | 6 次，消耗莎草纸复制随身卷轴 | 7.5%（1 件） | — |
-| [维修扳手](../items/tools.md#维修扳手) · `repair_wrench` | 12 次，每修一次自然设备另耗 1 零件 | 2.5%（1 件） | [自动售货机](../building/machines.md#自动售货机) 3 金币 → 1 件 |
+| [维修扳手](../items/tools.md#维修扳手) · `repair_wrench` | 40 次，每完成一个维修步骤扣 1 次 | 2.5%（1 件） | [自动售货机](../building/machines.md#自动售货机) 3 金币 → 1 件 |
 | [救援信标](../items/tools.md#救援信标) · `rescue_beacon` | 长按 2.5 秒回原点附近，1 次 | 2.2%（1 件） | [远行应急补给站](../building/machines.md#远行应急补给站) 4 金币＋2 木材 → 1 件 |
 | [裂纹回城石](../items/tools.md#裂纹回城石) · `return_stone` | 长按 2 秒回原点附近，3 次 | — | [远行应急补给站](../building/machines.md#远行应急补给站) 10 金币＋3 木材 → 1 件 |
 | [复苏针](../items/tools.md#复苏针) · `revival_syringe` | 长按 3 秒，救起 1 格内的队友至 36°C、至少 10 饥饿 | 0.4%（1 件） | [队友救援补给机](../building/machines.md#队友救援补给机) 8 金币 → 1 件 |
 | [安全头盔](../items/tools.md#安全头盔) · `safety_helmet` | 受到的怪物击退 ×0.75 | 1%（1 件） | — |
 | [雪地靴](../items/tools.md#雪地靴) · `snow_boots` | 选中时移速 ×1.5 | 3.7%（1 件） | [防寒装备裁缝机](../building/machines.md#防寒装备裁缝机) 5 金币＋3 木材 → 1 件 |
-| [零件](../items/tools.md#零件) · `spare_part` | 每次维修消耗 1 件，可堆 16 件／格 | 35%（1–3 件） | [自动售货机](../building/machines.md#自动售货机) 1 金币 → 1 件 |
+| [零件](../items/tools.md#零件) · `spare_part` | 按设备扣除所需数量，可堆 16 件／格 | 35%（1–3 件） | [自动售货机](../building/machines.md#自动售货机) 1 金币 → 1 件 |
 | [火绒盒](../items/tools.md#火绒盒) · `tinder_box` | 点火 8 次，每次另耗木材 | 3.6%（1 件） | [自助火种补给机](../building/machines.md#自助火种补给机) 8 金币 → 1 件 |
 | [羊毛围巾](../items/tools.md#羊毛围巾) · `wool_scarf` | 体感温度 +3°C | 4.8%（1 件） | [防寒装备裁缝机](../building/machines.md#防寒装备裁缝机) 4 金币＋2 木材 → 1 件 |
 | [创造食品](../items/tools.md#创造食品) · `creative_food` | 饥饿锁定 10 | — | 管理员 `creative` / `give` |
@@ -159,11 +159,11 @@
 | 设施 | 获取位置或概率 | 作用 |
 | --- | --- | --- |
 | [公园椅子](../building/outdoor-facilities.md#公园椅子) | 每个自然空地区块 2% | 休息座位 |
-| [固定机枪](../building/outdoor-facilities.md#固定机枪) | 每个自然空地区块 1% | 80 发，5 伤、0.15 秒，穿透怪物 |
+| [固定机枪](../building/outdoor-facilities.md#固定机枪) | 每个自然空地区块 0.5% | 80 发，5 伤、0.15 秒，穿透怪物 |
 | [待维修机枪](../building/outdoor-facilities.md#待维修机枪) | 区块独立 1.8% 且有空位；另有区块 (-2, 0) | 修理后可装整包步枪弹，5 伤、0.15 秒，穿透怪物 |
 | [固定供暖机](../building/machines.md#固定供暖机) | 区块独立 1.8% 且有空位；另有区块 (2, 0) | 维修后每份木材 150 秒 |
-| [林间索道](../building/biome-devices.md#林间索道) | 密林固定成对点位 | 维修任一端后双向通行 |
+| [林间索道](../building/biome-devices.md#林间索道) | 密林固定成对点位 | 每次 1 零件，共 20 次，两端共享进度 |
 | [路灯](../building/biome-devices.md#路灯) | 迷雾固定点位 | 维修后照亮半径 10 格 |
-| [桥墩](../building/biome-devices.md#桥墩) / [桥面](../building/biome-devices.md#桥面) | 冰湖预设桥墩，维修后生成一段桥面 | 逐段恢复通行，桥面可承托篝火 |
+| [桥墩](../building/biome-devices.md#桥墩) / [桥面](../building/biome-devices.md#桥面) | 冰湖主桥 10 处需修桥墩 | 每段 1 零件，每格新桥面 1 木材，可承托篝火 |
 
 数据以[物品与交易常量](../../cold_world_game/constants.py)、[扩展物品](../../cold_world_game/expansion.py)、[交易机器](../../cold_world_game/room_machines.py)和[自然掉落实现](../../cold_world_game/procedural.py)为准。
